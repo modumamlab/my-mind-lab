@@ -44,7 +44,9 @@ const data = await response.json();
 return {
   statusCode: 200,
   body: JSON.stringify({
-    text: JSON.stringify(data, null, 2)
+    text:
+data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+"현재 AI 사용량이 많아 잠시 후 다시 시도해 주세요."
   })
 };
 } catch (error) {
