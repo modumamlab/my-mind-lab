@@ -44,9 +44,7 @@ const data = await response.json();
 return { 
 statusCode: 200, 
 body: JSON.stringify({ 
-text: 
-data?.candidates?.[0]?.content?.parts?.[0]?.text || 
-"답변 생성 실패" 
+text: JSON.stringify(data, null, 2)
 }) 
 };
 } catch (error) {
