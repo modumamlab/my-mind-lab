@@ -19,7 +19,7 @@ const prompt = `
                 `;
 
 const response = await fetch( 
-`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, 
+`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, 
 { 
 method: "POST", 
 headers: { 
@@ -44,7 +44,9 @@ const data = await response.json();
 return { 
 statusCode: 200, 
 body: JSON.stringify({ 
-text: JSON.stringify(data, null, 2)
+text:
+data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+"AI가 답변을 생성하지 못했습니다"
 }) 
 };
 } catch (error) {
