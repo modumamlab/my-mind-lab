@@ -829,15 +829,18 @@
                                                     <h4 className="font-bold text-slate-800">모두의 마음연구소 시니어 상담사</h4>
                                                     <p className="text-xs text-slate-400">당신의 이야기에 정성을 모아 답변을 드려요</p>
                                                 </div>
+                                          <div className="prose prose-slate max-w-none text-sm text-slate-600 leading-relaxed bg-white p-6 rounded-2xl border border-slate-100 shadow-sm whitespace-pre-line"> 
+                                              {analysisResult}
                                             </div>
                                             
                                             <div className="mt-6 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 justify-end">
-                                            <button
-    onClick={() => setAnalysisResult('')}
-    className="text-xs font-semibold text-slate-400 hover:text-slate-600 px-4 py-2"
-  >
-    닫기
-  </button>
+                                           
+                                                <button
+                                                   onClick={() => setAnalysisResult('')}
+                                                   className="text-xs font-semibold text-slate-400 hover:text-slate-600 px-4 py-2"
+                                                >
+                                                  닫기
+                                                </button>
 
   <button
     onClick={() => window.open('https://pf.kakao.com/_hQSXX/chat', '_blank')}
