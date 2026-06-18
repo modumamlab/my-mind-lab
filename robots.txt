@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://modumam-lab.netlify.app/sitemap.xml
