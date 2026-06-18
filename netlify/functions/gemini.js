@@ -41,13 +41,11 @@ text: prompt
 
 const data = await response.json(); 
 
-return { 
-statusCode: 200, 
-body: JSON.stringify({ 
-text:
-data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-"AI가 답변을 생성하지 못했습니다"
-}) 
+return {
+  statusCode: 200,
+  body: JSON.stringify({
+    text: JSON.stringify(data, null, 2)
+  })
 };
 } catch (error) {
 return {
