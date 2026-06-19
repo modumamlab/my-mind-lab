@@ -488,6 +488,14 @@
                 setReservations(reservations.filter(res => res.id !== id));
             };
 
+            const getStatusStyle = (status) => {
+              if (status === "상담완료") return "bg-emerald-100 text-emerald-700";
+              if (status === "검사진행") return "bg-indigo-100 text-indigo-700";
+              if (status === "예약확정") return "bg-blue-100 text-blue-700";
+              if (status === "예약취소") return "bg-rose-100 text-rose-700";
+              return "bg-amber-100 text-amber-700";
+            };
+            
             const updateReservationStatus = (id, status) => {
                 setReservations( 
                   reservations.map(res =>
@@ -1285,21 +1293,9 @@
                                                                 <div className="flex items-center space-x-2">
                                                                     <span className="font-bold text-slate-800 text-sm">{res.name}님</span>
                                                                     <span className="text-[11px] text-slate-400">{res.phone}</span>
-                                                                    <span
-                                                                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
-                                                                        res.status === '상담완료'
-                                                                          ? 'bg-emerald-100 text-emerald-700'
-                                                                          : res.status === '검사진행'
-                                                                          ? 'bg-indigo-100 text-indigo-700'
-                                                                          : res.status === '예약확정'
-                                                                          ? 'bg-blue-100 text-blue-700'
-                                                                          : res.status === '예약취소'
-                                                                          ? 'bg-rose-100 text-rose-700'
-                                                                          : 'bg-amber-100 text-amber-700'
-                                                                      }`}
-                                                                   >             
-                                                                      {res.status || "승인대기"}
-                                                                    </span>
+                                                                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${getStatusStyle(res.status)}`}>
+                                                                     {res.status || "승인대기"}
+                                                                  </span>
                                                                 </div>
                                                                 <p className="text-xs font-semibold text-slate-600 mt-2">
                                                                     {res.program}
@@ -1373,19 +1369,19 @@
                                                     <span className="text-xs font-bold text-rose-500">
                                                       취소됨
                                                     </span>
-                                                  )}
-
-                                                              </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    </main>
+                                                  )}            
+                                              </div>
+                                         </div>
+                                     </div>
+                                  ))}
+                             </div>
+                           )}
+                      </div>
+                   </div>
+              </div>
+         </div>
+     </section>
+     </main>
 
                     
                     <footer className="bg-slate-900 text-slate-400 border-t border-slate-800 py-16 px-4 sm:px-6 lg:px-8 text-xs sm:text-sm">
