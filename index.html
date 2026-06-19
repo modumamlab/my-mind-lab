@@ -256,7 +256,7 @@
                     date: '2026-06-25',
                     time: '14:00',
                     program: 'TCI 기질검사 + 1:1 해석상담',
-                    status: '확정완료'
+                    status: '예약확정'
                 }
             ]);
             
@@ -266,7 +266,7 @@
             const [bookingType, setBookingType] = useState('장소 조율');
             const [bookingDate, setBookingDate] = useState('');
             const [bookingTime, setBookingTime] = useState('');
-            const [bookingProgram, setBookingProgram] = useState('개인 마음 이음 (1:1 상담)');
+            const [bookingProgram, setBookingProgram] = useState('개인 마음이음 (1:1 상담)');
             const [bookingAlert, setBookingAlert] = useState(null);
 
             // Mind Chatbot / Analyzer Input
@@ -376,7 +376,7 @@
                 {
                     id: 'p1',
                     badge: '심리검사 기반 개인 상담',
-                    title: '개인 마음 이음',
+                    title: '개인 마음이음',
                     subtitle: '(1:1 심층 상담)',
                     desc: 'TCI, MMPI-2 등의 고도화된 사전 심리검사 결과를 기반으로 우울, 불안, 대인관계 상실 등으로 마음에 깊은 물음표(?)가 던져졌을 때, 전문 심리상담사와 함께 정밀 치유의 길을 찾아냅니다.',
                     target: '스스로의 마음을 찬찬히 직면하고 싶은 모든 성인/청소년',
@@ -571,7 +571,7 @@
                                 </h2>
                                 <p className="max-w-2xl mx-auto text-sm sm:text-base text-slate-500 font-normal leading-relaxed mb-12 font-friendly">
                                     삶의 매 순간, 마음은 끊임없이 이야기를 써내려 갑니다. <br />
-                                    질문하고, 알아차리고, 잠시 쉬었다가, 새로운 마침표를 찍고 다시 힘차게 출발하는 일련의 순환을 우리 함께 마주해 보아요.
+                                    질문하고, 알아차리고, 잠시 쉬었다가, 새로운 시작을 위한 마침표를 찍고 힘차게 출발하는 일련의 순환을 우리 함께 마주해 보아요.
                                 </p>
 
                                 {/* 4 Buttons Paradigm */}
@@ -881,7 +881,7 @@
                                                 <button
                                                   onClick={() => window.open('https://pf.kakao.com/_hQSXX/chat', '_blank')}
                                                   className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all">
-                                                    1:1 마음상담 문의하기
+                                                    Kanana AI 리포트
                                                  </button> 
                                                 
                                                 <button onClick={() => scrollToSection('reservations')} className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all">
@@ -903,7 +903,7 @@
                                     <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
                                         체계적인 맞춤 치유 경로
                                     </span>
-                                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">마음 이음 프로그램</h2>
+                                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">마음이음 프로그램</h2>
                                     <p className="mt-4 text-slate-500 text-sm sm:text-base">
                                         모두의 마음연구소의 치유 과정은 객관적인 **심리검사를 기반으로 운영**됩니다. 과학적인 데이터를 토대로 상처와 갈등의 진짜 원인을 알아채고, 따뜻하게 쉼표를 채워가는 이음길을 경험해 보세요.
                                     </p>
@@ -1311,7 +1311,7 @@
                                                                     </span>
                                                                 </div>
                                                             </div>
-                                                        <div className="flex justify-end items-center shrink-0">
+                                                        <div className="flex justify-end items-center shrink-0 ml-auto">
                                                         <div className="flex flex-col sm:flex-row gap-2 justify-end items-center shrink-0">
 
                                                          {isAdmin && (res.status === "승인대기" || !res.status) && (
