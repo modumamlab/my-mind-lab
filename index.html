@@ -1282,16 +1282,21 @@
                                         </div>
 
                                         {/* Dynamic Reservation Tracker */}
-                                        <div className="flex justify-between items-center mb-6">
-                                         
+                                        <div className="flex justify-between items-start mb-6">  
+                                            
                                           <h4 className="font-bold text-slate-900 flex items-center text-base">
                                            <Icon name="layout-list" className="w-5 h-5 mr-2 shrink-0" />
                                            실시간 예약 현황 및 관리
                                           </h4>
 
                                           <div className="flex flex-col items-end gap-2 ml-auto">
-                                        
-                                       {!isAdmin ? (
+                                             관리자 버튼
+                                             신청 완료 배지
+                                          </div>
+
+                                       </div>
+                                    
+                                        {!isAdmin ? (
                                          <button
                                            onClick={() => {
                                              const pw = prompt("관리자 비밀번호");
