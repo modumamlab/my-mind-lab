@@ -247,18 +247,24 @@
             const [isAdmin, setIsAdmin] = useState(false);
             
             // Reservation State
-            const [reservations, setReservations] = useState([
-                {
-                    id: 1,
-                    name: '김민우',
-                    phone: '010-1234-5678',
-                    type: '비대면 화상',
-                    date: '2026-06-25',
-                    time: '14:00',
-                    program: 'TCI 기질검사 + 1:1 해석상담',
-                    status: '예약확정'
-                }
-            ]);
+const [reservations, setReservations] = useState(() => {
+  const saved = localStorage.getItem("modumam_reservations");
+
+  return saved
+    ? JSON.parse(saved)
+    : [
+        {
+          id: 1,
+          name: '김민우',
+          phone: '010-1234-5678',
+          type: '비대면 화상',
+          date: '2026-06-25',
+          time: '14:00',
+          program: 'TCI 기질검사 + 1:1 해석상담',
+          status: '예약확정'
+        }
+      ];
+});
             
             // Booking form inputs
             const [bookingName, setBookingName] = useState('');
@@ -507,17 +513,11 @@
             
             const updateReservationStatus = (id, status) => {
   const updated = reservations.map(res =>
-    res.id === id
-      ? { ...res, status }
-      : res
+    res.id === id ? { ...res, status } : res
   );
 
   setReservations(updated);
-
-  localStorage.setItem(
-    "modumam_reservations",
-    JSON.stringify(updated)
-  );
+  localStorage.setItem("modumam_reservations", JSON.stringify(updated));
 };
             
             const findBestTest = () => {
