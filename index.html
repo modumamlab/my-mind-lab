@@ -1288,7 +1288,7 @@
                                            실시간 예약 현황 및 관리
                                           </h4>
 
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-2 ml-auto">
                                            <button
                                              onClick={() => {
                                                const pw = prompt("관리자 비밀번호");
@@ -1306,7 +1306,6 @@
                                             신청 완료 {reservations.length}건
                                            </span>
                                          </div>
-                                       </div>      
                                         
                                             {reservations.length === 0 ? (
                                                 <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
