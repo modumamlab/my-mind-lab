@@ -247,24 +247,18 @@
             const [isAdmin, setIsAdmin] = useState(false);
             
             // Reservation State
-            const [reservations, setReservations] = useState(() => {
-             const saved = localStorage.getItem("modumam_reservations");
-
-             return saved
-               ? JSON.parse(saved)
-               : [
-                  {
-                   id: 1,
-                   name: '김민우',
-                   phone: '010-1234-5678',
-                   type: '비대면 화상',
-                   date: '2026-06-25',
-                   time: '14:00',
-                   program: 'TCI 기질검사 + 1:1 해석상담',
-                   status: '예약확정'
-                 }
-               ];
-         });
+            const [reservations, setReservations] = useState([
+                {
+                    id: 1,
+                    name: '김민우',
+                    phone: '010-1234-5678',
+                    type: '비대면 화상',
+                    date: '2026-06-25',
+                    time: '14:00',
+                    program: 'TCI 기질검사 + 1:1 해석상담',
+                    status: '예약확정'
+                }
+            ]);
             
             // Booking form inputs
             const [bookingName, setBookingName] = useState('');
@@ -481,15 +475,7 @@
                     status: '승인대기'
                 };
 
-                const updated = [newBooking, ...reservations];
-
-                setReservations(updated);
-
-                localStorage.setItem(
-                  "modumam_reservations",
-                  JSON.stringify(updated)
-                );
-                
+                setReservations([newBooking, ...reservations]);
                 setBookingAlert({ type: 'success', message: `${bookingName}님의 소중한 마음 예약이 정상적으로 신청되었습니다. 담당 상담사가 곧 연락드리겠습니다!` });
                 
                 setBookingName('');
@@ -499,15 +485,8 @@
             };
 
             const cancelBooking = (id) => {
-              const updated = reservations.filter(res => res.id !== id);
-
-              setReservations(updated);
-
-              localStorage.setItem(
-                "modumam_reservations",
-                JSON.stringify(updated)
-            );
-         };
+                setReservations(reservations.filter(res => res.id !== id));
+            };
 
             const getStatusStyle = (status) => {
               if (status === "상담완료") return "bg-emerald-100 text-emerald-700";
@@ -518,19 +497,14 @@
             };
             
             const updateReservationStatus = (id, status) => {
-                const updated = reservations.map(res =>
-                 res.id === id
-                   ? { ...res, status }
-                   : res
-           );
-
-           setReservations(updated);
-
-           localStorage.setItem(
-             "modumam_reservations",
-             JSON.stringify(updated)
-           );
-         };
+                setReservations( 
+                  reservations.map(res =>
+                     res.id === id
+                       ? { ...res, status }
+                       : res
+                     )
+                  );
+                };
             
             const findBestTest = () => {
                 let matchedId = 'TCI';
@@ -1282,32 +1256,30 @@
                                         </div>
 
                                         {/* Dynamic Reservation Tracker */}
-                                        <div className="flex justify-between items-center mb-6">
-                                          <h4 className="font-bold text-slate-900 flex items-center text-base">
-                                           <Icon name="layout-list" className="w-5 h-5 mr-2 shrink-0" />
-                                           실시간 예약 현황 및 관리
-                                          </h4>
+                                        <div className="bg-slate-50 p-6 sm:p-8 rounded-3xl border border-slate-100">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h4 className="font-bold text-slate-900 flex items-center text-base">
+                                                    <Icon name="layout-list" className="w-5 h-5 mr-2 shrink-0" />
+                                                    실시간 예약 현황 및 관리
+                                                </h4>
+                                                
+                                                <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-3 py-1 rounded-full">
+                                                    신청 완료 {reservations.length}건
+                                                </span>
+                                            </div>
+                                        <button
+                                          onClick={() => {
+                                           const pw = prompt("관리자 비밀번호");
 
-                                          <div className="flex items-center gap-2">
-                                           <button
-                                             onClick={() => {
-                                               const pw = prompt("관리자 비밀번호");
-                                               if (pw === "modumam2026") {
-                                                 setIsAdmin(true);
-                                                 alert("관리자 모드 활성화");
-                                               }
-                                             }}
-                                             className="text-xs px-3 py-2 border rounded-lg whitespace-nowrap"
-                                           >
-                                             관리자
-                                           </button>
-
-                                           <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-3 py-1 rounded-full whitespace-nowrap">
-                                            신청 완료 {reservations.length}건
-                                           </span>
-                                         </div>
-                                       </div>      
-                                        
+                                           if (pw === "modumam2026") {
+                                             setIsAdmin(true);
+                                             alert("관리자 모드 활성화");
+                                           }
+                                         }}
+                                         className="text-xs px-3 py-2 border rounded-lg"
+                                       >
+                                         관리자
+                                       </button>                
                                             {reservations.length === 0 ? (
                                                 <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
                                                     <Icon name="inbox" className="w-8 h-8 text-slate-300 mx-auto mb-2" />
