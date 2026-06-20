@@ -1266,7 +1266,6 @@
                                                 <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-3 py-1 rounded-full">
                                                     신청 완료 {reservations.length}건
                                                 </span>
-                                            </div>
                                         <button
                                           onClick={() => {
                                            const pw = prompt("관리자 비밀번호");
@@ -1279,7 +1278,9 @@
                                          className="text-xs px-3 py-2 border rounded-lg"
                                        >
                                          관리자
-                                       </button>                
+                                       </button>  
+                                   </div>
+
                                             {reservations.length === 0 ? (
                                                 <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
                                                     <Icon name="inbox" className="w-8 h-8 text-slate-300 mx-auto mb-2" />
