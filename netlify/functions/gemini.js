@@ -50,12 +50,11 @@ exports.handler = async (event) => {
       }),
     };
   } catch (error) {
-    console.error("Function Error:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        text: "AI 마음리포트 처리 중 오류가 발생했습니다.\n잠시 후 다시 시도해 주세요.",
-      }),
-    };
-  }
-};
+    catch (error) {
+  return {
+    statusCode: 500,
+    body: JSON.stringify({
+      text: error.message
+    }),
+  };
+}
