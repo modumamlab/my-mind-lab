@@ -1269,61 +1269,132 @@ const [reservations, setReservations] = useState(() => {
                                             <div className="absolute right-0 bottom-0 w-48 h-48 bg-gradient-to-tr from-white/10 to-transparent rounded-full -z-0"></div>
                                         </div>
 
-                                       {/* Dynamic Reservation Tracker */}
-<div className="bg-slate-50 p-6 sm:p-8 rounded-3xl border border-slate-100">
-  <div className="flex justify-between items-start mb-6">
-    <h4 className="font-bold text-slate-900 flex items-center text-base">
-      <Icon name="layout-list" className="w-5 h-5 mr-2 shrink-0" />
-      실시간 예약 현황 및 관리
-    </h4>
+                                        {/* Dynamic Reservation Tracker */}
+                                        <div className="bg-slate-50 p-6 sm:p-8 rounded-3xl border border-slate-100">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h4 className="font-bold text-slate-900 flex items-center text-base">
+                                                    <Icon name="layout-list" className="w-5 h-5 mr-2 shrink-0" />
+                                                    실시간 예약 현황 및 관리
+                                                </h4>
+                                                
+                                                <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-3 py-1 rounded-full">
+                                                    신청 완료 {reservations.length}건
+                                                </span>
+                                        <button
+                                          onClick={() => {
+                                           const pw = prompt("관리자 비밀번호");
 
-    <div className="flex flex-col items-end gap-2 ml-auto">
-      <button
-        onClick={() => {
-          const pw = prompt("관리자 비밀번호");
-          if (pw === "modumam2026") {
-            setIsAdmin(true);
-            alert("관리자 모드 활성화");
-          }
-        }}
-        className="text-xs px-3 py-2 border rounded-lg"
-      >
-        관리자
-      </button>
+                                           if (pw === "modumam2026") {
+                                             setIsAdmin(true);
+                                             alert("관리자 모드 활성화");
+                                           }
+                                         }}
+                                         className="text-xs px-3 py-2 border rounded-lg"
+                                       >
+                                         관리자
+                                       </button>  
+                                   </div>
 
-      <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-3 py-1 rounded-full">
-        신청 완료 {reservations.length}건
-      </span>
-    </div>
-  </div>
+                                            {reservations.length === 0 ? (
+                                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+                                                    <Icon name="inbox" className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                                    <p className="text-sm text-slate-400">현재 보류 중인 예약 신청 내역이 없습니다.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    {reservations.map((res) => (
+                                                        <div key={res.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 fade-in">
+                                                            <div>
+                                                                <div className="flex items-center space-x-2">
+                                                                    <span className="font-bold text-slate-800 text-sm">{res.name}님</span>
+                                                                    <span className="text-[11px] text-slate-400">{res.phone}</span>
+                                                                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${getStatusStyle(res.status)}`}>
+                                                                     {res.status || "승인대기"}
+                                                                  </span>
+                                                                </div>
+                                                                <p className="text-xs font-semibold text-slate-600 mt-2">
+                                                                    {res.program}
+                                                                </p>
+                                                                <div className="flex items-center space-x-4 mt-3 text-[11px] text-slate-400">
+                                                                    <span className="flex items-center">
+                                                                        <Icon name="tag" className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                                                                        {res.type}
+                                                                    </span>
+                                                                    <span className="flex items-center">
+                                                                        <Icon name="clock" className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                                                                        {res.date} ({res.time})
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        <div className="flex justify-end items-center shrink-0 ml-auto">
+                                                        <div className="flex flex-col sm:flex-row gap-2 justify-end items-center shrink-0">
 
-  {reservations.length === 0 ? (
-    <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-      <Icon name="inbox" className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-      <p className="text-sm text-slate-400">현재 보류 중인 예약 신청 내역이 없습니다.</p>
-    </div>
-  ) : (
-    <div className="space-y-4">
-      {reservations.map((res) => (
-        <div key={res.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 fade-in">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-slate-800 text-sm">{res.name}님</span>
-              <span className="text-[11px] text-slate-400">{res.phone}</span>
-              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${getStatusStyle(res.status)}`}>
-                {res.status || "승인대기"}
-              </span>
-            </div>
+                                                         {isAdmin && (res.status === "승인대기" || !res.status) && (
+                                                          <>
+                                                            <button
+                                                              onClick={() => updateReservationStatus(res.id, "예약확정")}
+                                                              className="text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-50 px-3 py-2 rounded-xl"
+                                                           >
+                                                              예약확정
+                                                           </button>
 
-            <p className="text-xs font-semibold text-slate-600 mt-2">
-              {res.program}
-            </p>
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+                                                           <button
+                                                             onClick={() => cancelBooking(res.id)}
+                                                             className="text-xs font-semibold text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 px-3 py-2 rounded-xl"
+                                                           >
+                                                              신청취소
+                                                           </button>
+                                                         </>
+                                                       )}
+
+                                                       {isAdmin && res.status === "예약확정" && (
+                                                         <>
+                                                           <button
+                                                            onClick={() => updateReservationStatus(res.id, "검사진행")}
+                                                            className="text-xs font-semibold text-indigo-700 border border-indigo-200 hover:bg-indigo-50 px-3 py-2 rounded-xl"
+                                                         >
+                                                            검사발송
+                                                         </button>
+
+                                                         <button
+                                                           onClick={() => updateReservationStatus(res.id, "예약취소")}
+                                                           className="text-xs font-semibold text-rose-500 border border-rose-200 hover:bg-rose-50 px-3 py-2 rounded-xl"
+                                                          >
+                                                           관리자취소
+                                                        </button>
+                                                      </>
+                                                     )}
+  
+                                                    {isAdmin && res.status === "검사진행" && (
+                                                     <button
+                                                        onClick={() => updateReservationStatus(res.id, "상담완료")}
+                                                        className="text-xs font-semibold text-green-700 border border-green-200 hover:bg-green-50 px-3 py-2 rounded-xl"
+                                                        >
+                                                        상담완료
+                                                       </button>
+                                                    )}
+
+                                                   {res.status === "상담완료" && (
+                                                     <span className="text-xs font-bold text-green-600">
+                                                      완료
+                                                     </span>
+                                                   )}
+              
+                                                   {res.status === "예약취소" && (
+                                                    <span className="text-xs font-bold text-rose-500">
+                                                      취소됨
+                                                    </span>
+                                                  )}            
+                                              </div>
+                                         </div>
+                                     </div>
+                                  ))}
+                             </div>
+                           )}
+                      </div>
+                   </div>
+              </div>
+         </div>
      </section>
      </main>
 
