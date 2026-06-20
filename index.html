@@ -485,8 +485,17 @@
             };
 
             const cancelBooking = (id) => {
-                setReservations(reservations.filter(res => res.id !== id));
-            };
+  const updated = reservations.filter(
+    res => res.id !== id
+  );
+
+  setReservations(updated);
+
+  localStorage.setItem(
+    "modumam_reservations",
+    JSON.stringify(updated)
+  );
+};
 
             const getStatusStyle = (status) => {
               if (status === "상담완료") return "bg-emerald-100 text-emerald-700";
@@ -497,14 +506,19 @@
             };
             
             const updateReservationStatus = (id, status) => {
-                setReservations( 
-                  reservations.map(res =>
-                     res.id === id
-                       ? { ...res, status }
-                       : res
-                     )
-                  );
-                };
+  const updated = reservations.map(res =>
+    res.id === id
+      ? { ...res, status }
+      : res
+  );
+
+  setReservations(updated);
+
+  localStorage.setItem(
+    "modumam_reservations",
+    JSON.stringify(updated)
+  );
+};
             
             const findBestTest = () => {
                 let matchedId = 'TCI';
