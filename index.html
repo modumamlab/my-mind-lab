@@ -1306,8 +1306,21 @@ const [reservations, setReservations] = useState(() => {
                                                         <div key={res.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 fade-in">
                                                             <div>
                                                                 <div className="flex items-center space-x-2">
-                                                                    <span className="font-bold text-slate-800 text-sm">{res.name}님</span>
-                                                                    <span className="text-[11px] text-slate-400">{res.phone}</span>
+                                                                    <span className="font-bold text-slate-800 text-sm">
+  {isAdmin
+    ? `${res.name}님`
+    : `${res.name?.charAt(0)}○${res.name?.slice(-1)}님`
+  }
+</span>
+                                                                    <span className="text-[11px] text-slate-400">
+  {isAdmin
+    ? res.phone
+    : res.phone?.replace(
+        /(\d{3})-(\d{4})-(\d{4})/,
+        "$1-****-$3"
+      )
+  }
+</span>
                                                                     <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${getStatusStyle(res.status)}`}>
                                                                      {res.status || "승인대기"}
                                                                   </span>
