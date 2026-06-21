@@ -8,19 +8,63 @@ exports.handler = async (event) => {
       return {
         statusCode: 200,
         body: JSON.stringify({
-          text: "GEMINI_API_KEY가 Netlify 환경변수에 설정되지 않았습니다."
+          text: "AI 연결 설정이 완료되지 않았습니다. 잠시 후 다시 시도해 주세요."
         })
       };
     }
 
     const prompt = `
-당신은 '모두의 마음연구소' 소속의 따뜻하고 통찰력 있는 시니어 심리상담사입니다.
+당신은 '모두의 마음연구소'의 마음이음 상담사입니다.
 
-사용자가 선택한 마음의 부호는 [${mindPunctuation || "?"}] 입니다.
-사용자의 사연은 [${mindState || "미입력"}] 입니다.
+당신의 역할은 단순히 위로하는 것이 아니라,
+내담자가 자신의 마음을 알아차리고 이해하며 다시 연결할 수 있도록 돕는 것입니다.
 
-따뜻한 존댓말로 3~4문장만 작성해 주세요.
-빈 줄 없이 줄바꿈만 사용해 주세요.
+우리 연구소는 네 가지 마음 부호를 사용합니다.
+
+1. 물음표(?) = 내가 왜 이러지?
+- 혼란과 고민의 단계
+- 답을 주기보다 따뜻한 호기심과 자기이해를 돕습니다.
+
+2. 느낌표(!) = 알아차림
+- 감정과 원인을 발견한 단계
+- 스스로를 이해한 점을 인정하고 격려합니다.
+
+3. 쉼표(,) = 충전
+- 지침과 방전의 단계
+- 쉬어도 괜찮다는 허락과 회복의 메시지를 전합니다.
+
+4. 마침표(.) = 다시 시작
+- 정리와 새로운 시작의 단계
+- 지나온 경험을 의미 있게 정리하고 다음 걸음을 응원합니다.
+
+사용자가 선택한 마음의 부호:
+[${mindPunctuation || "?"}]
+
+사용자가 남긴 이야기:
+[${mindState || "미입력"}]
+
+다음 규칙을 반드시 지켜주세요.
+
+- 존중과 공감을 담은 존댓말 사용
+- 4~6문장 작성
+- 심리학적 통찰 1개 포함
+- 판단, 훈계, 진단 금지
+- "당신은 ~입니다" 같은 단정 금지
+- 마지막 문장은 희망과 연결의 메시지로 마무리
+- 반드시 아래 형식을 사용
+
+💬 마음 한 줄
+(공감)
+
+🌱 알아차림
+(심리학적 통찰)
+
+🤝 마음 연결
+(희망 메시지)
+
+마지막 문장은 반드시:
+"모두의 마음연구소는 언제나 당신의 마음 곁에 있습니다."
+로 마무리하세요.
 `;
 
     const response = await fetch(
@@ -33,7 +77,11 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           contents: [
             {
-              parts: [{ text: prompt }]
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
             }
           ]
         })
@@ -43,33 +91,50 @@ exports.handler = async (event) => {
     const data = await response.json();
 
     if (!response.ok) {
+      console.error("Gemini Error:", data);
+
       return {
         statusCode: 200,
         body: JSON.stringify({
           text:
-            "Gemini API 오류: " +
-            (data?.error?.message || JSON.stringify(data))
+            "현재 AI 마음리포트 연결이 원활하지 않습니다.\n\n" +
+            "잠시 후 다시 시도해 주세요.\n\n" +
+            "계속 오류가 발생하면 Kanana AI 리포트 또는 전문 상담 예약하기를 이용해 주세요."
         })
       };
     }
 
     const aiText =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      `현재 AI 사용량이 많아 마음리포트 연결이 원활하지 않습니다.
-다만 남겨주신 내용을 보면 "${mindState || "현재 마음"}"와 관련된 고민이 느껴집니다.
-아래 Kanana AI 마음리포트를 이용해 보시거나, 전문적인 심리검사와 상담이 필요하시다면 상담 예약하기를 이용해 주세요.`;
+      data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        text: aiText
+        text:
+          aiText ||
+          `💬 마음 한 줄
+
+지금 남겨주신 이야기에 담긴 무게가 느껴집니다.
+
+🌱 알아차림
+
+의욕이 없다는 것은 게으름이 아니라 지친 마음의 신호일 수도 있습니다.
+
+🤝 마음 연결
+
+오늘은 가장 작은 한 걸음만 내딛어도 충분합니다.
+모두의 마음연구소는 언제나 당신의 마음 곁에 있습니다.`
       })
     };
   } catch (error) {
+    console.error("Function Error:", error);
+
     return {
       statusCode: 200,
       body: JSON.stringify({
-        text: "Function Error: " + error.message
+        text:
+          "현재 AI 마음리포트 처리 중 일시적인 문제가 발생했습니다.\n\n" +
+          "잠시 후 다시 시도해 주세요."
       })
     };
   }
