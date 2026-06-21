@@ -1,64 +1,82 @@
 exports.handler = async (event) => {
-try {
-const { mindState, mindPunctuation } = JSON.parse(event.body || "{}");
+  try {
+    const { mindState, mindPunctuation } = JSON.parse(event.body || "{}");
 
-const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
 
-const prompt = `
- 당신은 '모두의 마음연구소' 소속의 따뜻하고 통찰력 있는 시니어 심리상담사입니다. 
-                    질문한 내담자가 마주하고 있는 감정 단계에 따라 깊은 공감과 따뜻한 심리학적 통찰을 선사해야 합니다.
-                    우리는 4가지 부호를 바탕으로 상담을 전개합니다:
-                    1. 물음표(?): '내가왜이러지?' 단계. 마음이 보내는 혼란스러운 질문에 따뜻한 호기심을 유도합니다.
-                    2. 느낌표(!): '알아차림' 단계. 자신이 겪는 감정의 기저 원인을 알아챌 수 있도록 격려합니다.
-                    3. 쉼표(,): '충전' 단계. 모든 일을 멈추고 온전한 휴식을 누려도 되는 마음적 정당성을 부여합니다.
-                    4. 마침표(.): '다시 시작' 단계. 과거의 번뇌를 매듭짓고 건강한 새로운 문장을 쓸 수 있도록 용기를 줍니다.
+    if (!apiKey) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          text: "GEMINI_API_KEY가 Netlify 환경변수에 설정되지 않았습니다."
+        })
+      };
+    }
 
-                    사용자가 선택한 현재 마음의 부호는 [${mindPunctuation}] 이며, 사용자의 사연은 [${mindState}] 입니다.
-                    이 사연에 초점을 맞추어 위로를 전하되, '모두의 마음연구소'가 당신의 곁에 있음을 상기시켜주세요.
-                    친근하고 따뜻한 격식체(존댓말)로 3~4문장 분량의 핵심 상담 코멘트를 작성해주십시오. 마크다운 스타일을 활용해 예쁘게 작성해 주면 더 좋습니다.
-                `;
+    const prompt = `
+당신은 '모두의 마음연구소' 소속의 따뜻하고 통찰력 있는 시니어 심리상담사입니다.
 
-const response = await fetch( 
-`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, 
-{ 
-method: "POST", 
-headers: { 
-"Content-Type": "application/json" 
-}, 
-body: JSON.stringify({ 
-contents: [ 
-{ 
-parts: [ 
-{ 
-text: prompt 
-} 
-] 
-} 
-] 
-}) 
-} 
-); 
+사용자가 선택한 마음의 부호는 [${mindPunctuation || "?"}] 입니다.
+사용자의 사연은 [${mindState || "미입력"}] 입니다.
 
-const data = await response.json(); 
+아래 기준으로 답변해 주세요.
+1. 현재 마음을 먼저 공감해 주세요.
+2. 왜 이런 상태일 수 있는지 부드럽게 설명해 주세요.
+3. 지금 해볼 수 있는 작은 행동을 제안해 주세요.
+4. 필요하면 모두의 마음연구소 상담 예약을 안내해 주세요.
 
-return {
-  statusCode: 200,
-  body: JSON.stringify({
-    text:
-data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-`현재 AI 사용량이 많아 마음리포트 연결이 원활하지 않습니다.
-다만 남겨주신 내용을 보면 "${mindState}"와 관련된 고민이 느껴집니다.
+친근하고 따뜻한 존댓말로 3~4문장만 작성해 주세요.
+빈 줄 없이 줄바꿈만 사용해 주세요.
+`;
 
-AI 사용량이 많아 마음리포트 연결이 원활하지 않으면 아래 Kanana AI 마음리포트를 클릭하여 카카오채널 AI 마음리포트를 이용해 보세요.
-보다 전문적인 심리검사와 상담이 필요하시다면 상담 예약하기를 이용해 주세요.`
-  })
-};
-} catch (error) {
-return {
-statusCode: 500,
-body: JSON.stringify({
-text: error.message
-})
-};
-}
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }]
+            }
+          ]
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          text:
+            "Gemini API 오류: " +
+            (data?.error?.message || JSON.stringify(data))
+        })
+      };
+    }
+
+    const aiText =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      `현재 AI 사용량이 많아 마음리포트 연결이 원활하지 않습니다.
+다만 남겨주신 내용을 보면 "${mindState || "현재 마음"}"와 관련된 고민이 느껴집니다.
+아래 Kanana AI 마음리포트를 이용해 보시거나, 보다 전문적인 심리검사와 상담이 필요하시다면 상담 예약하기를 이용해 주세요.`;
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        text: aiText
+      })
+    };
+  } catch (error) {
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        text: "Function Error: " + error.message
+      })
+    };
+  }
 };
