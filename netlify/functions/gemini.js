@@ -105,14 +105,27 @@ exports.handler = async (event) => {
     }
 
     const aiText =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        text:
-          aiText ||
-          `💬 마음 한 줄
+const footer = `
+
+────────────────
+
+※ 본 리포트는 심리적 자기이해를 돕기 위한 참고용입니다.
+
+AI 마음리포트 이용 중 오류가 발생할 경우,
+아래 Kanana AI 리포트 버튼을 클릭하여 도움을 받아보실 수 있습니다.
+
+보다 전문적인 심리검사와 상담이 필요하다고 생각되시면
+전문 상담 예약하기를 클릭해 주세요.
+`;
+
+return {
+  statusCode: 200,
+  body: JSON.stringify({
+    text:
+      (aiText ||
+      `💬 마음 한 줄
 
 지금 남겨주신 이야기에 담긴 무게가 느껴집니다.
 
@@ -123,9 +136,10 @@ exports.handler = async (event) => {
 🤝 마음 연결
 
 오늘은 가장 작은 한 걸음만 내딛어도 충분합니다.
-모두의 마음연구소는 언제나 당신의 마음 곁에 있습니다.`
-      })
-    };
+모두의 마음연구소는 언제나 당신의 마음 곁에 있습니다.`)
+      + footer
+  })
+};
   } catch (error) {
     console.error("Function Error:", error);
 
