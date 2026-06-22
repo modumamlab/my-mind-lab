@@ -242,27 +242,29 @@
             );
         };
 
-        import React, { useState } from 'react';
-
-// 구글 시트 연동을 위한 URL 설정
+// 구글 시트 연동 URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMfIWhWhl02eEgmJvXO_JGjfNNkvjQy2EFxTwB3UsMz9jU2LbqCQItC_CkReKPlOW-Ig/exec';
 
-// 구글 시트로 데이터 전송하는 함수
+// 구글 시트 저장 함수
 async function submitSignup(userData) {
   try {
     await fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         name: userData.name,
-        email: userData.email,
-        phone: userData.phone
+        phone: userData.phone,
+        email: userData.email
       })
     });
-    console.log("구글 시트 저장 성공");
+
+    console.log('구글 시트 저장 성공');
+
   } catch (error) {
-    console.error("구글 시트 저장 실패", error);
+    console.error('구글 시트 저장 실패', error);
   }
 }
         
