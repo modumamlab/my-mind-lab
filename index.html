@@ -19,7 +19,10 @@
     <meta property="og:description" content="마음을 잇다, 사람을 잇다, 세상을 잇다">
     <meta property="og:url" content="https://modumam-lab.netlify.app">
     <meta property="og:type" content="website">
-   
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+    
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -298,18 +301,46 @@ const [reservations, setReservations] = useState(() => {
             const [authForm, setAuthForm] = useState({ name: '', phone: '', email: '', password: '' });
 
             // 가입/로그인 완료 버튼 처리 함수
-            const handleAuthSubmit = (e) => {
-                e.preventDefault();
-                if (authMode === 'signup') {
-                    alert(`${authForm.name}님, 회원가입이 완료되었습니다!\n이제 마음치유 상담 리포트를 확인하실 수 있습니다.`);
-                    setIsLoggedIn(true);
-                } else {
-                    alert('로그인되었습니다.');
-                    setIsLoggedIn(true);
-                }
-                setIsAuthModalOpen(false); // 팝업창 닫기
-                setAuthForm({ name: '', phone: '', email: '', password: '' }); // 입력창 비우기
-            };
+           const handleAuthSubmit = (e) => {
+    e.preventDefault();
+    
+    if (authMode === 'signup') {
+        const templateParams = {
+            name: authForm.name,
+            phone: authForm.phone,
+            email: authForm.email,
+            date: new Date().toLocaleString()
+        };
+        
+        // 이메일 발송 로직 적용
+        window.emailjs.send(
+            'service_4bvn32a',    // Service ID
+            'template_kp5prue',   // Template ID
+            templateParams,
+            'mrZ6YoiEw9fnGUGpB'   // Public Key
+        )
+        .then((response) => {
+            console.log('관리자 메일 발송 성공!', response.status);
+            alert(`${authForm.name}님, 회원가입이 완료되었습니다!`);
+            setIsLoggedIn(true);
+            setIsAuthModalOpen(false);
+        })
+        .catch((err) => {
+            console.error('메일 발송 실패:', err);
+            // 메일 전송이 실패해도 가입은 진행하고 싶다면 아래 주석을 해제하세요.
+            // alert('회원가입은 되었으나 관리자 알림 발송에 실패했습니다.');
+            setIsLoggedIn(true);
+            setIsAuthModalOpen(false);
+        });
+        
+    } else {
+        alert('로그인되었습니다.');
+        setIsLoggedIn(true);
+        setIsAuthModalOpen(false);
+    }
+    
+    setAuthForm({ name: '', phone: '', email: '', password: '' });
+};
             
             // Quick Scroll helpers
             const scrollToSection = (id) => {
@@ -568,48 +599,58 @@ const psychTests = [
     }
 ];
 
-            const generateMindAnalysis = () => {
-                if (!mindState.trim()) {
-                    setMindInputError(true);
-                    return;
-                }
-                setMindInputError(false);
-                setIsAnalyzing(true);
-                setAnalysisResult('');
-           
-                  fetch('/.netlify/functions/gemini', {
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                   mindState,
-                   mindPunctuation
-                    })
-                })
-                .then(function(response) {
-                    if (!response.ok) {
-                        throw new Error("HTTP error " + response.status);
-                    }
-                    return response.json();
-                })
-                .then(function(result) {
-                    const text = result?.text;
-                    if (text) {
-                        setAnalysisResult(text);
-                    } else {
-                        setAnalysisResult("마음의 신호가 잘 닿지 않았나 봅니다. 다시 한번 차분히 눌러주시면 조용히 귀 기울이겠습니다.");
-                    }
-                })
-                .catch(function(error) {
-                    console.error("Gemini API Error", error);
-                    setAnalysisResult("AI 연결 오류: " + error.message);
-                })
-                .finally(function() {
-                    setIsAnalyzing(false);
-                });
-            };
+           const generateMindAnalysis = () => {
+    // [보안 및 예외 차단] 1. 로그인이 안 되어 있다면 AI 호출을 전면 차단하고 회원가입 창을 띄웁니다.
+    if (!isLoggedIn) {
+        alert("내 마음을 부탁해 AI 상담은 회원가입 및 로그인 후 이용 가능합니다.");
+        setAuthMode('signup');    // 회원가입 모드 설정
+        setIsAuthModalOpen(true); // 팝업창 열기
+        return;                   // 여기서 함수를 강제 종료하여 Netlify/Gemini API 호출 및 에러 세팅을 막음
+    }
 
+    // 2. 글자 입력 여부 체크 (기존 코드)
+    if (!mindState.trim()) {
+        setMindInputError(true);
+        return;
+    }
+    setMindInputError(false);
+    setIsAnalyzing(true);
+    setAnalysisResult('');
+
+    // 3. Netlify 서버리스 함수 호출 (기존 코드)
+    fetch('/.netlify/functions/gemini', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            mindState,
+            mindPunctuation
+        })
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            throw new Error("HTTP error " + response.status);
+        }
+        return response.json();
+    })
+    .then(function(result) {
+        const text = result?.text;
+        if (text) {
+            setAnalysisResult(text);
+        } else {
+            setAnalysisResult("마음의 신호가 잘 닿지 않았나 봅니다. 다시 한번 차분히 눌러주시면 조용히 귀 기울이겠습니다.");
+        }
+    })
+    .catch(function(error) {
+        console.error("Gemini API Error", error);
+        setAnalysisResult("AI 연결 오류: " + error.message);
+    })
+    .finally(function() {
+        setIsAnalyzing(false);
+    });
+};
+            
            const toggleTest = (test) => {
   setSelectedTests(prev =>
     prev.includes(test)
