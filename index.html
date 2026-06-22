@@ -1129,7 +1129,7 @@ const findBestTest = () => {
                                     </p>
                                 </div>
 
-                      {/* Quick Finder Widget - 가로 2단 레이아웃 버전 */}
+                   {/* Quick Finder Widget - 가로 2단 레이아웃 버전 */}
 <div className="max-w-5xl mx-auto mb-16 px-4">
   {/* 메인 타이틀 */}
   <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center justify-center lg:justify-start">
@@ -1256,32 +1256,26 @@ const findBestTest = () => {
         </div>
       </div>
 
-      {/* 우측 영역 하단 예약하기 버튼 */}
+      {/* 우측 패널 하단 고정 버튼 (기존 예약 함수 기능 탑재 완료) */}
       <div className="mt-6">
-        <button className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-md text-sm">
-          검사 신청 및 예약하기
-        </button>
-      </div>
-    </div>
-
-  </div>
-</div>
-      <div className="mt-6 flex space-x-3">
-        <button
+        <button 
           onClick={() => {
-            setBookingProgram(
-              `개인 마음이음 - ${recommendedTests.join(", ")}`
-            );
+            if (recommendedTests && recommendedTests.length > 0) {
+              setBookingProgram(`개인 마음이음 - ${recommendedTests.join(", ")}`);
+            } else {
+              setBookingProgram(`개인 마음이음 - 맞춤 심리검사`);
+            }
             scrollToSection("reservations");
           }}
-          className="bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:bg-slate-800 transition-all"
+          className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-md text-sm"
         >
           검사 신청 및 예약하기
         </button>
       </div>
-    </div>
-  </div>
-</div>
+
+    </div> {/* [우측 영역] 닫기 */}
+  </div> {/* grid 닫기 */}
+</div> {/* max-w-5xl 닫기 */}
                                 {/* Complete directory of test items */}
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
     {psychTests.map((test) => (
