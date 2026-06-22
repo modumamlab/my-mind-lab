@@ -242,15 +242,41 @@
             );
         };
 
+        import React, { useState } from 'react';
+
+// 구글 시트 연동을 위한 URL 설정
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMfIWhWhl02eEgmJvXO_JGjfNNkvjQy2EFxTwB3UsMz9jU2LbqCQItC_CkReKPlOW-Ig/exec';
+
+// 구글 시트로 데이터 전송하는 함수
+async function submitSignup(userData) {
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone
+      })
+    });
+    console.log("구글 시트 저장 성공");
+  } catch (error) {
+    console.error("구글 시트 저장 실패", error);
+  }
+}
+        
         function App() {
             const [activeTab, setActiveTab] = useState('home');
             const [selectedPunctuation, setSelectedPunctuation] = useState('all');
             const [testResult, setTestResult] = useState(null);
-
             const [isAdmin, setIsAdmin] = useState(false);
             const [selectedTarget, setSelectedTarget] = useState('adult');
-    const [selectedTopic, setSelectedTopic] = useState('기질 및 성격 특성');
-            
+            const [selectedTopic, setSelectedTopic] = useState('기질 및 성격 특성');
+            const [memberName, setMemberName] = useState('');
+            const [memberPhone, setMemberPhone] = useState('');
+            const [memberEmail, setMemberEmail] = useState('');
+                     
             // Reservation State
 const [reservations, setReservations] = useState(() => {
   const saved = localStorage.getItem("modumam_reservations");
@@ -294,17 +320,18 @@ const [reservations, setReservations] = useState(() => {
 
             // 회원가입 및 로그인 제어용 State
             const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-            const [authMode, setAuthMode] = useState('signup'); // 'signup'(회원가입) 또는 'login'(로그인)
-            const [isLoggedIn, setIsLoggedIn] = useState(false); // 로그인 완료 여부
-
-            // 회원가입 입력 폼 데이터 상태
+            const [authMode, setAuthMode] = useState('signup');
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [authForm, setAuthForm] = useState({ name: '', phone: '', email: '', password: '' });
-
-            // 가입/로그인 완료 버튼 처리 함수
-           const handleAuthSubmit = (e) => {
+            
+  // 가입/로그인 완료 버튼 처리 함수 (수정본)
+const handleAuthSubmit = async (e) => { // async 키워드 추가 필수
     e.preventDefault();
     
     if (authMode === 'signup') {
+        // [수정] 구글 시트로 데이터 전송이 완료될 때까지 기다림
+        await submitSignup(authForm);
+        
         const templateParams = {
             name: authForm.name,
             phone: authForm.phone,
@@ -312,7 +339,7 @@ const [reservations, setReservations] = useState(() => {
             date: new Date().toLocaleString()
         };
         
-        // 이메일 발송 로직 적용
+        // 이메일 발송 로직
         window.emailjs.send(
             'service_4bvn32a',    // Service ID
             'template_kp5prue',   // Template ID
@@ -327,8 +354,6 @@ const [reservations, setReservations] = useState(() => {
         })
         .catch((err) => {
             console.error('메일 발송 실패:', err);
-            // 메일 전송이 실패해도 가입은 진행하고 싶다면 아래 주석을 해제하세요.
-            // alert('회원가입은 되었으나 관리자 알림 발송에 실패했습니다.');
             setIsLoggedIn(true);
             setIsAuthModalOpen(false);
         });
