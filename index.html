@@ -493,48 +493,58 @@ const psychTests = [
     color: 'from-green-400 to-emerald-500'
   }
 ];
-            const programs = [
-                {
-                    id: 'p1',
-                    badge: '심리검사 기반 개인 상담',
-                    title: '개인 마음이음',
-                    subtitle: '(1:1 심층 상담)',
-                    desc: 'TCI, MMPI-2 등의 고도화된 사전 심리검사 결과를 기반으로 우울, 불안, 대인관계 상실 등으로 마음에 깊은 물음표(?)가 던져졌을 때, 전문 심리상담사와 함께 정밀 치유의 길을 찾아냅니다.',
-                    target: '스스로의 마음을 찬찬히 직면하고 싶은 모든 성인/청소년',
-                    time: '회당 50분',
-                    img: 'https://placehold.co/600x400/ecebe4/334155?text=1:1+Counseling'
-                },
-                {
-                    id: 'p2',
-                    badge: '심리검사 기반 집단 알아차림 워크숍',
-                    title: '집단 알아차림 워크숍',
-                    subtitle: '(소규모 그룹)',
-                    desc: '사전에 TCI(기질 및 성격검사)를 진행하여 타고난 기질과 성격 데이터를 개별적으로 파악한 후, 이를 바탕으로 나와 타인의 차이를 안전하게 이해하고 서로의 물음표를 느낌표(!)로 키워 나가는 워크숍입니다.',
-                    target: '타인의 공감 속에서 나를 안전하게 이해하고 싶은 분들',
-                    time: '주 1회 / 총 6주 과정',
-                    img: 'https://placehold.co/600x400/f3e8ff/334155?text=Group+Workshop'
-                },
-                {
-                    id: 'p3',
-                    badge: '심리검사 기반 양육 상담',
-                    title: '부모-자녀 마음이음',
-                    subtitle: '(양육 상담)',
-                    desc: '부모양육태도검사(PAT)와 아동발달검사(KCDI) 또는 STS 6요인 기질검사 데이터를 정량적으로 크로스 분석하여 부모와 아이가 일상에서 주고받는 소통의 오해를 해소하고 최적의 양육 가이드를 처방합니다.',
-                    target: '대화의 단절을 느끼거나 육아의 큰 고민을 안고 있는 부모 및 양육자',
-                    time: '회당 80분 (부모 개별 상담 포함)',
-                    img: 'https://placehold.co/600x400/ecfdf5/334155?text=Parenting+Counseling'
-                },
-                {
-                    id: 'p4',
-                    badge: '심리검사 기반 기업 맞춤 코칭',
-                    title: '기업/기관 마음 리스타트 프로그램',
-                    subtitle: '(번아웃 예방)',
-                    desc: '조직원의 직무 감정 스트레스 및 회복탄력성 지표를 사전에 측정하여 수치화된 번아웃 상태를 파악한 뒤, 구성원이 일의 마침표(.) 후 다시 힘찬 에너지를 채워갈 수 있도록 돕는 진단 기반 패키지입니다.',
-                    target: '조직 구성원의 멘탈케어 및 힐링 워크숍이 필요한 기업',
-                    time: '반나절 코스 / 전일 코스',
-                    img: 'https://placehold.co/600x400/f1f5f9/334155?text=Corporate+Mental+Care'
-                }
-            ];
+           const programs = [
+    {
+        id: 'p1',
+        badge: '심리검사 기반 개인 상담',
+        title: '개인 마음이음',
+        subtitle: '(1:1 심층 상담)',
+        desc: 'TCI, MMPI-2 등의 고도화된 사전 심리검사 결과를 기반으로 우울, 불안, 대인관계 상실 등으로 마음에 깊은 물음표(?)가 던져졌을 때, 전문 심리상담사와 함께 정밀 치유의 길을 찾아냅니다.',
+        target: '스스로의 마음을 찬찬히 직면하고 싶은 모든 성인/청소년',
+        time: '회당 50분',
+        img: 'https://placehold.co/600x400/ecebe4/334155?text=1:1+Counseling'
+    },
+    {
+        id: 'p5', // 신규 추가된 부부 프로그램
+        badge: '심리검사 기반 부부/커플 상담',
+        title: '부부 마음이음',
+        subtitle: '(관계 조율 및 소통 상담)',
+        desc: '부부의 성격 및 기질 검사(TCI)를 크로스 분석하여 두 사람이 서로 다를 수밖에 없었던 근본적인 원인을 조명합니다. 관계 내 오해의 고리를 풀고 깊은 공감대를 형성하도록 돕습니다.',
+        target: '갈등의 악순환을 끊고 서로를 깊이 이해하고자 하는 부부 및 커플',
+        time: '회당 50분',
+        img: 'https://placehold.co/600x400/fee2e2/334155?text=Couples+Counseling'
+    },
+    {
+        id: 'p3',
+        badge: '심리검사 기반 양육 상담',
+        title: '부모-자녀 마음이음',
+        subtitle: '(양육 상담)',
+        desc: '부모양육태도검사(PAT)와 아동발달검사(KCDI) 또는 STS 6요인 기질검사 데이터를 정량적으로 크로스 분석하여 부모와 아이가 일상에서 주고받는 소통의 오해를 해소하고 최적의 양육 가이드를 처방합니다.',
+        target: '대화의 단절을 느끼거나 육아의 큰 고민을 안고 있는 부모 및 양육자',
+        time: '회당 80분 (행동관찰 포함)',
+        img: 'https://placehold.co/600x400/ecfdf5/334155?text=Parenting+Counseling'
+    },
+    {
+        id: 'p2',
+        badge: '심리검사 기반 집단 알아차림 워크숍',
+        title: '집단 알아차림 워크숍',
+        subtitle: '(소규모 그룹)',
+        desc: '사전에 TCI(기질 및 성격검사)를 진행하여 타고난 기질과 성격 데이터를 개별적으로 파악한 후, 이를 바탕으로 나와 타인의 차이를 안전하게 이해하고 서로의 물음표를 느낌표(!)로 키워 나가는 워크숍입니다.',
+        target: '타인의 공감 속에서 나를 안전하게 이해하고 싶은 분들',
+        time: '주 1회 / 총 4주 과정',
+        img: 'https://placehold.co/600x400/f3e8ff/334155?text=Group+Workshop'
+    },
+    {
+        id: 'p4',
+        badge: '심리검사 기반 기업 맞춤 코칭',
+        title: '기업/기관 마음 리스타트 프로그램',
+        subtitle: '(번아웃 예방)',
+        desc: '조직원의 직무 감정 스트레스 및 회복탄력성 지표를 사전에 측정하여 수치화된 번아웃 상태를 파악한 뒤, 구성원이 일의 마침표(.) 후 다시 힘찬 에너지를 채워갈 수 있도록 돕는 진단 기반 패키지입니다.',
+        target: '조직 구성원의 멘탈케어 및 힐링 워크숍이 필요한 기업',
+        time: '2시간 코스',
+        img: 'https://placehold.co/600x400/f1f5f9/334155?text=Corporate+Mental+Care'
+    }
+];
 
             const generateMindAnalysis = () => {
                 if (!mindState.trim()) {
@@ -1015,7 +1025,7 @@ const findBestTest = () => {
                                                     <Icon name="smile" className="w-5 h-5" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-slate-800">모두의 마음연구소 시니어 상담사</h4>
+                                                    <h4 className="font-bold text-slate-800">모두의 마음연구소 마음이음 상담사</h4>
                                                     <p className="text-xs text-slate-400">당신의 이야기에 정성을 모아 답변을 드려요</p>
                                                 </div>
                                             </div>
@@ -1060,61 +1070,62 @@ const findBestTest = () => {
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {programs.map((prog) => (
-                                        <div key={prog.id} className="bg-white rounded-3xl overflow-hidden border border-slate-100/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
-                                            <div className="relative h-56 overflow-hidden bg-slate-100">
-                                                <img 
-                                                    src={prog.img} 
-                                                    alt={prog.title} 
-                                                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                                                    onError={(e) => { e.target.src = `https://placehold.co/600x400/ecebe4/334155?text=${prog.title}`; }}
-                                                />
-                                                <div className="absolute top-4 right-4 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-xs font-bold text-slate-700 shadow-sm">
-                                                    {prog.time}
-                                                </div>
-                                            </div>
+                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    {programs.map((prog) => (
+        <div key={prog.id} className="bg-white rounded-3xl overflow-hidden border border-slate-100/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
+            <div className="relative h-56 overflow-hidden bg-slate-100">
+                <img 
+                    src={prog.img} 
+                    alt={prog.title} 
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                    onError={(e) => { e.target.src = `https://placehold.co/600x400/ecebe4/334155?text=${prog.title}`; }}
+                />
+                <div className="absolute top-4 right-4 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-xs font-bold text-slate-700 shadow-sm">
+                    {prog.time}
+                </div>
+            </div>
 
-                                            {/* Overlapping Badge Floating Right matching image_b24bc5.png */}
-                                            <div className="flex justify-end -mt-6 pr-6 relative z-10">
-                                                <span className="bg-[#f0f2ff] text-indigo-600 border border-indigo-100/80 px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm whitespace-nowrap">
-                                                    {prog.badge}
-                                                </span>
-                                            </div>
+            {/* Overlapping Badge Floating Right */}
+            <div className="flex justify-end -mt-6 pr-6 relative z-10">
+                <span className="bg-[#f0f2ff] text-indigo-600 border border-indigo-100/80 px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm whitespace-nowrap">
+                    {prog.badge}
+                </span>
+            </div>
 
-                                            <div className="px-8 pt-6 pb-8 flex-grow flex flex-col justify-between">
-                                                <div>
-                                                    <h3 className="text-xl font-bold text-slate-900 mb-4">
-                                                        {prog.title} 
-                                                        {prog.subtitle && (
-                                                            <span className="text-sm font-medium text-slate-400 ml-1.5">{prog.subtitle}</span>
-                                                        )}
-                                                    </h3>
-                                                    <p className="text-sm text-slate-500 leading-relaxed mb-6">{prog.desc}</p>
-                                                </div>
-                                                
-                                                {/* Divider and Footer matching image_b24bc5.png */}
-                                                <div className="pt-6 border-t border-slate-100 flex justify-between items-center">
-                                                    <div className="text-xs">
-                                                        <strong className="block text-slate-800 font-bold mb-1">대상</strong>
-                                                        <span className="text-slate-400 leading-relaxed block max-w-[200px]">{prog.target}</span>
-                                                    </div>
-                                                    <button 
-                                                        onClick={() => {
-                                                            setBookingProgram(`${prog.title} ${prog.subtitle || ''}`);
-                                                            scrollToSection('reservations');
-                                                        }} 
-                                                        className="bg-white hover:bg-slate-900 hover:text-white text-slate-800 text-xs font-bold border border-slate-200 px-5 py-3 rounded-2xl transition-all shadow-sm shrink-0 ml-4"
-                                                    >
-                                                        선택 예약
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </section>
+            <div className="px-8 pt-6 pb-8 flex-grow flex flex-col justify-between">
+                <div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-4">
+                        {prog.title} 
+                        {prog.subtitle && (
+                            <span className="text-sm font-medium text-slate-400 ml-1.5">{prog.subtitle}</span>
+                        )}
+                    </h3>
+                    <p className="text-sm text-slate-500 leading-relaxed mb-6">{prog.desc}</p>
+                </div>
+                
+                {/* Divider and Footer */}
+                <div className="pt-6 border-t border-slate-100 flex justify-between items-center">
+                    <div className="text-xs">
+                        <strong className="block text-slate-800 font-bold mb-1">대상</strong>
+                        <span className="text-slate-400 leading-relaxed block max-w-[200px]">{prog.target}</span>
+                    </div>
+                    <button 
+                        onClick={() => {
+                            setBookingProgram(`${prog.title} ${prog.subtitle || ''}`);
+                            scrollToSection('reservations');
+                        }} 
+                        className="bg-white hover:bg-slate-900 hover:text-white text-slate-800 text-xs font-bold border border-slate-200 px-5 py-3 rounded-2xl transition-all shadow-sm shrink-0 ml-4"
+                    >
+                        선택 예약
+                    </button>
+                </div>
+            </div>
+        </div>
+    ))}
+</div>
+</div>
+</div>
+</section>
 
                         
                         <section id="tests" className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50 border-t border-slate-100">
