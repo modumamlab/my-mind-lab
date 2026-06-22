@@ -1129,20 +1129,21 @@ const findBestTest = () => {
                                     </p>
                                 </div>
 
-                       {/* Quick Finder Widget - 가로 2단 레이아웃 버전 */}
-<div className="max-w-5xl mx-auto mb-16">
+                      {/* Quick Finder Widget - 가로 2단 레이아웃 버전 */}
+<div className="max-w-5xl mx-auto mb-16 px-4">
   {/* 메인 타이틀 */}
   <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center justify-center lg:justify-start">
     <Icon name="help-circle" className="w-5 h-5 mr-2 text-indigo-500 shrink-0" />
     나에게 꼭 필요한 검사는 뭘까요?
   </h3>
 
-  {/* 반응형 그리드: 모바일 세로 1열, 테블릿 이상(lg) 가로 2단 */}
+  {/* 반응형 그리드: 모바일 세로 1열, 태블릿 이상(lg) 가로 2단 */}
   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
     
     {/* [좌측 영역] 조건 선택 카드 (5칸 차지) */}
     <div className="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-xl flex flex-col justify-center">
       <div className="space-y-5">
+        
         {/* 대상 구분 Select */}
         <div>
           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
@@ -1153,9 +1154,8 @@ const findBestTest = () => {
             onChange={(e) => {
               const target = e.target.value;
               setUserAge(target);
-              if (target === "teen") {
-                setUserWorry("character");
-              } else if (target === "parent") {
+              // 부모 선택 시에는 개발(development)을 기본값으로, 그 외에는 기질(character)을 기본값으로 지정
+              if (target === "parent") {
                 setUserWorry("development");
               } else {
                 setUserWorry("character");
@@ -1179,23 +1179,35 @@ const findBestTest = () => {
             onChange={(e) => setUserWorry(e.target.value)}
             className="w-full bg-slate-50 px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            {userAge === "parent" && (
-              <option value="development">발달 및 부모-자녀 관계</option>
-            )}
-            <option value="character">기질 및 성격 특성</option>
-            <option value="emotion">불안·우울 등 정신적 피로</option>
-            <option value="relationship">대인관계 및 소통 어려움</option>
-            <option value="meaning">인생의 깊은 의미 성찰</option>
-            <option value="resilience">스트레스 극복 및 멘탈 강인성</option>
-            {userAge === "teen" && (
-              <option value="career">학습·진로</option>
+            {/* 부모/양육자 전용 옵션 */}
+            {userAge === "parent" ? (
+              <>
+                <option value="development">발달 및 부모-자녀 관계</option>
+                <option value="character">기질 및 성격 특성</option>
+                <option value="emotion">불안·우울 등 정신적 피로</option>
+                <option value="relationship">대인관계 및 소통 어려움</option>
+              </>
+            ) : (
+              /* 성인 및 청소년 공통 옵션 */
+              <>
+                <option value="character">기질 및 성격 특성</option>
+                <option value="emotion">불안·우울 등 정신적 피로</option>
+                <option value="relationship">대인관계 및 소통 어려움</option>
+                <option value="meaning">인생의 깊은 의미 성찰</option>
+                <option value="resilience">스트레스 극복 및 멘탈 강인성</option>
+                {/* 청소년 전용 옵션 */}
+                {userAge === "teen" && (
+                  <option value="career">학습·진로</option>
+                )}
+              </>
             )}
           </select>
         </div>
+
       </div>
     </div>
 
-    {/* [우측 영역] 추천 검사 결과 조합 패널 (7칸 차지, RECOMMENDED 영문 제거) */}
+    {/* [우측 영역] 추천 검사 결과 조합 패널 (7칸 차지) */}
     <div className="lg:col-span-7 bg-indigo-50/50 rounded-3xl p-6 sm:p-8 border border-indigo-100/40 flex flex-col justify-between">
       <div>
         <div className="mb-4">
@@ -1244,7 +1256,7 @@ const findBestTest = () => {
         </div>
       </div>
 
-      {/* 우측 영역 하단에 밀착되는 버튼 구역 */}
+      {/* 우측 영역 하단 예약하기 버튼 */}
       <div className="mt-6">
         <button className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-md text-sm">
           검사 신청 및 예약하기
@@ -1254,7 +1266,6 @@ const findBestTest = () => {
 
   </div>
 </div>
-
       <div className="mt-6 flex space-x-3">
         <button
           onClick={() => {
