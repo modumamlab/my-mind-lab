@@ -297,87 +297,73 @@ const [reservations, setReservations] = useState(() => {
                 }
             };
 
-            const recommendationMap = {
+         const recommendationMap = {
   teen: {
     character: [
       "JTCI (마음사랑)",
       "STS 성격강점검사 (인싸이트)"
     ],
-
     emotion: [
       "JTCI (마음사랑)",
       "MMPI-A (마음사랑)",
       "PAI-A 청소년성격평가 (인싸이트)"
     ],
-
     relationship: [
       "JTCI (마음사랑)",
       "K-IIP 대인관계문제 (인싸이트)",
       "SCT/HTP (인싸이트)"
     ],
-
     meaning: [
       "JTCI (마음사랑)",
       "GOLDEN 골든성격유형 (인싸이트)",
       "SCT 문장완성 (인싸이트)"
     ],
-
     resilience: [
       "청소년 회복탄력성 검사 (인싸이트)"
     ],
-
     career: [
       "CAD 주의집중력검사 (인싸이트)",
       "Holland 진로발달검사 (인싸이트)"
     ]
   },
-
   adult: {
     character: [
       "TCI (마음사랑)",
       "STS 성격강점검사 (인싸이트)"
     ],
-
     emotion: [
       "TCI (마음사랑)",
       "MMPI-2 (마음사랑)",
       "PAI 성격평가질문지 (인싸이트)"
     ],
-
     relationship: [
       "TCI (마음사랑)",
       "K-IIP 대인관계문제 (인싸이트)",
       "SCT/HTP (인싸이트)"
     ],
-
     meaning: [
       "TCI (마음사랑)",
       "GOLDEN 골든성격유형 (인싸이트)",
       "SCT 문장완성 (인싸이트)"
     ],
-
     resilience: [
       "성인 회복탄력성 검사 (인싸이트)"
     ]
   },
-
   parent: {
     development: [
       "PAT 부모양육태도검사 (인싸이트)",
       "KCDI 아동발달검사 (인싸이트)"
     ],
-
     character: [
       "TCI (마음사랑)",
       "STS 성격강점검사 (인싸이트)"
     ],
-
     emotion: [
       "TCI (마음사랑)",
       "MMPI-2 (마음사랑)",
       "PAI 성격평가질문지 (인싸이트)"
     ],
-
     relationship: [
       "TCI (마음사랑)",
       "K-IIP 대인관계문제 (인싸이트)",
@@ -386,92 +372,91 @@ const [reservations, setReservations] = useState(() => {
   }
 };
 
-            const recommendedTests =
-    recommendationMap[userAge]?.[userWorry] || [];
-            
-            const psychTests = [
-                {
-                    id: 'TCI',
-                    name: 'TCI (기질 및 성격검사)',
-                    sub: '타고난 기질과 자라난 성격의 하모니',
-                    desc: '내가 바꿀 수 없는 선천적 ‘기질’과 살아가며 변하는 후천적 ‘성격’을 구분하여, 자신에 대한 깊은 유전적/인격적 이해를 돕습니다.',
-                    tags: ['기질분석', '대인관계', '성격이해'],
-                    icon: 'heart',
-                    color: 'from-blue-400 to-indigo-500'
-                },
-                {
-                    id: 'MMPI',
-                    name: 'MMPI-2 (다면적 인성검사)',
-                    sub: '가장 객관적이고 신뢰도 높은 마음 검진',
-                    desc: '전 세계 임상 및 심리 상담 현장에서 가장 보편적으로 사용되는 표준 정신건강 검사입니다. 스트레스, 대처 방식, 임상적 척도를 과학적으로 분석합니다.',
-                    tags: ['정신건강', '스트레스수치', '임상진단'],
-                    icon: 'activity',
-                    color: 'from-purple-400 to-pink-500'
-                },
-                {
-                    id: 'PAI',
-                    name: 'PAI (성격평가질문지)',
-                    sub: '일상의 부적응과 성격 특성의 복합 진단',
-                    desc: '정신 건강뿐만 아니라 대인관계 상호작용, 일상생활 속에서 겪을 수 있는 특정 성격적 단서와 행동의 어려움을 빠르고 정확하게 분석합니다.',
-                    tags: ['성격장애예방', '행동분석', '치료계획'],
-                    icon: 'user-check',
-                    color: 'from-indigo-400 to-cyan-500'
-                },
-                {
-                    id: 'KCDI',
-                    name: 'KCDI (아동발달검사)',
-                    sub: '우리 아이의 발달적 성숙도 점검',
-                    desc: '사회성, 자조행동, 대소근육, 언어, 인지 등 다차원적 아동 발달 상태를 점검하여 부모가 꼭 알아야 할 우리 아이의 발달 궤적을 확인합니다.',
-                    tags: ['아동발달', '육아코칭', '성장체크'],
-                    icon: 'baby',
-                    color: 'from-emerald-400 to-teal-500'
-                },
-                {
-                    id: 'STS',
-                    name: 'STS (6요인 기질검사)',
-                    sub: '여섯 가지 차원으로 분석하는 내면의 정교한 지도',
-                    desc: '정직-겸손성, 정서성, 외향성, 원만성, 성실성, 경험에 대한 개방성 등 6가지 핵심 요인을 통해 개인의 타고난 성향과 성격적 특성을 입체적으로 분석합니다.',
-                    tags: ['6대기질', '성격특성', '다차원진단'],
-                    icon: 'compass',
-                    color: 'from-amber-400 to-orange-500'
-                },
-                {
-                    id: 'PAT',
-                    name: 'PAT (부모양육태도검사)',
-                    sub: '나는 어떤 부모일까? 양육 스타일 리포트',
-                    desc: '지지표현, 합리적 설명, 과잉기대, 거부 등 부모가 일상적으로 자녀에게 행사하는 양육 태도의 강약을 객관적으로 수치화하여 올바른 훈육 방향을 제시합니다.',
-                    tags: ['부모양육', '가족관계', '소통코칭'],
-                    icon: 'users',
-                    color: 'from-rose-400 to-red-500'
-                },
-                {
-                    id: 'RESILIENCE',
-                    name: '회복탄력성 검사 (Resilience)',
-                    sub: '넘어져도 다시 일어날 수 있는 마음의 탄성력',
-                    desc: '인생의 크고 작은 스트레스와 역경에 직면했을 때, 이에 굴하지 않고 딛고 일어나 전보다 더 크게 성장할 수 있는 힘, 즉 마침표(.)에서 시작으로 가는 힘을 분석합니다.',
-                    tags: ['스트레스저항', '자기효능감', '다시시작'],
-                    icon: 'refresh-cw',
-                    color: 'from-teal-400 to-emerald-600'
-                },
-                {
-                    id: 'SCT',
-                    name: 'SCT (문장완성검사)',
-                    sub: '문장을 통해 마음을 들여다보기',
-                    desc: '미완성 문장을 완성하는 과정을 통해 현재의 생각, 감정, 대인관계, 자기인식 등을 탐색합니다.',
-                    tags: ['자기이해', '감정탐색', '대인관계'],
-                    icon: 'message-square',
-                    color: '보라-400에서 인디고-600까지'
-                },
-                {
-                    id: 'HTP',
-                    name: 'HTP (집-나무-사람 그림검사)',
-                    sub: '그림으로 표현하는 마음',
-                    desc: '집, 나무, 사람을 그리는 과정을 통해 정서 상태, 자기상, 관계 특성을 탐색하는 투사검사입니다.',
-                    tags: ['그림검사', '정서이해', '자기탐색'],
-                    icon: 'brush',
-                    color: '에메랄드-400에서 청록-600까지'
-                 },
-                {
+const recommendedTests = recommendationMap[userAge]?.[userWorry] || [];
+
+const psychTests = [
+  {
+    id: 'TCI',
+    name: 'TCI (기질 및 성격검사)',
+    sub: '타고난 기질과 자라난 성격의 하모니',
+    desc: '내가 바꿀 수 없는 선천적 ‘기질’과 살아가며 변하는 후천적 ‘성격’을 구분하여, 자신에 대한 깊은 유전적/인격적 이해를 돕습니다.',
+    tags: ['기질분석', '대인관계', '성격이해'],
+    icon: 'heart',
+    color: 'from-blue-400 to-indigo-500'
+  },
+  {
+    id: 'MMPI',
+    name: 'MMPI-2 (다면적 인성검사)',
+    sub: '가장 객관적이고 신뢰도 높은 마음 검진',
+    desc: '전 세계 임상 및 심리 상담 현장에서 가장 보편적으로 사용되는 표준 정신건강 검사입니다. 스트레스, 대처 방식, 임상적 척도를 과학적으로 분석합니다.',
+    tags: ['정신건강', '스트레스수치', '임상진단'],
+    icon: 'activity',
+    color: 'from-purple-400 to-pink-500'
+  },
+  {
+    id: 'PAI',
+    name: 'PAI (성격평가질문지)',
+    sub: '일상의 부적응과 성격 특성의 복합 진단',
+    desc: '정신 건강뿐만 아니라 대인관계 상호작용, 일상생활 속에서 겪을 수 있는 특정 성격적 단서와 행동의 어려움을 빠르고 정확하게 분석합니다.',
+    tags: ['성격장애예방', '행동분석', '치료계획'],
+    icon: 'user-check',
+    color: 'from-indigo-400 to-cyan-500'
+  },
+  {
+    id: 'KCDI',
+    name: 'KCDI (아동발달검사)',
+    sub: '우리 아이의 발달적 성숙도 점검',
+    desc: '사회성, 자조행동, 대소근육, 언어, 인지 등 다차원적 아동 발달 상태를 점검하여 부모가 꼭 알아야 할 우리 아이의 발달 궤적을 확인합니다.',
+    tags: ['아동발달', '육아코칭', '성장체크'],
+    icon: 'baby',
+    color: 'from-emerald-400 to-teal-500'
+  },
+  {
+    id: 'STS',
+    name: 'STS (6요인 기질검사)',
+    sub: '여섯 가지 차원으로 분석하는 내면의 정교한 지도',
+    desc: '정직-겸손성, 정서성, 외향성, 원만성, 성실성, 경험에 대한 개방성 등 6가지 핵심 요인을 통해 개인의 타고난 성향과 성격적 특성을 입체적으로 분석합니다.',
+    tags: ['6대기질', '성격특성', '다차원진단'],
+    icon: 'compass',
+    color: 'from-amber-400 to-orange-500'
+  },
+  {
+    id: 'PAT',
+    name: 'PAT (부모양육태도검사)',
+    sub: '나는 어떤 부모일까? 양육 스타일 리포트',
+    desc: '지지표현, 합리적 설명, 과잉기대, 거부 등 부모가 일상적으로 자녀에게 행사하는 양육 태도의 강약을 객관적으로 수치화하여 올바른 훈육 방향을 제시합니다.',
+    tags: ['부모양육', '가족관계', '소통코칭'],
+    icon: 'users',
+    color: 'from-rose-400 to-red-500'
+  },
+  {
+    id: 'RESILIENCE',
+    name: '회복탄력성 검사 (Resilience)',
+    sub: '넘어져도 다시 일어날 수 있는 마음의 탄성력',
+    desc: '인생의 크고 작은 스트레스와 역경에 직면했을 때, 이에 굴하지 않고 딛고 일어나 전보다 더 크게 성장할 수 있는 힘, 즉 마침표(.)에서 시작으로 가는 힘을 분석합니다.',
+    tags: ['스트레스저항', '자기효능감', '다시시작'],
+    icon: 'refresh-cw',
+    color: 'from-teal-400 to-emerald-600'
+  },
+  {
+    id: 'SCT',
+    name: 'SCT (문장완성검사)',
+    sub: '문장을 통해 마음을 들여다보기',
+    desc: '미완성 문장을 완성하는 과정을 통해 현재의 생각, 감정, 대인관계, 자기인식 등을 탐색합니다.',
+    tags: ['자기이해', '감정탐색', '대인관계'],
+    icon: 'message-square',
+    color: 'from-purple-400 to-indigo-600' {/* ◀ 국문 색상 코드 수정 */}
+  },
+  {
+    id: 'HTP',
+    name: 'HTP (집-나무-사람 그림검사)',
+    sub: '그림으로 표현하는 마음',
+    desc: '집, 나무, 사람을 그리는 과정을 통해 정서 상태, 자기상, 관계 특성을 탐색하는 투사검사입니다.',
+    tags: ['그림검사', '정서이해', '자기탐색'],
+    icon: 'brush',
+    color: 'from-emerald-400 to-teal-600' {/* ◀ 국문 색상 코드 수정 */}
+  },
+  {
     id: 'KIIP',
     name: 'K-IIP (대인관계문제검사)',
     sub: '관계 속 반복되는 패턴 이해',
@@ -479,8 +464,8 @@ const [reservations, setReservations] = useState(() => {
     tags: ['대인관계', '소통', '관계갈등'],
     icon: 'users',
     color: 'from-cyan-400 to-blue-500'
-},
-{
+  },
+  {
     id: 'GOLDEN',
     name: 'GOLDEN 성격유형검사',
     sub: '성격유형과 삶의 방향 탐색',
@@ -488,8 +473,8 @@ const [reservations, setReservations] = useState(() => {
     tags: ['성격유형', '자기이해', '진로'],
     icon: 'compass',
     color: 'from-amber-400 to-orange-500'
-},
-{
+  },
+  {
     id: 'CAD',
     name: 'CAD 주의집중력검사',
     sub: '집중력과 학습 특성 분석',
@@ -497,8 +482,8 @@ const [reservations, setReservations] = useState(() => {
     tags: ['주의집중', '학습', '청소년'],
     icon: 'target',
     color: 'from-purple-400 to-pink-500'
-},
-{
+  },
+  {
     id: 'HOLLAND',
     name: 'Holland 진로발달검사',
     sub: '흥미와 적성 기반 진로탐색',
@@ -506,9 +491,8 @@ const [reservations, setReservations] = useState(() => {
     tags: ['진로', '적성', '청소년'],
     icon: 'briefcase',
     color: 'from-green-400 to-emerald-500'
-}
-            ];
-
+  }
+];
             const programs = [
                 {
                     id: 'p1',
@@ -651,7 +635,7 @@ const [reservations, setReservations] = useState(() => {
               return "bg-amber-100 text-amber-700";
             };
             
-            const updateReservationStatus = (id, status) => {
+        const updateReservationStatus = (id, status) => {
   const updated = reservations.map(res =>
     res.id === id ? { ...res, status } : res
   );
@@ -659,26 +643,40 @@ const [reservations, setReservations] = useState(() => {
   setReservations(updated);
   localStorage.setItem("modumam_reservations", JSON.stringify(updated));
 };
-            
-            const findBestTest = () => {
-                let matchedId = 'TCI';
-                if (userAge === 'child') {
-                    if (userWorry === 'relationship' || userWorry === 'character') {
-                        matchedId = 'PAT';
-                    } else {
-                        matchedId = 'KCDI';
-                    }
-                } else {
-                    if (userWorry === 'mental') matchedId = 'MMPI';
-                    else if (userWorry === 'relationship') matchedId = 'PAI';
-                    else if (userWorry === 'spiritual') matchedId = 'STS';
-                    else if (userWorry === 'resilience') matchedId = 'RESILIENCE';
-                    else matchedId = 'TCI';
-                }
 
-                const test = psychTests.find(t => t.id === matchedId);
-                setTestResult(test);
-            };
+const findBestTest = () => {
+  let matchedId = 'TCI';
+
+  if (userAge === 'parent') {
+    // 부모/양육자 타겟 매칭
+    if (userWorry === 'development') {
+      matchedId = 'KCDI'; // 아동발달검사
+    } else if (userWorry === 'relationship') {
+      matchedId = 'PAT';  // 부모양육태도검사
+    } else {
+      matchedId = 'TCI';  // 그 외 기질검사
+    }
+  } else {
+    // 일반 성인 및 청소년 타겟 매칭
+    if (userWorry === 'emotion') {
+      matchedId = 'MMPI';       // 불안·우울 등 정신적 피로 -> 다면적 인성검사
+    } else if (userWorry === 'relationship') {
+      matchedId = 'KIIP';       // 대인관계 및 소통 어려움 -> 대인관계문제검사 (또는 PAI)
+    } else if (userWorry === 'meaning') {
+      matchedId = 'STS';        // 인생의 깊은 의미 성찰 -> 6요인 기질/성격검사
+    } else if (userWorry === 'resilience') {
+      matchedId = 'RESILIENCE'; // 스트레스 극복 -> 회복탄력성 검사
+    } else if (userWorry === 'career') {
+      matchedId = 'HOLLAND';    // 학습·진로 -> 홀랜드 진로발달검사
+    } else {
+      matchedId = 'TCI';        // 기질 및 성격 특성 -> 기본 TCI
+    }
+  }
+
+  // 데이터 풀(psychTests)에서 해당 검사 object를 찾아 상태에 반영
+  const test = psychTests.find(t => t.id === matchedId);
+  setTestResult(test || null);
+};
                       
             return (
                 <div className="min-h-screen flex flex-col selection:bg-slate-200">
@@ -1131,7 +1129,7 @@ const [reservations, setReservations] = useState(() => {
                                     </p>
                                 </div>
 
-                              {/* Quick Finder Widget */}
+                        {/* Quick Finder Widget */}
 <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-100 shadow-xl max-w-3xl mx-auto mb-16">
   <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center">
     <Icon name="help-circle" className="w-5 h-5 mr-2 text-indigo-500 shrink-0" />
@@ -1139,6 +1137,7 @@ const [reservations, setReservations] = useState(() => {
   </h3>
 
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+    {/* 대상 구분 Select */}
     <div>
       <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
         대상 구분
@@ -1165,6 +1164,7 @@ const [reservations, setReservations] = useState(() => {
       </select>
     </div>
 
+    {/* 가장 고민되는 주제 Select */}
     <div>
       <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
         가장 고민되는 주제
@@ -1190,41 +1190,44 @@ const [reservations, setReservations] = useState(() => {
       </select>
     </div>
   </div>
-                                   <div className="mt-6 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-  <p className="text-sm font-bold text-slate-700 mb-3">
-    추천 검사
-  </p>
 
-  <div className="space-y-2">
-    {recommendedTests.map((test) => {
-      const isMindSarange = test.includes("마음사랑");
-      const cleanName = test
-        .replace(" (마음사랑)", "")
-        .replace(" (인싸이트)", "");
+  {/* 추천 검사 결과 출력 Area */}
+  <div className="mt-6 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+    <p className="text-sm font-bold text-slate-700 mb-3">
+      추가/추천 검사
+    </p>
 
-      return (
-        <div
-          key={test}
-          className="flex items-center justify-between bg-white border border-slate-100 rounded-xl px-4 py-3"
-        >
-          <span className="text-sm font-medium text-slate-700">
-            {cleanName}
-          </span>
+    <div className="space-y-2">
+      {recommendedTests && recommendedTests.map((test) => {
+        const isMindSarange = test.includes("마음사랑");
+        const cleanName = test
+          .replace(" (마음사랑)", "")
+          .replace(" (인싸이트)", "");
 
-          <span
-            className={`text-[10px] px-2 py-1 rounded-full font-bold ${
-              isMindSarange
-                ? "bg-indigo-100 text-indigo-700"
-                : "bg-emerald-100 text-emerald-700"
-            }`}
+        return (
+          <div
+            key={test}
+            className="flex items-center justify-between bg-white border border-slate-100 rounded-xl px-4 py-3"
           >
-            {isMindSarange ? "마음사랑" : "인싸이트"}
-          </span>
-        </div>
-      );
-    })}
+            <span className="text-sm font-medium text-slate-700">
+              {cleanName}
+            </span>
+
+            <span
+              className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                isMindSarange
+                  ? "bg-indigo-100 text-indigo-700"
+                  : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {isMindSarange ? "마음사랑" : "인싸이트"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   </div>
-</div>
+</div> {/* 가장 바깥 컨테이너 위젯 닫힘 */}
                                     {/* Test Recommendation Results */}
 <div className="mt-8 pt-8 border-t border-slate-100 bg-indigo-50/50 -mx-6 sm:-mx-10 px-6 sm:px-10 pb-6 rounded-b-3xl fade-in">
   <div className="flex items-start space-x-4">
@@ -1288,208 +1291,202 @@ const [reservations, setReservations] = useState(() => {
   </div>
 </div>
                                 {/* Complete directory of test items */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                    {psychTests.map((test) => (
-                                        <div key={test.id} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col justify-between">
-                                            <div>
-                                                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${test.color} text-white flex items-center justify-center mb-6 shadow-md shadow-slate-100`}>
-                                                    <Icon name={test.icon} className="w-5 h-5" />
-                                                </div>
-                                                <h3 className="text-lg font-bold text-slate-900">{test.name}</h3>
-                                                <span className="text-xs text-slate-400 block mt-1 font-medium">{test.sub}</span>
-                                                <p className="text-sm text-slate-500 mt-4 leading-relaxed line-clamp-3">{test.desc}</p>
-                                            </div>
-                                            <div className="pt-6 border-t border-slate-100 mt-6 flex justify-between items-center">
-                                                <span className="text-xs text-indigo-600 font-bold bg-indigo-50 px-2.5 py-1 rounded-md">{test.id}</span>
-                                                <button 
-                                                    onClick={() => {
-                                                        setBookingProgram(`${test.name} 실시 및 해석 상담`);
-                                                        scrollToSection('reservations');
-                                                    }}
-                                                    className="text-xs font-bold text-slate-800 hover:text-indigo-600 flex items-center"
-                                                >
-                                                    실시 예약 <Icon name="chevron-right" className="w-3 h-3 ml-1 inline-block" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </section>
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    {psychTests.map((test) => (
+        <div key={test.id} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col justify-between">
+            <div>
+                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${test.color} text-white flex items-center justify-center mb-6 shadow-md shadow-slate-100`}>
+                    <Icon name={test.icon} className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">{test.name}</h3>
+                <span className="text-xs text-slate-400 block mt-1 font-medium">{test.sub}</span>
+                <p className="text-sm text-slate-500 mt-4 leading-relaxed line-clamp-3">{test.desc}</p>
+            </div>
+            <div className="pt-6 border-t border-slate-100 mt-6 flex justify-between items-center">
+                <span className="text-xs text-indigo-600 font-bold bg-indigo-50 px-2.5 py-1 rounded-md">{test.id}</span>
+                <button 
+                    onClick={() => {
+                        setBookingProgram(`${test.name} 실시 및 해석 상담`);
+                        scrollToSection('reservations');
+                    }}
+                    className="text-xs font-bold text-slate-800 hover:text-indigo-600 flex items-center"
+                >
+                    실시 예약 <Icon name="chevron-right" className="w-3 h-3 ml-1 inline-block" />
+                </button>
+            </div>
+        </div>
+    ))}
+</div>
+</div>
+</section>
 
-                        
-                        <section id="reservations" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
-                            <div className="max-w-7xl mx-auto">
-                                <div className="text-center max-w-3xl mx-auto mb-16">
-                                    <span className="inline-block text-xs font-bold bg-slate-900 text-white px-3 py-1 rounded-full mb-3">
-                                        마음이 머무르는 시간
-                                    </span>
-                                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">상담 및 검사 예약관리</h2>
-                                    <p className="mt-4 text-slate-500 text-sm sm:text-base">
-                                        온라인을 통한 편안한 비대면 상담, 또는 조율 장소 및 기관으로 임상심리사가 직접 찾아가는 방문 상담 중 선택하실 수 있습니다.<br />
-                                        ※ 간편 예약을 신청하시면 내용 확인 후 순차적으로 연락을 드려 상세 일정을 안내해 드립니다.
-                                    </p>
-                                </div>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
-                                    {/* Left Form Column: Book counseling */}
-                                    <div className="lg:col-span-1 bg-slate-50 p-8 rounded-3xl border border-slate-100">
-                                        <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
-                                            <Icon name="calendar" className="w-5 h-5 mr-2 text-slate-800" />
-                                            간편 예약 신청
-                                        </h3>
-
-                                        {bookingAlert && (
-                                            <div className={`p-4 rounded-xl mb-6 text-xs font-semibold ${bookingAlert.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-rose-50 text-rose-800 border border-rose-100'}`}>
-                                                {bookingAlert.message}
-                                            </div>
-                                        )}
-
-                                        <form onSubmit={handleAddBooking} className="space-y-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">신청 프로그램</label>
-                                                <select 
-                                                    value={bookingProgram}
-                                                    onChange={(e) => setBookingProgram(e.target.value)}
-                                                    className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                                                >
-                                                    <option value="개인 마음이음 (기본: TCI)">개인 마음이음 (기본: TCI)</option>
-                                                    <option value="부모-자녀 마음이음(양육 상담)">부모-자녀 마음이음(양육 상담)</option>
-                                                    <option value="부부 마음이음(TCI+TCI)">부부 마음이음(부부 상담)</option>
-                                                    <option value="집단 알아차림 워크숍">집단 알아차림 워크숍</option>
-                                                    <option value="기업/기관 마음 리스타트 프로그램">기업/기관 마음 리스타트 프로그램</option>                                                      
-                                                </select>
-                                            </div>
-                                            
-{bookingProgram === "개인 마음이음 (기본: TCI)" && (
-  <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-    <p className="text-xs font-bold text-slate-700 mb-3">
-      추가 검사 선택 (기본 검사 포함)
+<section id="reservations" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
+<div className="max-w-7xl mx-auto">
+<div className="text-center max-w-3xl mx-auto mb-16">
+    <span className="inline-block text-xs font-bold bg-slate-900 text-white px-3 py-1 rounded-full mb-3">
+        마음이 머무르는 시간
+    </span>
+    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">상담 및 검사 예약관리</h2>
+    <p className="mt-4 text-slate-500 text-sm sm:text-base">
+        온라인을 통한 편안한 비대면 상담, 또는 조율 장소 및 기관으로 임상심리사가 직접 찾아가는 방문 상담 중 선택하실 수 있습니다.<br />
+        ※ 간편 예약을 신청하시면 내용 확인 후 순차적으로 연락을 드려 상세 일정을 안내해 드립니다.
     </p>
-    <div className="grid grid-cols-2 gap-2">
-      {[
-        "(J)TCI",
-        "STS",
-        "MMPI-2(A)",
-        "PAI",
-        "KCDI",
-        "PAT",
-        "회복탄력성",
-        "K-IIP",
-        "GOLDEN",
-        "CAD",
-        "Holland"
-      ].map((test) => (
+</div>
 
-        <label
-          key={test}
-          className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-slate-100"
-        >
-          <input
-            type="checkbox"
-            checked={selectedTests.includes(test)}
-            onChange={() => toggleTest(test)}
-          />
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
+    {/* Left Form Column: Book counseling */}
+    <div className="lg:col-span-1 bg-slate-50 p-8 rounded-3xl border border-slate-100">
+        <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
+            <Icon name="calendar" className="w-5 h-5 mr-2 text-slate-800" />
+            간편 예약 신청
+        </h3>
 
-          <span className="text-xs text-slate-700">
-            {test}
-          </span>
-        </label>
-      ))}
+        {bookingAlert && (
+            <div className={`p-4 rounded-xl mb-6 text-xs font-semibold ${bookingAlert.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-rose-50 text-rose-800 border border-rose-100'}`}>
+                {bookingAlert.message}
+            </div>
+        )}
+
+        <form onSubmit={handleAddBooking} className="space-y-4">
+            {/* 1. 신청 프로그램 선택 */}
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">신청 프로그램</label>
+                <select 
+                    value={bookingProgram}
+                    onChange={(e) => setBookingProgram(e.target.value)}
+                    className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                >
+                    <option value="개인 마음이음 (기본: TCI)">개인 마음이음 (기본: TCI)</option>
+                    <option value="부모-자녀 마음이음(양육 상담)">부모-자녀 마음이음(양육 상담)</option>
+                    <option value="부부 마음이음(TCI+TCI)">부부 마음이음(부부 상담)</option>
+                    <option value="집단 알아차림 워크숍">집단 알아차림 워크숍</option>
+                    <option value="기업/기관 마음 리스타트 프로그램">기업/기관 마음 리스타트 프로그램</option>        
+                </select>
+            </div>
+            
+            {/* 2. 추가 검사 선택 (조건부) */}
+            {bookingProgram === "개인 마음이음 (기본: TCI)" && (
+                <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <p className="text-xs font-bold text-slate-700 mb-3">
+                        추가 검사 선택 (기본 검사 포함)
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            "(J)TCI", "STS", "MMPI-2(A)", "PAI", "KCDI", 
+                            "PAT", "회복탄력성", "K-IIP", "GOLDEN", "CAD", "Holland"
+                        ].map((test) => (
+                            <label
+                                key={test}
+                                className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-slate-100"
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={selectedTests.includes(test)}
+                                    onChange={() => toggleTest(test)}
+                                />
+                                <span className="text-xs text-slate-700">
+                                    {test}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* 3. 상담 방식 선택 */}
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상담 방식 선택</label>
+                <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                    <button
+                        type="button"
+                        onClick={() => setBookingType('장소 조율')}
+                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '장소 조율' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                        장소 조율
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setBookingType('찾아가는')}
+                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '찾아가는' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                        찾아가는 (방문)
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => setBookingType('비대면 화상')}
+                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '비대면 화상' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                        비대면 화상
+                    </button>
+                    <button 
+                        type="button" 
+                        onClick={() => setBookingType('비대면 전화/문자')}
+                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '비대면 전화/문자' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                        전화 또는 문자
+                    </button>
+                </div>
+            </div>
+
+            {/* 4. 개인 정보 입력 (성함) */}
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">성함</label>
+                <input 
+                    type="text" 
+                    required
+                    value={bookingName}
+                    onChange={(e) => setBookingName(e.target.value)}
+                    placeholder="성함을 입력하세요"
+                    className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                />
+            </div>
+
+            {/* 5. 개인 정보 입력 (연락처) */}
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">연락처</label>
+                <input 
+                    type="tel" 
+                    required
+                    value={bookingPhone}
+                    onChange={(e) => setBookingPhone(e.target.value)}
+                    placeholder="예) 010-1234-5678"
+                    className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                />
+            </div>
+
+            {/* 6. 희망 일정 선택 */}
+            <div className="grid grid-cols-2 gap-3">
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">희망 날짜</label>
+                    <input 
+                        type="date" 
+                        required
+                        value={bookingDate}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">희망 시간</label>
+                    <input 
+                        type="time" 
+                        required
+                        value={bookingTime}
+                        onChange={(e) => setBookingTime(e.target.value)}
+                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    />
+                </div>
+            </div>
+
+            {/* 7. 최종 제출 버튼 */}
+            <button 
+                type="submit"
+                className="w-full py-4 mt-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all shadow-md shadow-slate-900/10 text-sm"
+            >
+                예약 신청서 제출
+            </button>
+        </form> {/* ◀ 정상적으로 폼 안에서 모든 요소가 닫힙니다. */}
     </div>
-  </div>
-)}
-    </form>
-    </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상담 방식 선택</label>
-                                                <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setBookingType('장소 조율')}
-                                                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '장소 조율' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                                                    >
-                                                        장소 조율
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setBookingType('찾아가는')}
-                                                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '찾아가는' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                                                    >
-                                                        찾아가는 (방문)
-                                                    </button>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => setBookingType('비대면 화상')}
-                                                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '비대면 화상' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                                                    >
-                                                        비대면 화상
-                                                    </button>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => setBookingType('비대면 전화/문자')}
-                                                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '비대면 전화/문자' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                                                    >
-                                                        전화 또는 문자
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">성함</label>
-                                                <input 
-                                                    type="text" 
-                                                    required
-                                                    value={bookingName}
-                                                    onChange={(e) => setBookingName(e.target.value)}
-                                                    placeholder="성함을 입력하세요"
-                                                    className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">연락처</label>
-                                                <input 
-                                                    type="tel" 
-                                                    required
-                                                    value={bookingPhone}
-                                                    onChange={(e) => setBookingPhone(e.target.value)}
-                                                    placeholder="예) 010-1234-5678"
-                                                    className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                                                />
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">희망 날짜</label>
-                                                    <input 
-                                                        type="date" 
-                                                        required
-                                                        value={bookingDate}
-                                                        onChange={(e) => setBookingDate(e.target.value)}
-                                                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">희망 시간</label>
-                                                    <input 
-                                                        type="time" 
-                                                        required
-                                                        value={bookingTime}
-                                                        onChange={(e) => setBookingTime(e.target.value)}
-                                                        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <button 
-                                                type="submit"
-                                                className="w-full py-4 mt-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all shadow-md shadow-slate-900/10 text-sm"
-                                            >
-                                                예약 신청서 제출
-                                            </button>
-                                        </form>
-                                    </div>
 
                                     {/* Right Column: Live booking status and records */}
                                     <div className="lg:col-span-2 space-y-6">
@@ -1690,13 +1687,12 @@ const [reservations, setReservations] = useState(() => {
                                     <li>• STS 6요인 기질검사</li>
                                     <li>• PAT 부모양육태도검사</li>
                                     <li>• RS 회복탄력성검사</li>
+                                    <li>• K-IIP 대인관계문제검사</li>
+                                    <li>• GOLDEN 골든성격유형검사</li>
+                                    <li>• CAD 주의집중력검사</li>
+                                    <li>• Holland 진로발달검사</li>
                                     <li>• SCT 문장완성검사</li>
                                     <li>• HTP 집-나무-사람검사</li>
-<li>• K-IIP 대인관계문제검사</li>
-        <li>• GOLDEN 골든성격유형검사</li>
-        <li>• CAD 주의집중력검사</li>
-        <li>• Holland 진로발달검사</li>
-                                    
                                 </ul>
                             </div>
                             <div>
