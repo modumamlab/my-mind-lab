@@ -1746,12 +1746,6 @@ ${res.date} ${res.time}
                                                             검사발송
                                                          </button>
 
-                                                         <button
-                                                           onClick={() => updateReservationStatus(res.id, "예약취소")}
-                                                           className="text-xs font-semibold text-rose-500 border border-rose-200 hover:bg-rose-50 px-3 py-2 rounded-xl"
-                                                          >
-                                                           관리자취소
-                                                        </button>
                                                       </>
                                                      )}
   
@@ -1774,8 +1768,24 @@ ${res.date} ${res.time}
                                                     <span className="text-xs font-bold text-rose-500">
                                                       취소됨
                                                     </span>
-                                                  )}            
-                                              </div>
+                                                  )}    
+                                                            
+                                             {isAdmin && (
+  <button
+    onClick={() => {
+      if (window.confirm(`${res.name}님의 예약 기록을 완전히 삭제하시겠습니까?\n\n삭제 후 복구할 수 없습니다.`)) {
+        const updatedReservations = reservations.filter(item => item.id !== res.id);
+        setReservations(updatedReservations);
+        localStorage.setItem("modumam_reservations", JSON.stringify(updatedReservations));
+        alert("예약 기록이 삭제되었습니다.");
+      }
+    }}
+    className="text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-xl"
+  >
+    기록삭제
+  </button>
+)}
+                                                        </div>
                                          </div>
                                      </div>
                                   ))}
