@@ -1690,11 +1690,43 @@ const findBestTest = () => {
                                                          {isAdmin && (res.status === "승인대기" || !res.status) && (
                                                           <>
                                                             <button
-                                                              onClick={() => updateReservationStatus(res.id, "예약확정")}
-                                                              className="text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-50 px-3 py-2 rounded-xl"
-                                                           >
-                                                              예약확정
-                                                           </button>
+  onClick={() => {
+
+    updateReservationStatus(res.id, "예약확정");
+
+    const payMessage = `${res.name}님, 안녕하세요.
+모두의 마음연구소입니다.
+
+예약 신청이 확인되었습니다.
+
+■ 신청 프로그램
+${res.program}
+
+■ 상담 방식
+${res.type}
+
+■ 희망 일정
+${res.date} ${res.time}
+
+■ 결제 안내
+국민은행 xxx-xx-xxxxxx
+예금주 : 백인영
+
+입금 확인 후 검사 링크 또는 상담 일정을 안내드리겠습니다.
+
+감사합니다.
+모두의 마음연구소`;
+
+    navigator.clipboard.writeText(payMessage);
+
+    alert("예약이 확정되었습니다.\n결제 안내문이 자동으로 복사되었습니다.");
+
+  }}
+
+  className="text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-50 px-3 py-2 rounded-xl"
+>
+  예약확정
+</button>
 
                                                            <button
                                                              onClick={() => cancelBooking(res.id)}
