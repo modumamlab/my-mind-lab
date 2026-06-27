@@ -305,7 +305,7 @@ const [reservations, setReservations] = useState(() => {
             const [bookingType, setBookingType] = useState('장소 조율');
             const [bookingDate, setBookingDate] = useState('');
             const [bookingTime, setBookingTime] = useState('');
-            const [bookingProgram, setBookingProgram] = useState('개인 마음이음(기본: TCI)');
+            const [bookingProgram, setBookingProgram] = useState('개인 마음이음(기본: TCI+SCT)');
             const [selectedTests, setSelectedTests] = useState([]);
             const [bookingAlert, setBookingAlert] = useState(null);
 
@@ -1051,7 +1051,7 @@ if (userAge === 'parent') {
                                                     className={`py-4 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === ',' ? 'border-mind-comma bg-emerald-50/50 text-mind-comma' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
                                                 >
                                                     <span className="text-2xl font-black font-mono">,</span>
-                                                    <span className="text-xs font-medium mt-1">충전</span>
+                                                    <span className="text-xs font-medium mt-1"></span>
                                                 </button>
                                                 <button 
                                                     type="button"
@@ -1170,7 +1170,7 @@ if (userAge === 'parent') {
                                     </span>
                                     <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">마음이음 프로그램</h2>
                                     <p className="mt-4 text-slate-500 text-sm sm:text-base">
-                                        모두의 마음연구소의 치유 과정은 객관적인 **심리검사를 기반으로 운영**됩니다. 과학적인 데이터를 토대로 상처와 갈등의 진짜 원인을 알아채고, 따뜻하게 쉼표를 채워가는 이음길을 경험해 보세요.
+                                        모두의 마음연구소의 치유 과정은 객관적인 **심리검사를 기반으로 운영**됩니다. 과학적인 데이터를 토대로 상처와 갈등의 진짜 원인을 알아채고, 따뜻하게 마음 채워가는 이음길을 경험해 보세요.
                                     </p>
                                 </div>
 
@@ -2035,13 +2035,6 @@ ${res.date} ${res.time}
       </span>
     </li>
 
-    <li>
-      <strong className="block text-slate-200 mb-1">
-        대표 패키지
-      </strong>
-      부모-자녀 마음이음<br />
-      심리검사 4종(PAT + KCDI + STS/JTCI + 부모 TCI) + 행동 관찰 + 대면 해석 상담
-      </li>
     </ul>
   </div>
 </div>
