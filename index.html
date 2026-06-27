@@ -826,7 +826,7 @@ if (userAge === 'parent') {
                                     <span className="bg-gradient-to-r from-mind-question via-mind-exclamation to-mind-comma bg-clip-text text-transparent font-extrabold">부호</span>는 무엇인가요?
                                 </h2>
                                 <p className="max-w-2xl mx-auto text-sm sm:text-base text-slate-500 font-normal leading-relaxed mb-12 font-friendly">
-                                    마음은 삶의 매 순간, 우리에게 끊임없이 신호를 보냅니다.  질문이 필요할 때는 물음표(?), 알아차림이 필요한 순간에는 느낌표(!), 잠시 쉬어가야 할 때는 쉼표(,), 새로운 시작을 준비할 때는 마침표(.)가 되어 당신의 마음을 비춥니다. 지금 당신의 마음에 찍힌 부호를 통해 자신을 이해하고, 자신을 돌보며, 삶의 다음 문장을 다시 써 내려가는 여정 함께해보아요.
+                                    마음은 삶의 매 순간, 우리에게 끊임없이 신호를 보냅니다. 그 신호에 다정한 질문이 필요할 때는 물음표(?)를, 알아차림이 필요한 순간에는 느낌표(!)를, 잠시 쉬어가야 할 때는 쉼표(,)를, 새로운 시작을 준비할 때는 마침표(.)를 붙여 보세요. 그리고 지금 당신의 마음에 찍힌 부호를 통해 자신을 이해하고, 자신을 돌보며, 삶의 다음 문장을 다시 써 내려가는 여정 함께해보아요.
                                 </p>
 
                                 {/* 4 Buttons Paradigm */}
@@ -973,7 +973,7 @@ if (userAge === 'parent') {
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <span className="text-xs font-bold text-emerald-500 uppercase tracking-widest">휴식과 돌봄 (Self-Care)</span>
-                                                    <h3 className="text-2xl font-extrabold text-slate-900 mt-2">충전 (,)</h3>
+                                                    <h3 className="text-2xl font-extrabold text-slate-900 mt-2">쉼 (,)</h3>
                                                 </div>
                                                 <span className="text-5xl font-extrabold text-emerald-400 font-mono">,</span>
                                             </div>
@@ -998,7 +998,7 @@ if (userAge === 'parent') {
                                                 <span className="text-5xl font-extrabold text-slate-400 font-mono">.</span>
                                             </div>
                                             <p className="mt-6 text-slate-600 leading-relaxed text-sm sm:text-base">
-                                                지나간 자책과 아쉬움을 끝매듭 짓는 마침표입니다. 슬픔에 마침표를 던져 영구히 끝내고, 더 탄력 있고 단단한 힘을 품어 새로운 문장의 첫머리로 진입하는 아름답고 단단한 마음의 부활을 추구합니다.
+                                                지나간 자책과 아쉬움을 끝매듭 짓는 마침표입니다. 슬픔에 마침표를 던져 끝내고, 더 탄력 있고 단단한 힘을 품어 새로운 문장의 첫머리로 진입하는 아름답고 단단한 마음의 부활을 추구합니다.
                                             </p>
                                             <ul className="mt-6 space-y-2 text-sm text-slate-500">
                                                 <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-slate-500 mr-2 shrink-0" />마음의 회복탄력성 극대화 코칭</li>
@@ -1253,10 +1253,22 @@ if (userAge === 'parent') {
   {/* 반응형 그리드: 모바일 세로 1열, 태블릿 이상(lg) 가로 2단 */}
   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
     
-    {/* [좌측 영역] 조건 선택 카드 (5칸 차지) */}
-    <div className="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-xl flex flex-col justify-center">
-      <div className="space-y-5">
-        
+  {/* [좌측 영역] 조건 선택 카드 (5칸 차지) */}
+<div className="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-xl">
+
+  {/* 카드 제목 */}
+  <div className="mb-6">
+    <h4 className="text-lg font-extrabold text-slate-900">
+      대상 및 고민 선택
+    </h4>
+    <p className="text-xs text-slate-400 mt-1">
+      대상과 고민을 선택하면 가장 적합한 검사 조합을 추천해드립니다.
+    </p>
+  </div>
+
+  {/* 입력 영역 */}
+  <div className="space-y-5">
+      
         {/* 대상 구분 Select */}
         <div>
           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
@@ -1316,7 +1328,6 @@ if (userAge === 'parent') {
             )}
           </select>
         </div>
-
       </div>
     </div>
 
@@ -1997,23 +2008,39 @@ ${res.date} ${res.time}
 
 </div>
 </div>
-  <div className="md:col-span-3">
-    <h5 className="font-bold text-white mb-4">상담 예약 상담 채널</h5>
-    <ul className="space-y-4 text-[11px] text-slate-400">
-      <li>
-        <strong className="block text-slate-200">온라인 마음 링크 서비스(비대면)</strong>
-        기본 5만 원 / 추가 건당 3만 원 / Zoom·전화 해석 상담
-      </li>
-      <li>
-        <strong className="block text-slate-200">찾아가는 프리미엄 서비스(대면)</strong>
-        기본 8만 원 / 추가 건당 3만 원 / 장소 조율 및 방문
-        <span className="block mt-1.5 text-slate-500 italic">
-          ※ 천안·아산 외 출장은 결제금액 20만 원 이상 시 가능
-        </span>
-      </li>
-      <li>
-        <strong className="block text-slate-200">[대표 패키지] 부모-자녀 마음이음</strong>
-        검사 4종(KCDI, STS, PAT, TCI) + 행동 관찰 + 대면 해석 상담
+ <div className="md:col-span-3">
+  <h5 className="font-bold text-white mb-4">
+    상담 예약 · 상담 채널
+  </h5>
+
+  <ul className="space-y-5 text-[11px] text-slate-400">
+
+    <li>
+      <strong className="block text-slate-200 mb-1">
+        온라인 마음 링크 서비스 (비대면)
+      </strong>
+      Zoom · 전화 상담<br />
+      기본 5만 원 / 추가 검사 3만 원
+    </li>
+
+    <li>
+      <strong className="block text-slate-200 mb-1">
+        찾아가는 프리미엄 서비스 (대면)
+      </strong>
+      장소 조율 · 방문 상담<br />
+      기본 8만 원 / 추가 검사 3만 원
+
+      <span className="block mt-2 text-slate-500 italic">
+        ※ 천안·아산 외 지역은 별도 문의주세요.
+      </span>
+    </li>
+
+    <li>
+      <strong className="block text-slate-200 mb-1">
+        대표 패키지
+      </strong>
+      부모-자녀 마음이음<br />
+      심리검사 4종(PAT + KCDI + STS/JTCI + 부모 TCI) + 행동 관찰 + 대면 해석 상담
       </li>
     </ul>
   </div>
