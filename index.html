@@ -724,14 +724,14 @@ setBookingProgram('개인 마음이음(기본: TCI+SCT)');
 setSelectedTests([]); 
             };
 
-            const getPaymentInfo = (res) => {
-  const faceToFaceTypes = [
-    "장소 조율",
-    "찾아가는(방문)",
-    "찾아가는 (방문)"
-  ];
+const getPaymentInfo = (res) => {
+  const isFaceToFace =
+    res.type.includes("장소") ||
+    res.type.includes("찾아가는") ||
+    res.type.includes("방문") ||
+    res.type.includes("대면");
 
-  const baseAmount = faceToFaceTypes.includes(res.type) ? 80000 : 50000;
+  const baseAmount = isFaceToFace ? 80000 : 50000;
 
   const match = res.program.match(/\((.*?)\)$/);
 
