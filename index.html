@@ -309,7 +309,7 @@ const [reservations, setReservations] = useState(() => {
             // Booking form inputs
             const [bookingName, setBookingName] = useState('');
             const [bookingPhone, setBookingPhone] = useState('');
-            const [bookingType, setBookingType] = useState('장소 조율');
+            const [bookingType, setBookingType] = useState('장소 조율(대면)');
             const [bookingDate, setBookingDate] = useState('');
             const [bookingTime, setBookingTime] = useState('');
             const [bookingProgram, setBookingProgram] = useState('개인 마음이음(기본: TCI+SCT)');
@@ -613,21 +613,21 @@ const psychTests = [
     },
     {
         id: 'p2',
-        badge: '심리검사 기반 집단 알아차림 워크숍',
-        title: '집단 알아차림 워크숍',
+        badge: 'TCI 그룹 클래스',
+        title: '집단 알아차림 프로그램',
         subtitle: '(소규모 그룹)',
-        desc: '사전에 TCI(기질 및 성격검사)를 진행하여 타고난 기질과 성격 데이터를 개별적으로 파악한 후, 이를 바탕으로 나와 타인의 차이를 안전하게 이해하고 서로의 물음표를 느낌표(!)로 키워 나가는 워크숍입니다.',
+        desc: '사전에 TCI(기질 및 성격검사)를 진행하여 타고난 기질과 성격 데이터를 개별적으로 파악한 후, 이를 바탕으로 나와 타인의 차이를 안전하게 이해하고 서로의 물음표를 느낌표(!)로 키워 나가는 집단 기반 패키지입니다.',
         target: '타인의 공감 속에서 나를 안전하게 이해하고 싶은 분들',
-        time: '주 1회 / 총 4주 과정',
+        time: '주 1회(120분) / 총 4주 과정',
         img: 'https://placehold.co/600x400/f3e8ff/334155?text=Group+Workshop'
     },
     {
         id: 'p4',
-        badge: '심리검사 기반 기업 맞춤 코칭',
+        badge: '심리검사 기반 번아웃 코칭',
         title: '집단 마음 리스타트 프로그램',
         subtitle: '(번아웃 예방)',
         desc: 'TCI(기질 및 성격검사) 및 회복탄력성 지표를 사전에 측정하여 수치화된 번아웃 상태를 파악한 뒤, 구성원이 일의 마침표(.) 후 다시 힘찬 에너지를 채워갈 수 있도록 돕는 진단 기반 패키지입니다.',
-        target: '조직 구성원의 멘탈케어 및 힐링 워크숍이 필요한 기업',
+        target: '집단원의 멘탈케어 및 힐링 워크숍이 필요한 분들',
         time: '2시간 코스',
         img: 'https://placehold.co/600x400/f1f5f9/334155?text=Corporate+Mental+Care'
     }
@@ -725,45 +725,144 @@ setSelectedTests([]);
             };
 
 const getPaymentInfo = (res) => {
+
+  // -----------------------------
+  // 1. 상담방식에 따른 기본금액
+  // -----------------------------
   const isFaceToFace =
-    res.type.includes("장소") ||
-    res.type.includes("찾아가는") ||
-    res.type.includes("방문") ||
-    res.type.includes("대면");
+    res.type === "장소 조율(대면)" ||
+    res.type === "찾아가는(방문)";
 
   const baseAmount = isFaceToFace ? 80000 : 50000;
 
-  const match = res.program.match(/\((.*?)\)$/);
+  let extraCount = 0;
 
-  let allTests = [];
+  // -----------------------------
+  // 2. 프로그램별 계산
+  // -----------------------------
 
-  if (match) {
-    allTests = match[1]
-      .split("+")
-      .map(t => t.trim())
-      .filter(Boolean);
+  // 개인 마음이음
+  if (res.program.includes("개인 마음이음")) {
+
+    const match = res.program.match(/\((.*?)\)$/);
+
+    if (match) {
+
+      const tests = match[1]
+        .split("+")
+        .map(t => t.trim())
+        .filter(Boolean);
+
+      tests.forEach(test => {
+
+        // 무료
+        if (
+          test.includes("SCT") ||
+          test.includes("HTP")
+        ) return;
+
+        // 기본검사
+        if (
+          test === "TCI" ||
+          test.includes("기본")
+        ) return;
+
+        extraCount++;
+
+      });
+
+    }
+
   }
 
-  const paidTests = allTests.filter(test =>
-    !test.includes("SCT") &&
-    !test.includes("HTP")
-  );
+  // 부모-자녀 마음이음
+  else if (res.program.includes("부모-자녀")) {
 
-  const freeTests = allTests.filter(test =>
-    test.includes("SCT") ||
-    test.includes("HTP")
-  );
+    const match = res.program.match(/\((.*?)\)$/);
 
-  const extraAmount = paidTests.length * 30000;
+    if (match) {
+
+      const tests = match[1]
+        .split("+")
+        .map(t => t.trim())
+        .filter(Boolean);
+
+      tests.forEach(test => {
+
+        if (
+          test.includes("SCT") ||
+          test.includes("HTP")
+        ) return;
+
+        if (
+          test === "PAT" ||
+          test.includes("기본")
+        ) return;
+
+        extraCount++;
+
+      });
+
+    }
+
+  }
+
+  // 부부 마음이음
+  else if (res.program.includes("부부")) {
+
+    // 기본 TCI 1건 포함
+    // 두 번째 TCI 1건은 유료
+    extraCount = 1;
+
+  }
+
+  // 기타 프로그램
+  else {
+
+    const match = res.program.match(/\((.*?)\)$/);
+
+    if (match) {
+
+      const tests = match[1]
+        .split("+")
+        .map(t => t.trim())
+        .filter(Boolean);
+
+      tests.forEach(test => {
+
+        if (
+          test.includes("SCT") ||
+          test.includes("HTP")
+        ) return;
+
+        extraCount++;
+
+      });
+
+    }
+
+  }
+
+  // -----------------------------
+  // 3. 금액 계산
+  // -----------------------------
+
+  const extraAmount = extraCount * 30000;
+
   const totalAmount = baseAmount + extraAmount;
 
   return {
+
     total: `${totalAmount.toLocaleString()}원`,
+
     detail:
       `기본 ${baseAmount.toLocaleString()}원` +
-      (paidTests.length > 0 ? ` + 유료 추가검사 ${paidTests.length}건 ${extraAmount.toLocaleString()}원` : "") +
-      (freeTests.length > 0 ? ` + 무료검사 ${freeTests.join(", ")}` : "")
+      (extraCount > 0
+        ? ` + 추가검사 ${extraCount}건 ${extraAmount.toLocaleString()}원`
+        : "")
+
   };
+
 };
             
             const cancelBooking = (id) => {
@@ -1517,8 +1616,8 @@ if (userAge === 'parent') {
                 >
                     <option value="개인 마음이음(기본: TCI+SCT)">개인 마음이음(기본: TCI+SCT)</option>
                     <option value="부모-자녀 마음이음(기본: PAT)">부모-자녀 마음이음(기본: PAT)</option>
-                    <option value="부부 마음이음(TCI+TCI)">부부 마음이음(부부 상담)</option>
-                    <option value="집단 알아차림 워크숍">집단 알아차림 워크숍</option>
+                    <option value="부부 마음이음(TCI+TCI)">부부 마음이음(TCI+TCI)</option>
+                    <option value="집단 알아차림 프로그램">집단 알아차림 프로그램</option>
                     <option value="집단 마음 리스타트 프로그램">집단 마음 리스타트 프로그램</option>        
                 </select>
             </div>
@@ -1604,10 +1703,10 @@ if (userAge === 'parent') {
                 <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
                     <button
                         type="button"
-                        onClick={() => setBookingType('장소 조율')}
-                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '장소 조율' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        onClick={() => setBookingType('장소 조율(대면)')}
+                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '장소 조율(대면)' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                     >
-                        장소 조율
+                        장소 조율(대면)
                     </button>
                     <button
                         type="button"
