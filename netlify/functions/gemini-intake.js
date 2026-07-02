@@ -36,9 +36,10 @@ exports.handler = async function (event) {
 - 해결책 강요 금지
 
 답변 형식:
-1. 공감 1~2문장
-2. 마음이해 1~2문장
+1. 공감 2~3문장
+2. 마음이해 2~3문장
 3. 다음 질문 1개
+- 전체 답변은 6문장 이내로 작성합니다.
 `;
 
     const userConversation = messages
