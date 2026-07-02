@@ -234,20 +234,26 @@
       })
     });
 
+    const result = await response.json();
+
     if (!response.ok) {
-      throw new Error("AI 연결 오류");
+      throw new Error(result.error || "AI 연결 오류");
     }
 
-    const result = await response.json();
     const aiText = result.text;
 
     removeTyping();
     addMessage("ai", aiText);
-    conversationMessages.push({ role: "ai", text: aiText });
+
+    conversationMessages.push({
+      role: "ai",
+      text: aiText
+    });
 
   } catch (error) {
     removeTyping();
-    addMessage("ai", "AI 연결이 잠시 원활하지 않습니다. 그래도 괜찮습니다. 지금 가장 마음에 남는 이야기를 한 문장으로 더 들려주세요.");
+    addMessage("ai", "오류 : " + error.message);
+    console.error(error);
   }
 }
 

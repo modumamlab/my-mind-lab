@@ -73,14 +73,30 @@ ${userConversation}
     );
 
     const data = await response.json();
-    const text =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "마음의 이야기를 조금 더 듣고 싶습니다. 지금 가장 마음에 남는 부분을 편안하게 들려주세요.";
+    if (data.error) {
+  return {
+    statusCode: 500,
+    body: JSON.stringify({
+      error: data.error.message || "Gemini API 오류가 발생했습니다."
+    }),
+  };
+}
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ text }),
-    };
+const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+if (!text) {
+  return {
+    statusCode: 500,
+    body: JSON.stringify({
+      error: "Gemini 응답이 비어 있습니다."
+    }),
+  };
+}
+
+return {
+  statusCode: 200,
+  body: JSON.stringify({ text }),
+};
   } catch (error) {
     return {
       statusCode: 500,
