@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 접수면접 | 모두의 마음연구소</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-emerald-50 min-h-screen">
+  <main class="max-w-3xl mx-auto px-4 py-12">
+    <section class="bg-white rounded-3xl shadow-xl border border-emerald-100 p-8">
+      <p class="text-sm font-bold text-emerald-600 mb-2">
+        Modumam Lab
+      </p>
+
+      <h1 class="text-3xl font-extrabold text-slate-900 mb-4">
+        AI 접수면접
+      </h1>
+
+      <p class="text-slate-600 leading-relaxed mb-8">
+        안녕하세요. 저는 모두의 마음연구소 AI 마음안내자입니다.<br />
+        이곳은 현재의 마음을 보다 깊이 이해하고,
+        필요한 심리검사와 상담을 준비하기 위한 공간입니다.
+      </p>
+
+      <div class="bg-emerald-50 rounded-2xl p-5 mb-8 text-sm text-slate-600 leading-relaxed">
+        AI 접수면접은 약 10~15분 정도 소요됩니다.<br />
+        최종 심리검사 해석과 상담은 국가기술자격 임상심리사 1급이 진행합니다.
+      </div>
+
+      <button
+        onclick="startInterview()"
+        class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg transition"
+      >
+        AI 접수면접 시작하기
+      </button>
+
+      <div id="interviewBox" class="hidden mt-8">
+        <p class="text-xs font-bold text-emerald-600 mb-2">
+          1 / 5 단계
+        </p>
+
+        <h2 class="text-xl font-extrabold text-slate-900 mb-3">
+          오늘 어떤 마음으로 찾아오셨나요?
+        </h2>
+
+        <p class="text-sm text-slate-500 mb-4">
+          정답은 없습니다. 지금 떠오르는 생각이나 감정을 편안하게 적어주세요.
+        </p>
+
+        <textarea
+          class="w-full h-36 border border-slate-200 rounded-2xl p-4 text-sm focus:outline-none focus:border-emerald-500"
+          placeholder="예: 요즘 마음이 자주 불안해요. 직장 일이 너무 힘들어요."
+        ></textarea>
+
+        <button
+          onclick="alert('다음 질문은 다음 단계에서 연결됩니다.')"
+          class="mt-5 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition"
+        >
+          다음
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function startInterview() {
+      document.getElementById('interviewBox').classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
