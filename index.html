@@ -286,6 +286,8 @@ async function submitSignup(userData) {
             const [memberPhone, setMemberPhone] = useState('');
             const [memberEmail, setMemberEmail] = useState('');
 
+           
+
             // Report Popup State
             const [showReport, setShowReport] = useState(false);
             const [selectedReport, setSelectedReport] = useState(null);
@@ -361,21 +363,33 @@ const handleAuthSubmit = async (e) => { // async 키워드 추가 필수
         )
         .then((response) => {
             console.log('관리자 메일 발송 성공!', response.status);
-            alert(`${authForm.name}님, 회원가입이 완료되었습니다!`);
-            setIsLoggedIn(true);
-            setIsAuthModalOpen(false);
-        })
+            alert(`${authForm.name}님, 회원가입이 완료되었습니다! AI 접수면접을 시작합니다.`);
+setIsLoggedIn(true);
+setIsAuthModalOpen(false);
+
+setTimeout(() => {
+    scrollToSection('ai-intake');
+}, 300);
+})
         .catch((err) => {
             console.error('메일 발송 실패:', err);
             setIsLoggedIn(true);
-            setIsAuthModalOpen(false);
+setIsAuthModalOpen(false);
+
+setTimeout(() => {
+    scrollToSection('ai-intake');
+}, 300);
         });
         
     } else {
-        alert('로그인되었습니다.');
-        setIsLoggedIn(true);
-        setIsAuthModalOpen(false);
-    }
+    alert('로그인되었습니다.');
+    setIsLoggedIn(true);
+    setIsAuthModalOpen(false);
+
+    setTimeout(() => {
+        scrollToSection('ai-intake');
+    }, 300);
+}
     
     setAuthForm({ name: '', phone: '', email: '', password: '' });
 };
@@ -638,13 +652,6 @@ const psychTests = [
 ];
 
            const generateMindAnalysis = () => {
-    // [보안 및 예외 차단] 1. 로그인이 안 되어 있다면 AI 호출을 전면 차단하고 회원가입 창을 띄웁니다.
-    if (!isLoggedIn) {
-        alert("내 마음을 부탁해 AI 상담은 회원가입 및 로그인 후 이용 가능합니다.");
-        setAuthMode('signup');    // 회원가입 모드 설정
-        setIsAuthModalOpen(true); // 팝업창 열기
-        return;                   // 여기서 함수를 강제 종료하여 Netlify/Gemini API 호출 및 에러 세팅을 막음
-    }
 
     // 2. 글자 입력 여부 체크 (기존 코드)
     if (!mindState.trim()) {
@@ -662,9 +669,12 @@ const psychTests = [
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            mindState,
-            mindPunctuation
-        })
+    mindState,
+    mindPunctuation,
+    aiRole: "Modumam Lab 상담 접수를 담당하는 AI 마음안내자",
+    aiPurpose: "AI 접수면접과 AI 마음이해를 통해 현재의 마음을 정리하고, 필요한 경우 심리검사를 추천합니다. 진단이나 최종 해석은 하지 않습니다.",
+    expertRole: "심리검사 최종 해석과 상담은 국가기술자격 임상심리사 1급이 진행합니다."
+})
     })
     .then(function(response) {
         if (!response.ok) {
@@ -1268,17 +1278,8 @@ if (userAge === 'parent') {
                                         <button 
     type="button" 
     onClick={() => {
-        // 1. 만약 로그인이 되어있지 않다면 가드(Guard) 작동
-        if (!isLoggedIn) {
-            alert("내 마음을 부탁해 AI 상담은 회원가입 및 로그인 후 이용 가능합니다.");
-            setAuthMode('signup');    // 바로 회원가입 양식이 보이도록 세팅
-            setIsAuthModalOpen(true); // 회원가입 모달 열기
-            return;                   // 분석 함수로 안 넘어가고 여기서 차단
-        }
-
-        // 2. 로그인 상태일 때만 기존 분석 기능 실행
-        generateMindAnalysis();
-    }}
+    generateMindAnalysis();
+}}
     disabled={isAnalyzing}
     className="w-full py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold shadow-lg transition-all flex items-center justify-center space-x-2"
 >
@@ -1293,7 +1294,7 @@ if (userAge === 'parent') {
     ) : (
         <>
             <Icon name="sparkles" className="w-5 h-5" />
-            <span>마음 치유 상담받기 (AI 추천 리포트)</span>
+            <span>AI마음리포트(무료)</span>
         </>
     )}
 </button>
@@ -1307,7 +1308,7 @@ if (userAge === 'parent') {
                                                     <Icon name="smile" className="w-5 h-5" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-slate-800">모두의 마음연구소 마음이음 상담사</h4>
+                                                    <h4 className="font-bold text-slate-800">모두의 마음연구소 AI 마음안내자</h4>
                                                     <p className="text-xs text-slate-400">당신의 이야기에 정성을 모아 답변을 드려요</p>
                                                 </div>
                                             </div>
@@ -1324,21 +1325,26 @@ if (userAge === 'parent') {
                                                 <button
                                                   onClick={() => window.open('https://pf.kakao.com/_hQSXX/chat', '_blank')}
                                                   className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all">
-                                                    Kanana AI 리포트
+                                                    카카오 채널 문의
                                                  </button> 
                                                 
-                                                <button onClick={() => scrollToSection('reservations')} className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all">
-                                                    전문 상담 예약하기
-                                                </button>
-                                           
-                                            </div>
+                                                 <button
+   onClick={() => {
+    alert("AI 접수면접은 현재 준비 중입니다. 곧 더 깊이 있는 마음이해 과정으로 찾아뵙겠습니다.");
+}}
+    className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all"
+>
+    AI 접수면접 시작하기
+</button>
+
+                                                </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </section>
 
-                        
+        
                         {/* 이 섹션은 image_b24bc5.png 파일에 표현된 고품격 오버랩 레이아웃을 100% 반영합니다. */}
                         <section id="programs" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
                             <div className="max-w-7xl mx-auto">
@@ -1608,143 +1614,8 @@ if (userAge === 'parent') {
 </div>
     
 </section>
-{/* 결과확인 섹션 */}
-<section id="results" className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
-    <div className="max-w-7xl mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="inline-block text-xs font-bold bg-emerald-700 text-white px-3 py-1 rounded-full mb-3">
-                검사 결과 조회
-            </span>
+         
 
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-4">
-                내 마음기록
-            </h2>
-
-            <p className="text-slate-500 leading-relaxed">
-                심리검사 결과를 안전하게 확인하고<br className="hidden sm:block" />
-                상담 이후의 마음 변화를 차곡차곡 기록합니다.
-            </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-            <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/60 border border-slate-100 p-8 sm:p-10">
-                <div className="mb-8">
-                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-5">
-                        <span className="text-2xl">🔒</span>
-                    </div>
-
-                    <h3 className="text-2xl font-extrabold text-slate-900 mb-3">
-                        결과 확인하기
-                    </h3>
-
-                    <p className="text-sm text-slate-500 leading-relaxed">
-                        예약 시 입력한 정보와 예약번호를 입력하면<br />
-                        검사 결과와 보고서를 확인할 수 있습니다.
-                    </p>
-                </div>
-
-                <div className="space-y-4">
-                    <input
-                        type="text"
-                        placeholder="이름"
-                        className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition"
-                    />
-
-                    <input
-                        type="tel"
-                        placeholder="휴대폰번호 예) 01012345678"
-                        className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition"
-                    />
-
-                    <input
-                        type="text"
-                        placeholder="예약번호"
-                        className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition"
-                    />
-
-                    <button
-                        type="button"
-                        className="w-full bg-slate-900 text-white rounded-2xl py-4 text-sm font-extrabold hover:bg-emerald-700 hover:scale-[1.01] transition-all shadow-lg shadow-slate-200"
-                    >
-                        결과 확인
-                    </button>
-                </div>
-
-                <p className="text-xs text-slate-400 mt-5 leading-relaxed">
-                    ※ 현재는 결과확인 화면 준비 단계입니다. 실제 결과 조회는 관리자 확인 후 순차적으로 연결됩니다.
-                </p>
-            </div>
-
-            <div className="space-y-5">
-                <div className="bg-white rounded-[2rem] border border-slate-100 p-7 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <p className="text-xs font-bold text-emerald-700 mb-2">해석완료 예시</p>
-                            <h4 className="text-xl font-extrabold text-slate-900 mb-2">
-                                TCI 기질 및 성격검사
-                            </h4>
-                            <p className="text-sm text-slate-500">
-                                검사일 2026.06.29
-                            </p>
-                        </div>
-
-                        <span className="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
-                            완료
-                        </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                     <button
-                        onClick={() => {
-                        setSelectedReport("TCI");
-                        setShowReport(true);
-                 }}
-                 className="flex-1 rounded-2xl bg-slate-900 text-white py-3 text-sm font-bold"
-                    >
-                      온라인 보기
-                   </button>
-                 <button className="flex-1 rounded-2xl border border-slate-200 text-slate-700 py-3 text-sm font-bold">
-                            PDF 다운로드
-                        </button>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-[2rem] border border-slate-100 p-7 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <p className="text-xs font-bold text-slate-400 mb-2">진행중 예시</p>
-                            <h4 className="text-xl font-extrabold text-slate-900 mb-2">
-                                STS 6요인 기질검사
-                            </h4>
-                            <p className="text-sm text-slate-500">
-                                전문가 해석 준비중
-                            </p>
-                        </div>
-
-                        <span className="text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1 rounded-full">
-                            준비중
-                        </span>
-                    </div>
-                </div>
-
-                <div className="bg-slate-900 rounded-[2rem] p-8 text-white">
-                    <p className="text-xs font-bold text-emerald-300 mb-3">
-                        모두의 마음연구소만의 기록
-                    </p>
-                    <h4 className="text-2xl font-extrabold mb-3">
-                        검사 결과를 넘어,<br />
-                        마음의 변화를 함께 봅니다.
-                    </h4>
-                    <p className="text-sm text-slate-300 leading-relaxed">
-                        TCI, STS, PAT, MMPI-2 등 검사 결과와 상담 기록을
-                        차곡차곡 연결해 나중에는 ‘내 마음 성장 기록’으로 확장할 수 있습니다.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-                        
 <section id="reservations" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
 <div className="max-w-7xl mx-auto">
 <div className="text-center max-w-3xl mx-auto mb-16">
@@ -2178,96 +2049,299 @@ ${paymentInfo.detail}
               </div>
          </div>
      </section>
-                        {isAuthModalOpen && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
-             <div className="absolute inset-0" onClick={() => setIsAuthModalOpen(false)}></div>
-             
-             <div className="relative bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-slate-100 z-10">
-                 <div className="flex justify-between items-center mb-6">
-                     <h3 className="text-xl font-extrabold text-slate-900">
-                         {authMode === 'signup' ? '내 마음을 부탁해 회원가입' : '로그인하기'}
-                     </h3>
-                     <button 
-                         onClick={() => setIsAuthModalOpen(false)}
-                         className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1"
-                     >
-                         ✕
-                     </button>
-                 </div>
 
-                 <form onSubmit={handleAuthSubmit} className="space-y-4">
-                     {authMode === 'signup' && (
-                         <>
-                             <div>
-                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">이름</label>
-                                 <input 
-                                     type="text" 
-                                     required
-                                     placeholder="홍길동"
-                                     value={authForm.name}
-                                     onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
-                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
-                                 />
-                             </div>
-                             <div>
-                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">전화번호</label>
-                                 <input 
-                                     type="tel" 
-                                     required
-                                     placeholder="010-1234-5678"
-                                     value={authForm.phone}
-                                     onChange={(e) => setAuthForm({...authForm, phone: e.target.value})}
-                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
-                                 />
-                             </div>
-                         </>
-                     )}
-                     
-                     <div>
-                         <label className="block text-xs font-bold text-slate-600 mb-1.5">이메일 주소</label>
-                         <input 
-                             type="email" 
-                             required
-                             placeholder="example@email.com"
-                             value={authForm.email}
-                             onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
-                             className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
-                         />
-                     </div>
-                     <div>
-                         <label className="block text-xs font-bold text-slate-600 mb-1.5">비밀번호</label>
-                         <input 
-                             type="password" 
-                             required
-                             placeholder="••••••••"
-                             value={authForm.password}
-                             onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
-                             className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
-                         />
-                     </div>
+{/* 결과확인 섹션 */}
+<section id="results" className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
+    <div className="max-w-7xl mx-auto">
+        <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="inline-block text-xs font-bold bg-emerald-700 text-white px-3 py-1 rounded-full mb-3">
+                검사 결과 조회
+            </span>
 
-                     <button 
-                         type="submit" 
-                         className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-colors shadow-lg mt-2"
-                     >
-                         {authMode === 'signup' ? '회원가입 완료하기' : '로그인'}
-                     </button>
-                 </form>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-4">
+                내 마음기록
+            </h2>
 
-                 <div className="mt-6 pt-4 border-t border-slate-100 text-center">
-                     <p className="text-xs text-slate-500">
-                         {authMode === 'signup' ? '이미 계정이 있으신가요?' : '아직 회원이 아니신가요?'}
-                         <button 
-                             onClick={() => setAuthMode(authMode === 'signup' ? 'login' : 'signup')}
-                             className="text-indigo-600 font-bold ml-1.5 hover:underline"
-                         >
-                             {authMode === 'signup' ? '로그인하기' : '회원가입하기'}
-                         </button>
-                     </p>
-                 </div>
-             </div>
-         </div>
-     )}
+            <p className="text-slate-500 leading-relaxed">
+                심리검사 결과를 안전하게 확인하고<br className="hidden sm:block" />
+                상담 이후의 마음 변화를 차곡차곡 기록합니다.
+            </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+            <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/60 border border-slate-100 p-8 sm:p-10">
+                <div className="mb-8">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-5">
+                        <span className="text-2xl">🔒</span>
+                    </div>
+
+                    <h3 className="text-2xl font-extrabold text-slate-900 mb-3">
+                        결과 확인하기
+                    </h3>
+
+                    <p className="text-sm text-slate-500 leading-relaxed">
+                        예약 시 입력한 정보와 예약번호를 입력하면<br />
+                        검사 결과와 보고서를 확인할 수 있습니다.
+                    </p>
+                </div>
+
+                <div className="space-y-4">
+                    <input
+                        type="text"
+                        placeholder="이름"
+                        className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition"
+                    />
+
+                    <input
+                        type="tel"
+                        placeholder="휴대폰번호 예) 01012345678"
+                        className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition"
+                    />
+
+                    <input
+                        type="text"
+                        placeholder="예약번호"
+                        className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition"
+                    />
+
+                    <button
+                        type="button"
+                        className="w-full bg-slate-900 text-white rounded-2xl py-4 text-sm font-extrabold hover:bg-emerald-700 hover:scale-[1.01] transition-all shadow-lg shadow-slate-200"
+                    >
+                        결과 확인
+                    </button>
+                </div>
+
+                <p className="text-xs text-slate-400 mt-5 leading-relaxed">
+                    ※ 현재는 결과확인 화면 준비 단계입니다. 실제 결과 조회는 관리자 확인 후 순차적으로 연결됩니다.
+                </p>
+            </div>
+
+            <div className="space-y-5">
+                <div className="bg-white rounded-[2rem] border border-slate-100 p-7 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-bold text-emerald-700 mb-2">해석완료 예시</p>
+                            <h4 className="text-xl font-extrabold text-slate-900 mb-2">
+                                TCI 기질 및 성격검사
+                            </h4>
+                            <p className="text-sm text-slate-500">
+                                검사일 2026.06.29
+                            </p>
+                        </div>
+
+                        <span className="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
+                            완료
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                     <button
+                        onClick={() => {
+                        setSelectedReport("TCI");
+                        setShowReport(true);
+                 }}
+                 className="flex-1 rounded-2xl bg-slate-900 text-white py-3 text-sm font-bold"
+                    >
+                      온라인 보기
+                   </button>
+                 <button className="flex-1 rounded-2xl border border-slate-200 text-slate-700 py-3 text-sm font-bold">
+                            PDF 다운로드
+                        </button>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-[2rem] border border-slate-100 p-7 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-bold text-slate-400 mb-2">진행중 예시</p>
+                            <h4 className="text-xl font-extrabold text-slate-900 mb-2">
+                                STS 6요인 기질검사
+                            </h4>
+                            <p className="text-sm text-slate-500">
+                                전문가 해석 준비중
+                            </p>
+                        </div>
+
+                        <span className="text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1 rounded-full">
+                            준비중
+                        </span>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900 rounded-[2rem] p-8 text-white">
+                    <p className="text-xs font-bold text-emerald-300 mb-3">
+                        모두의 마음연구소만의 기록
+                    </p>
+                    <h4 className="text-2xl font-extrabold mb-3">
+                        검사 결과를 넘어,<br />
+                        마음의 변화를 함께 봅니다.
+                    </h4>
+                    <p className="text-sm text-slate-300 leading-relaxed">
+                        TCI, STS, PAT, MMPI-2 등 검사 결과와 상담 기록을
+                        차곡차곡 연결해 나중에는 ‘내 마음 성장 기록’으로 확장할 수 있습니다.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+                      {isAuthModalOpen && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+        <div
+            className="absolute inset-0"
+            onClick={() => setIsAuthModalOpen(false)}
+        ></div>
+
+        <div className="relative bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-slate-100 z-10 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-extrabold text-slate-900">
+                    {authMode === 'signup' ? 'AI 접수면접 회원가입' : '로그인하기'}
+                </h3>
+
+                <button
+                    type="button"
+                    onClick={() => setIsAuthModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1"
+                >
+                    ✕
+                </button>
+            </div>
+
+            {authMode === 'signup' && (
+                <div className="mb-5 text-sm text-slate-600 leading-relaxed bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                    <p className="font-semibold text-emerald-700 mb-2">
+                        AI 접수면접 안내
+                    </p>
+
+                    <p>
+                        AI 접수면접은 현재의 마음을 보다 깊이 이해하고,
+                        필요한 심리검사와 상담 준비를 위한 과정입니다.
+                    </p>
+
+                    <p className="mt-2">
+                        AI는 현재의 마음을 이해하고 정리하는 보조도구이며,
+                        최종 심리검사 해석과 상담은
+                        <strong> 국가기술자격 임상심리사 1급</strong>이 진행합니다.
+                    </p>
+                </div>
+            )}
+
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {authMode === 'signup' && (
+                    <>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1.5">이름</label>
+                            <input
+                                type="text"
+                                required
+                                placeholder="홍길동"
+                                value={authForm.name}
+                                onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1.5">전화번호</label>
+                            <input
+                                type="tel"
+                                required
+                                placeholder="010-1234-5678"
+                                value={authForm.phone}
+                                onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
+                            />
+                        </div>
+                    </>
+                )}
+
+                <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">이메일 주소</label>
+                    <input
+                        type="email"
+                        required
+                        placeholder="example@email.com"
+                        value={authForm.email}
+                        onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">비밀번호</label>
+                    <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={authForm.password}
+                        onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
+                    />
+                </div>
+
+                {authMode === 'signup' && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
+                        <p className="font-bold text-slate-800 mb-2">
+                            개인정보 수집·이용 및 AI 서비스 이용 안내
+                        </p>
+
+                        <p>
+                            수집 항목: 이름, 연락처, 이메일, AI 접수면접 내용
+                        </p>
+
+                        <p className="mt-2">
+                            이용 목적: AI 마음이해, AI 접수면접, 심리검사 추천,
+                            상담 예약 및 상담 서비스 제공
+                        </p>
+
+                        <p className="mt-2">
+                            AI 접수면접은 마음이해를 위한 보조 서비스이며,
+                            의학적 진단이나 심리검사의 최종 해석을 대신하지 않습니다.
+                        </p>
+
+                        <p className="mt-2">
+                            회원님의 개인정보와 상담 내용은 관련 법령에 따라 안전하게 보호됩니다.
+                        </p>
+
+                        <label className="flex items-start gap-2 mt-3 text-slate-700">
+                            <input
+                                type="checkbox"
+                                required
+                                className="mt-0.5"
+                            />
+                            <span>
+                                위 내용을 확인하였으며, 개인정보 수집·이용 및 AI 서비스 이용에 동의합니다.
+                            </span>
+                        </label>
+                    </div>
+                )}
+
+                <button
+                    type="submit"
+                    className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-colors shadow-lg mt-2"
+                >
+                    {authMode === 'signup' ? '회원가입하고 AI 접수면접 시작하기' : '로그인'}
+                </button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+                <p className="text-xs text-slate-500">
+                    {authMode === 'signup' ? '이미 계정이 있으신가요?' : '아직 회원이 아니신가요?'}
+
+                    <button
+                        type="button"
+                        onClick={() => setAuthMode(authMode === 'signup' ? 'login' : 'signup')}
+                        className="text-indigo-600 font-bold ml-1.5 hover:underline"
+                    >
+                        {authMode === 'signup' ? '로그인하기' : '회원가입하기'}
+                    </button>
+                </p>
+            </div>
+        </div>
+    </div>
+)}
      </main>
 
                     
@@ -2405,7 +2479,7 @@ ${paymentInfo.detail}
              {/* Report Popup */}
              {showReport && (
                  <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-6">
-                     <div className="bg-white rounded-3xl w-full max-w-6xl h-[90vh] overflow-auto relative">
+                    <div className="bg-white rounded-3xl w-full max-w-6xl h-[90vh] overflow-auto relative">
 
                          <button
                              onClick={() => setShowReport(false)}
@@ -2415,13 +2489,227 @@ ${paymentInfo.detail}
                          </button>
 
                          <div className="p-10">
-                             <h2 className="text-3xl font-extrabold text-slate-900 mb-4">
-                                 {selectedReport} 심리검사 보고서
-                             </h2>
+                             {/*<h2 className="text-3xl font-extrabold text-slate-900 mb-4">
+                                 {selectedReport} 검사 결과 보고서
+                             </h2>*/}
 
-                             <p className="text-slate-500 mb-10">
-                                 여기에 보고서가 표시됩니다.
-                             </p>
+{selectedReport === "TCI" && (
+    <div className="space-y-6">
+
+        {/* Header */}
+        <div className="border-b-2 border-emerald-900 pb-5">
+            <p className="text-xs font-bold text-emerald-700 mb-2">
+                MODUMAM LAB PSYCHOLOGICAL REPORT
+            </p>
+            <h3 className="text-3xl font-extrabold text-slate-900">
+                TCI · SCT 통합 심리검사 해석 보고서
+            </h3>
+            <p className="text-sm text-slate-500 mt-3">
+                기질과 성격, 무의식적 사고 흐름을 함께 살펴보는 통합 해석 예시입니다.
+            </p>
+        </div>
+
+        {/* Info */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-amber-50 border border-amber-100 rounded-2xl p-4">
+            <div>
+                <p className="text-xs text-slate-400 mb-1">고객 성명</p>
+                <p className="font-bold text-slate-900">{memberName || "홍길동"}</p>
+            </div>
+            <div>
+                <p className="text-xs text-slate-400 mb-1">검사일자</p>
+                <p className="font-bold text-slate-900">2026. 06. 29</p>
+            </div>
+            <div>
+                <p className="text-xs text-slate-400 mb-1">담당 상담사</p>
+                <p className="font-bold text-slate-900">이마음 전문상담사</p>
+            </div>
+            <div>
+                <p className="text-xs text-orange-500 mb-1">임상적 방어기제</p>
+                <p className="font-bold text-orange-600">주지화 및 수동공격</p>
+            </div>
+        </div>
+
+        {/* Summary */}
+        <div className="border-l-4 border-orange-400 pl-5 py-2">
+            <p className="text-xs font-extrabold text-orange-500 mb-2">
+                OVERALL SUMMARY
+            </p>
+            <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                “높은 위험회피 기질로 인해 환경에 민감하게 반응하는 편이나,
+                문장완성검사에서 나타난 내밀한 자기 성찰 욕구와 표현 갈망을 통해
+                삶에 대한 성숙한 정서전환 또한 엿볼 수 있습니다.”
+            </p>
+        </div>
+
+        {/* TCI Profile */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-extrabold text-slate-900">
+                        TCI 기질
+                    </h4>
+                    <span className="text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full">
+                        생물학적 성향
+                    </span>
+                </div>
+
+                {[
+                    ["자극추구 NS", 70],
+                    ["위험회피 HA", 90],
+                    ["사회적민감성 RD", 50],
+                    ["인내력 P", 30]
+                ].map(([label, value]) => (
+                    <div key={label} className="mb-4">
+                        <div className="flex justify-between text-xs font-bold text-slate-600 mb-1">
+                            <span>{label}</span>
+                            <span>{value}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-blue-500 rounded-full"
+                                style={{ width: `${value}%` }}
+                            ></div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-extrabold text-slate-900">
+                        TCI 성격
+                    </h4>
+                    <span className="text-xs font-bold bg-orange-400 text-white px-3 py-1 rounded-full">
+                        환경적 적응
+                    </span>
+                </div>
+
+                {[
+                    ["자율성 SD", 50],
+                    ["연대감 CO", 80],
+                    ["자기초월 ST", 40]
+                ].map(([label, value]) => (
+                    <div key={label} className="mb-4">
+                        <div className="flex justify-between text-xs font-bold text-slate-600 mb-1">
+                            <span>{label}</span>
+                            <span>{value}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-blue-500 rounded-full"
+                                style={{ width: `${value}%` }}
+                            ></div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        {/* SCT */}
+        <div className="bg-emerald-50 border border-emerald-100 rounded-3xl p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5">
+                <h4 className="font-extrabold text-emerald-900">
+                    SCT 무의식 및 영역별 주요 반응 분석
+                </h4>
+                <p className="text-xs text-slate-500 mt-2 sm:mt-0">
+                    불안/스트레스: <strong className="text-orange-500">80%</strong>
+                    <span className="mx-2">|</span>
+                    자아강도: <strong className="text-emerald-600">30%</strong>
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                    {
+                        title: "1. 자아 및 일반 감정",
+                        quote: "내 생각에 가족은…",
+                        text: "내가 명명 무가치한 존재가 될까 봐 두렵다",
+                        note: "자신의 가치가 외부 성취에 종속되어 있어, 실패와 좌절에 쉽게 흔들릴 가능성이 있습니다."
+                    },
+                    {
+                        title: "2. 대인 및 사회관계",
+                        quote: "내가 가장 힘든 것은…",
+                        text: "남들에게 미움받을 수 없어 거절하지 못해",
+                        note: "높은 사회적 민감성과 거절 회피가 맞물려, 관계 갈등을 피하려다 오히려 부담이 커질 수 있습니다."
+                    },
+                    {
+                        title: "3. 자기 평가와 적응",
+                        quote: "나의 어머니는…",
+                        text: "언제나 더 잘하길 바라셨고, 나는 부족하다",
+                        note: "양육자와의 관계 경험이 현재의 자기기준과 완벽주의에 영향을 줄 수 있습니다."
+                    }
+                ].map((item) => (
+                    <div key={item.title} className="bg-white rounded-2xl p-5 border border-emerald-200">
+                        <p className="text-xs font-extrabold text-emerald-700 mb-3">
+                            {item.title}
+                        </p>
+                        <p className="text-xs text-slate-400 mb-1">
+                            {item.quote}
+                        </p>
+                        <p className="text-sm font-bold text-slate-800 mb-3">
+                            {item.text}
+                        </p>
+                        <p className="text-xs text-orange-500 font-bold mb-1">
+                            임상 해석
+                        </p>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                            {item.note}
+                        </p>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        {/* Clinical Opinion */}
+        <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
+            <h4 className="text-lg font-extrabold text-slate-900 mb-4">
+                TCI와 SCT의 다차원적 통합 임상 소견
+            </h4>
+            <p className="text-sm text-slate-600 leading-relaxed">
+                위험회피 성향이 높고 사회적 민감성이 함께 나타나, 새로운 환경이나 대인관계 상황에서
+                긴장과 예측 불안을 크게 경험할 수 있습니다. SCT에서는 타인의 평가와 거절에 대한 민감성이
+                반복적으로 나타나며, 이는 현재의 관계 피로와 자기비난으로 이어질 가능성이 있습니다.
+            </p>
+            <p className="text-sm text-slate-600 leading-relaxed mt-3">
+                다만 연대감이 비교적 높게 나타나 관계 안에서 책임감과 배려를 발휘할 수 있는 자원이 확인됩니다.
+                상담에서는 자기비난을 줄이고, 자신의 신중함을 ‘약점’이 아닌 ‘안전을 살피는 능력’으로
+                재해석하는 과정이 도움이 될 수 있습니다.
+            </p>
+        </div>
+
+        {/* Action Plan */}
+        <div>
+            <h4 className="text-lg font-extrabold text-orange-500 mb-4">
+                SCT 및 TCI 기반 일상 회복 행동 지침
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                    ["Mission 1.", "하루에 한 번, ‘오늘 내가 잘 버틴 것’ 한 가지를 적어보세요."],
+                    ["Mission 2.", "걱정이 커질 때는 ‘지금 확인된 사실’과 ‘예상’을 나누어 적어보세요."],
+                    ["Mission 3.", "거절이 어려운 상황에서는 짧은 문장으로 ‘잠시 생각해볼게요’라고 말해보세요."]
+                ].map(([title, text]) => (
+                    <div key={title} className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+                        <p className="text-sm font-extrabold text-slate-900 mb-2">
+                            {title}
+                        </p>
+                        <p className="text-sm text-slate-600 leading-relaxed">
+                            {text}
+                        </p>
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        <button
+            type="button"
+            onClick={() => window.print()}
+            className="w-full bg-emerald-700 text-white rounded-2xl py-4 text-sm font-extrabold hover:bg-emerald-800 transition"
+        >
+            PDF 다운로드
+        </button>
+    </div>
+)}
                          </div>
 
                      </div>
