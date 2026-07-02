@@ -14,7 +14,7 @@
 
 <meta name="robots" content="index,follow" />
 
-    <title>모두의 마음연구소 | 심리검사 기반 심리상담 v1.0</title>
+    <title>모두의 마음연구소 | 심리검사 기반 심리상담</title>
 
     <meta name="description" content="마음을 잇다, 사람을 잇다, 세상을 잇다. 모두의 마음연구소는 임상심리사 1급이 운영하는 심리검사 기반 심리상담 전문 공간. 개인상담, 부모코칭, 양육상담, 영유아 발달 및 기질 이해, TCI, MMPI, PAI 등 심리검사 해석상담을 제공합니다.">
 
@@ -2704,51 +2704,11 @@ ${paymentInfo.detail}
         <button
     type="button"
     onClick={() => {
-        const report = document.getElementById('print-report');
-        const printWindow = window.open('', '_blank');
-
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>모두의 마음연구소 심리검사 보고서</title>
-                    <style>
-                        @page {
-                            size: A4;
-                            margin: 12mm;
-                        }
-
-                        body {
-                            font-family: Arial, sans-serif;
-                            color: #0f172a;
-                            background: white;
-                        }
-
-                        * {
-                            box-sizing: border-box;
-                        }
-
-                        .no-print {
-                            display: none !important;
-                        }
-                    </style>
-                </head>
-                <body>
-                    ${report.innerHTML}
-                </body>
-            </html>
-        `);
-
-        printWindow.document.close();
-        printWindow.focus();
-
-        setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-        }, 500);
+        alert("PDF 다운로드 기능은 보고서 전용 PDF 엔진 구축 후 제공될 예정입니다. 현재는 온라인 보기로 확인해 주세요.");
     }}
     className="no-print w-full bg-emerald-700 text-white rounded-2xl py-4 text-sm font-extrabold hover:bg-emerald-800 transition"
 >
-    PDF 다운로드
+    PDF 다운로드(준비중)
 </button>
 
     </div>
