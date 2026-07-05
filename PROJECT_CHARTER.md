@@ -76,7 +76,7 @@ Restart
 Platform v1.0
 
 - 홈페이지
-- 예약관리
+- 심리검사 예약
 - 결과확인
 - 내 마음기록
 - Report Viewer

@@ -21,7 +21,7 @@
 - Platform 설계
 - 홈페이지 개발
 - 결과확인
-- 예약관리
+- 심리검사 예약
 - Report Viewer
 - PDF
 - Git
