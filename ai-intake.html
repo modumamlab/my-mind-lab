@@ -220,6 +220,21 @@
   addMessage("user", text);
   conversationMessages.push({ role: "user", text });
 
+  const userAnswerCount = conversationMessages.filter(
+  message => message.role === "user"
+).length;
+
+if (userAnswerCount >= 5) {
+  addTyping();
+
+  setTimeout(() => {
+    removeTyping();
+    addSummaryCard();
+  }, 700);
+
+  return;
+}
+
   input.value = "";
   addTyping();
 
