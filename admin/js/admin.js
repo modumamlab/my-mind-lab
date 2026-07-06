@@ -10,12 +10,14 @@
    5) 결과보고서 템플릿: modumamReportTemplate 검색
    6) 상담신청서·동의서 관리: documentsView 검색
    7) 내담자 전자차트: membersView 검색
+   8) AI 상담보조: generateCounselingAid 검색
+   9) 운영관리 버튼: approveReservation / markPaymentComplete / sendTestLinks 검색
 ========================================================= */
 
 const ADMIN_PASSWORD="modumam2026";
 const MAX_LOGIN_FAILS=5;
 const LOCK_SECONDS=30;
-const STATUS=["승인대기","예약확정","검사진행","결과작성","상담완료","예약취소"];
+const STATUS=["승인대기","예약승인","결제대기","결제완료","검사링크발송","검사진행","검사완료","결과작성","상담예정","상담완료","예약취소"];
 const FORM_LINKS={
   application:'https://modumam-lab.netlify.app/public/forms/application.pdf',
   consent:'https://modumam-lab.netlify.app/public/forms/consent.pdf',
@@ -26,7 +28,7 @@ function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',progra
 function load(k,f){try{const s=localStorage.getItem(k);return s?JSON.parse(s):f}catch(e){return f}}
 function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
 function esc(v){return String(v||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')}
-function statusClass(s){if(s==='상담완료')return'bg-emerald-100 text-emerald-700';if(s==='결과작성')return'bg-purple-100 text-purple-700';if(s==='검사진행')return'bg-indigo-100 text-indigo-700';if(s==='예약확정')return'bg-blue-100 text-blue-700';if(s==='예약취소')return'bg-rose-100 text-rose-700';return'bg-amber-100 text-amber-700'}
+function statusClass(s){if(s==='상담완료')return'bg-emerald-100 text-emerald-700';if(s==='상담예정')return'bg-teal-100 text-teal-700';if(s==='결과작성')return'bg-purple-100 text-purple-700';if(s==='검사완료')return'bg-violet-100 text-violet-700';if(s==='검사진행'||s==='검사링크발송')return'bg-indigo-100 text-indigo-700';if(s==='결제완료')return'bg-emerald-100 text-emerald-700';if(s==='결제대기'||s==='예약승인'||s==='예약확정')return'bg-blue-100 text-blue-700';if(s==='예약취소')return'bg-rose-100 text-rose-700';return'bg-amber-100 text-amber-700'}
 function getPaymentInfo(r){
   const type=String(r.type||'');
   const program=String(r.program||'');
@@ -49,7 +51,7 @@ function clientKey(n,p){const phone=String(p||'').replace(/[^0-9]/g,'');return p
 function buildClients(){const m={};state.reservations.forEach(r=>{const k=clientKey(r.name,r.phone);if(!m[k])m[k]={key:k,name:r.name||'이름 미입력',phone:r.phone||'',reservations:[],intakes:[],reports:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].reservations.push(r)});state.intakes.forEach(i=>{const k=clientKey(i.name,i.phone);if(!m[k])m[k]={key:k,name:i.name||'이름 미입력',phone:i.phone||'',reservations:[],intakes:[],reports:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].intakes.push(i)});state.reports.forEach(r=>{const same=Object.keys(m).find(k=>String(m[k].name).trim()===String(r.clientName).trim());const k=same||clientKey(r.clientName,r.phone);if(!m[k])m[k]={key:k,name:r.clientName||'이름 미입력',phone:r.phone||'',reservations:[],intakes:[],reports:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].reports.push(r)});return Object.values(m)}
 function findIntake(r){const p=String(r.phone||'').replace(/[^0-9]/g,'');const n=String(r.name||'').trim();return state.intakes.find(i=>{const ip=String(i.phone||'').replace(/[^0-9]/g,'');const iname=String(i.name||'').trim();return(p&&ip&&p===ip)||(n&&iname&&n===iname)})}
 function hasReport(r){return state.reports.some(x=>String(x.clientName||'').trim()===String(r.name||'').trim())}
-function progress(r){const tests=requestedTests(r),st=r.testStatuses||{},ai=!!findIntake(r);const sent=tests.some(t=>['발송완료','검사완료','결과확인'].includes(st[t]))||['검사진행','결과작성','상담완료'].includes(r.status);const doneT=tests.length&&tests.every(t=>['검사완료','결과확인'].includes(st[t]));const rep=hasReport(r)||['결과작성','상담완료'].includes(r.status);const done=r.status==='상담완료';const steps=[['예약',!!r.status&&r.status!=='예약취소'],['AI접수',ai],['검사발송',sent],['검사완료',doneT],['보고서',rep],['상담',done]];return{steps,pct:Math.round(steps.filter(s=>s[1]).length/steps.length*100),ai}}
+function progress(r){const tests=requestedTests(r),st=r.testStatuses||{},ai=!!findIntake(r);const sent=tests.some(t=>['발송완료','검사완료','결과확인'].includes(st[t]))||['검사링크발송','검사진행','검사완료','결과작성','상담예정','상담완료'].includes(r.status);const doneT=tests.length&&tests.every(t=>['검사완료','결과확인'].includes(st[t]));const rep=hasReport(r)||['결과작성','상담예정','상담완료'].includes(r.status);const done=r.status==='상담완료';const steps=[['예약',!!r.status&&r.status!=='예약취소'],['AI체크인',ai],['검사발송',sent],['검사완료',doneT],['보고서',rep],['상담',done]];return{steps,pct:Math.round(steps.filter(s=>s[1]).length/steps.length*100),ai}}
 function setMenu(m){state.menu=m;render()}
 /* =========================================================
    관리자 로그인 보안
@@ -101,8 +103,24 @@ function login(e){
 }
 function logout(){sessionStorage.removeItem('modumam_admin_auth');state.authed=false;state.password='';state.loginError='';render()}
 function updateReservation(id,patch){state.reservations=state.reservations.map(r=>r.id===id?{...r,...patch}:r);save('modumam_reservations',state.reservations);render()}
+
+/* =========================================================
+   V31 운영관리 빠른 처리 버튼
+   - 예약 승인 → 결제대기
+   - 결제 완료 → 결제완료
+   - 검사 링크 발송 → 검사링크발송 / 검사 상태 발송완료
+   - 상담 예정 → 상담예정
+========================================================= */
+function approveReservation(id){updateReservation(id,{status:'결제대기',approvedAt:new Date().toLocaleString()});}
+function markPaymentComplete(id){updateReservation(id,{status:'결제완료',paidAt:new Date().toLocaleString()});}
+function sendTestLinks(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]=ts[t]&&ts[t]!=='미발송'?ts[t]:'발송완료');updateReservation(id,{status:'검사링크발송',testStatuses:ts,testLinksSentAt:new Date().toLocaleString()});}
+function markTestComplete(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]='검사완료');updateReservation(id,{status:'검사완료',testStatuses:ts,testCompletedAt:new Date().toLocaleString()});}
+function markCounselingReady(id){updateReservation(id,{status:'상담예정',counselingReadyAt:new Date().toLocaleString()});}
+function nextActionLabel(r){const st=r.status||'승인대기';if(st==='승인대기')return '예약 승인';if(st==='예약승인'||st==='결제대기'||st==='예약확정')return '결제 확인';if(st==='결제완료')return '검사 링크 발송';if(st==='검사링크발송'||st==='검사진행')return '검사 완료 확인';if(st==='검사완료'||st==='결과작성')return '상담 준비';if(st==='상담예정')return '상담 완료';return '완료';}
+function runNextAction(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const st=r.status||'승인대기';if(st==='승인대기')return approveReservation(id);if(st==='예약승인'||st==='결제대기'||st==='예약확정')return markPaymentComplete(id);if(st==='결제완료')return sendTestLinks(id);if(st==='검사링크발송'||st==='검사진행')return markTestComplete(id);if(st==='검사완료'||st==='결과작성')return markCounselingReady(id);if(st==='상담예정')return updateReservation(id,{status:'상담완료',completedAt:new Date().toLocaleString()});}
+
 function updateTestStatus(id,t,s){state.reservations=state.reservations.map(r=>r.id===id?{...r,testStatuses:{...(r.testStatuses||{}),[t]:s}}:r);save('modumam_reservations',state.reservations);render()}
-function markAllTestsSent(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const ts={};requestedTests(r).forEach(t=>ts[t]='발송완료');updateReservation(id,{testStatuses:ts,status:'검사진행'})}
+function markAllTestsSent(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const ts={};requestedTests(r).forEach(t=>ts[t]='발송완료');updateReservation(id,{testStatuses:ts,status:'검사링크발송',testLinksSentAt:new Date().toLocaleString()})}
 function saveMemo(id){const el=document.getElementById('memo-'+id);if(!el)return;updateReservation(id,{adminMemo:el.value});alert('관리자 메모가 저장되었습니다.')}
 function deleteReservation(id){if(!confirm('예약 기록을 삭제하시겠습니까?'))return;state.reservations=state.reservations.filter(r=>r.id!==id);save('modumam_reservations',state.reservations);render()}
 function copyText(t){navigator.clipboard.writeText(t).then(()=>alert('복사되었습니다.'))}
@@ -131,7 +149,7 @@ ${target?'예약일 3일 전 안내입니다. 상담 준비를 위해 상담 전
 감사합니다.
 모두의 마음연구소`)
 }
-function openIntake(id){const r=state.reservations.find(x=>x.id===id);const i=r?findIntake(r):null;alert(i?(i.summary||'요약 없음'):'연결된 AI 접수면접 요약이 없습니다.')}
+function openIntake(id){const r=state.reservations.find(x=>x.id===id);const i=r?findIntake(r):null;alert(i?(i.summary||'요약 없음'):'연결된 AI 마음 체크인 요약이 없습니다.')}
 function reportCode(r){return r.code||('MR-'+String(r.id).slice(-6))}
 function setReportFromReservation(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;let tt=String(r.program).includes('부모-자녀')?'PAT · KCDI':'TCI';state.reportForm={...emptyReportForm(),reservationId:id,clientName:r.name||'',phone:r.phone||'',program:r.program||'',testType:tt,title:`${r.name||'내담자'}님 ${tt} 결과보고서`};state.menu='report';render()}
 function templateReport(){applyDetailedTemplate()}
@@ -164,11 +182,31 @@ function saveCounselingNote(k){const m=document.getElementById('note-'+k),d=docu
 function deleteCounselingNote(k,id){if(!confirm('상담 메모를 삭제하시겠습니까?'))return;const sk='modumam_counseling_notes_'+k;save(sk,load(sk,[]).filter(n=>n.id!==id));render()}
 function todayReservations(){const t=new Date().toISOString().slice(0,10);return state.reservations.filter(r=>r.date===t)}
 function navButton(k,l){return`<button onclick="setMenu('${k}')" class="shrink-0 px-4 py-2 rounded-full text-xs sm:text-sm font-extrabold ${state.menu===k?'bg-slate-900 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${l}</button>`}
-function titleForMenu(){return({dashboard:'Dashboard',reservation:'심리검사 예약 CRM',cases:'케이스관리',intake:'AI 접수면접 관리',report:'결과보고서 관리',members:'내담자 전자차트',statistics:'운영 통계',documents:'신청서·동의서 관리',settings:'환경설정'})[state.menu]||'Dashboard'}
-function layout(content){return`<main class="min-h-screen"><header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200"><div class="px-4 sm:px-8 py-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><p class="text-xs font-bold text-emerald-700">MODUMAM LAB ADMIN · 안정화버전 2026-07-04</p><h1 class="text-xl sm:text-2xl font-extrabold text-slate-900">${titleForMenu()}</h1></div><nav class="flex gap-2 overflow-x-auto pb-1">${navButton('dashboard','대시')}${navButton('reservation','예약·검사')}${navButton('documents','신청서')}${navButton('cases','케이스')}${navButton('intake','AI')}${navButton('report','보고서')}${navButton('members','전자차트')}${navButton('statistics','통계')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 px-4 py-2 rounded-full text-xs sm:text-sm font-extrabold bg-rose-50 text-rose-600">로그아웃</button></nav></div></div></header><section class="p-4 sm:p-8">${content}</section></main>`}
+function titleForMenu(){return({dashboard:'Dashboard',reservation:'심리검사 예약 CRM',cases:'케이스관리',intake:'AI 마음 체크인 관리',report:'결과보고서 관리',members:'내담자 전자차트',statistics:'운영 통계',documents:'신청서·동의서 관리',settings:'환경설정'})[state.menu]||'Dashboard'}
+function layout(content){return`<main class="min-h-screen"><header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200"><div class="px-4 sm:px-8 py-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><p class="text-xs font-bold text-emerald-700">MODUMAM LAB 상담자센터 · V31 운영관리</p><h1 class="text-xl sm:text-2xl font-extrabold text-slate-900">${titleForMenu()}</h1></div><nav class="flex gap-2 overflow-x-auto pb-1">${navButton('dashboard','대시')}${navButton('reservation','예약·검사')}${navButton('documents','신청서')}${navButton('cases','케이스')}${navButton('intake','AI')}${navButton('report','보고서')}${navButton('members','전자차트')}${navButton('statistics','통계')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 px-4 py-2 rounded-full text-xs sm:text-sm font-extrabold bg-rose-50 text-rose-600">로그아웃</button></nav></div></div></header><section class="p-4 sm:p-8">${content}</section></main>`}
 function card(label,value,sub,icon,color){const map={blue:'bg-blue-50 text-blue-600',purple:'bg-purple-50 text-purple-600',orange:'bg-orange-50 text-orange-600',emerald:'bg-emerald-50 text-emerald-600'};return`<div class="bg-white rounded-[1.75rem] border border-slate-100 p-4 sm:p-6 shadow-sm flex items-center justify-between"><div><p class="text-xs font-extrabold text-slate-400 mb-2">${label}</p><p class="text-2xl sm:text-4xl font-extrabold text-slate-900">${value}</p><p class="text-[11px] text-slate-400 font-bold mt-2">${sub}</p></div><div class="${map[color]} w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-2xl">${icon}</div></div>`}
 function empty(t){return`<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-400">${t}</div>`}
-function taskBoard(){const rows=[['🔴','예약 승인 대기',state.reservations.filter(r=>!r.status||r.status==='승인대기').length],['🟡','검사 링크 발송',state.reservations.filter(r=>r.status==='예약확정').length],['🟢','검사 완료 확인',state.reservations.filter(r=>r.status==='검사진행').length],['🔵','결과보고서 작성',state.reservations.filter(r=>r.status==='결과작성').length],['🟣','오늘 상담',todayReservations().length],['⚫','상담 완료',state.reservations.filter(r=>r.status==='상담완료').length]];return rows.map(r=>`<button onclick="setMenu('reservation')" class="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 mb-3 transition"><span class="text-sm font-extrabold text-slate-700">${r[0]} ${r[1]}</span><span class="text-sm font-extrabold bg-white border border-slate-200 rounded-full px-3 py-1">${r[2]}</span></button>`).join('')}
+function taskBoard(){const rows=[
+  ['🔴','예약 승인 대기',state.reservations.filter(r=>!r.status||r.status==='승인대기').length,'reservation'],
+  ['🟠','결제 대기',state.reservations.filter(r=>['예약승인','예약확정','결제대기'].includes(r.status)).length,'reservation'],
+  ['🟡','검사 링크 발송 대기',state.reservations.filter(r=>r.status==='결제완료').length,'reservation'],
+  ['🟢','검사 완료 확인',state.reservations.filter(r=>['검사링크발송','검사진행'].includes(r.status)).length,'reservation'],
+  ['🔵','결과보고서 작성',state.reservations.filter(r=>['검사완료','결과작성'].includes(r.status)).length,'report'],
+  ['🟣','오늘 상담',todayReservations().length,'reservation']
+];return rows.map(r=>`<button onclick="setMenu('${r[3]}')" class="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 mb-3 transition"><span class="text-sm font-extrabold text-slate-700">${r[0]} ${r[1]}</span><span class="text-sm font-extrabold bg-white border border-slate-200 rounded-full px-3 py-1">${r[2]}</span></button>`).join('')}
+
+function operationPipeline(r){
+  const steps=[
+    ['예약신청',!!r.status&&r.status!=='예약취소'],
+    ['예약승인',['예약승인','결제대기','결제완료','검사링크발송','검사진행','검사완료','결과작성','상담예정','상담완료'].includes(r.status)],
+    ['결제완료',['결제완료','검사링크발송','검사진행','검사완료','결과작성','상담예정','상담완료'].includes(r.status)],
+    ['검사발송',['검사링크발송','검사진행','검사완료','결과작성','상담예정','상담완료'].includes(r.status)],
+    ['검사완료',['검사완료','결과작성','상담예정','상담완료'].includes(r.status)],
+    ['상담준비',['상담예정','상담완료'].includes(r.status)],
+    ['상담완료',r.status==='상담완료']
+  ];
+  return `<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">${steps.map(s=>`<div class="rounded-xl px-2 py-2 text-center text-[11px] font-bold ${s[1]?'bg-emerald-50 text-emerald-700 border border-emerald-100':'bg-slate-50 text-slate-400 border border-slate-100'}">${s[1]?'✓':'□'} ${s[0]}</div>`).join('')}</div>`;
+}
 
 function caseIdFromReservation(res) {
   if (res.caseId) return res.caseId;
@@ -253,6 +291,80 @@ function deleteCaseSession(caseId, sessionId) {
   render();
 }
 
+
+/* =========================================================
+   V31 운영관리 시스템
+   - AI는 상담을 대신하지 않고 상담자가 회기를 준비하도록 돕습니다.
+   - 마음 체크인, 검사, 회기기록, 사례개념화 초안을 바탕으로
+     오늘 확인할 질문과 개입 아이디어를 구조화합니다.
+========================================================= */
+function generateCounselingAid(caseId) {
+  const c = buildCases().find(item => item.caseId === caseId);
+  if (!c) return;
+
+  const f = c.formulation || {};
+  const recentSession = (c.sessions || [])[0] || {};
+  const tests = (c.tests || []).join(', ') || '검사 정보 없음';
+  const intakeSummary = c.intake ? (c.intake.summary || c.intake.concern || 'AI 마음 체크인 요약 있음') : 'AI 마음 체크인 미연결';
+  const reportSummary = (c.reports || []).map(r => r.summary).filter(Boolean).join('\n').slice(0, 500);
+
+  const aid = {
+    focus: [
+      f.complaint || '주호소를 상담 초반에 다시 확인합니다.',
+      f.currentProblem || '현재 가장 힘든 상황과 일상 기능 변화를 구체화합니다.',
+      recentSession.next || '지난 회기 이후 변화와 실천과제 수행 여부를 확인합니다.'
+    ].filter(Boolean).join('\n'),
+    questions: [
+      '지난 상담 이후 가장 달라진 점은 무엇이었나요?',
+      '최근 가장 힘들었던 순간은 언제였고, 그때 어떤 생각이 떠올랐나요?',
+      '몸의 반응, 수면, 식사, 에너지에는 어떤 변화가 있었나요?',
+      '문제가 조금이라도 덜했던 순간이 있었다면 무엇이 달랐나요?',
+      '오늘 상담에서 꼭 다루고 싶은 한 가지는 무엇인가요?'
+    ].join('\n'),
+    intervention: [
+      '정서 명명화와 공감적 반영으로 현재 감정을 안정적으로 표현하도록 돕습니다.',
+      tests.includes('TCI') ? 'TCI 결과와 현재 스트레스 반응을 연결하여 자기비난보다 자기이해로 전환합니다.' : '검사 결과가 있다면 현재 호소와 연결하여 설명합니다.',
+      tests.includes('MMPI') ? 'MMPI-2 결과에서 정서·사고·대인관계 관련 주의점을 상담 중 확인합니다.' : '주요 정서와 대인관계 패턴을 면담으로 탐색합니다.',
+      '상담 말미에는 오늘의 핵심 정리와 다음 회기 전 실천 가능한 작은 과제를 함께 정합니다.'
+    ].join('\n'),
+    caution: [
+      '자해·자살사고, 타해 위험, 학대·폭력 노출 등 위기 신호가 있는지 직접 확인합니다.',
+      'AI 자료는 참고자료이며 최종 판단과 개입은 상담자가 수행합니다.',
+      f.maintaining ? '유지요인: ' + f.maintaining : '반복되는 회피, 과잉통제, 자기비난, 관계 단절 양상이 있는지 확인합니다.'
+    ].join('\n'),
+    nextPlan: [
+      recentSession.next || '다음 회기에서는 오늘 확인된 핵심 주제를 중심으로 구체적 대처전략을 세웁니다.',
+      f.goal ? '상담목표와 연결: ' + f.goal : '상담목표를 1~2개로 좁혀 우선순위를 정합니다.'
+    ].join('\n'),
+    source: `검사: ${tests}\nAI 마음 체크인: ${intakeSummary.slice(0, 300)}\n보고서 요약: ${reportSummary || '보고서 미작성'}`,
+    updatedAt: new Date().toLocaleString()
+  };
+  save('modumam_counseling_aid_' + caseId, aid);
+  alert('AI 상담보조 초안이 생성되었습니다. 상담 전 참고자료로 활용해 주세요.');
+  render();
+}
+
+function saveCounselingAid(caseId) {
+  const aid = {
+    focus: document.getElementById('aid-focus-' + caseId)?.value || '',
+    questions: document.getElementById('aid-questions-' + caseId)?.value || '',
+    intervention: document.getElementById('aid-intervention-' + caseId)?.value || '',
+    caution: document.getElementById('aid-caution-' + caseId)?.value || '',
+    nextPlan: document.getElementById('aid-next-' + caseId)?.value || '',
+    source: document.getElementById('aid-source-' + caseId)?.value || '',
+    updatedAt: new Date().toLocaleString()
+  };
+  save('modumam_counseling_aid_' + caseId, aid);
+  alert('AI 상담보조 메모가 저장되었습니다.');
+  render();
+}
+
+function copyCounselingAid(caseId) {
+  const aid = load('modumam_counseling_aid_' + caseId, null);
+  if (!aid) { alert('먼저 AI 상담보조 초안을 생성해 주세요.'); return; }
+  copyText(`AI 상담보조\n\n[오늘 상담 초점]\n${aid.focus || ''}\n\n[확인 질문]\n${aid.questions || ''}\n\n[개입 아이디어]\n${aid.intervention || ''}\n\n[주의사항]\n${aid.caution || ''}\n\n[다음 회기 계획]\n${aid.nextPlan || ''}`);
+}
+
 function generateCaseDraft(caseId) {
   const c = buildCases().find(item => item.caseId === caseId);
   if (!c) return;
@@ -262,7 +374,7 @@ function generateCaseDraft(caseId) {
   const reportText = c.reports.map(r => r.summary).filter(Boolean).join("\n");
 
   const draft = {
-    complaint: c.res.program + " / " + (intakeText ? "AI접수 요약 참고" : "주호소 추가 입력 필요"),
+    complaint: c.res.program + " / " + (intakeText ? "AI체크인 요약 참고" : "주호소 추가 입력 필요"),
     currentProblem: `현재 ${c.res.name}님 사례는 ${c.res.program}으로 접수되었으며, 실시 또는 신청된 검사는 ${testText}입니다. 상담에서는 검사 결과와 실제 호소 문제를 연결하여 현재 어려움의 양상을 구체화할 필요가 있습니다.`,
     trigger: "최근 생활사건, 관계 변화, 양육 스트레스, 발달 변화, 직장/가정 내 스트레스 등 촉발요인을 면담에서 확인합니다.",
     maintaining: "반복되는 사고·정서·행동 패턴, 양육태도와 발달특성의 부조화, 회피 또는 과잉통제, 의사소통 부족 등이 어려움을 유지하는 요인인지 확인합니다.",
@@ -294,6 +406,7 @@ function casesView() {
       <div class="space-y-6">
         ${cases.map(c => {
           const f = c.formulation || {};
+          const aid = load("modumam_counseling_aid_" + c.caseId, {});
           return `
             <div class="rounded-[2rem] border border-slate-100 bg-slate-50 p-5 sm:p-6">
               <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-5">
@@ -306,7 +419,7 @@ function casesView() {
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                   <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">검사</p><p class="text-xl font-extrabold">${c.tests.length}</p></div>
-                  <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">AI접수</p><p class="text-xl font-extrabold">${c.intake ? "1" : "0"}</p></div>
+                  <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">AI체크인</p><p class="text-xl font-extrabold">${c.intake ? "1" : "0"}</p></div>
                   <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">보고서</p><p class="text-xl font-extrabold">${c.reports.length}</p></div>
                   <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">회기</p><p class="text-xl font-extrabold">${c.sessions.length}</p></div>
                 </div>
@@ -375,11 +488,34 @@ function casesView() {
                     `).join("") : `<p class="text-sm text-slate-400">저장된 회기기록이 없습니다.</p>`}
                   </div>
 
+                  <div class="bg-white rounded-2xl border border-purple-100 p-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                      <div>
+                        <h3 class="text-sm font-extrabold">AI 상담보조</h3>
+                        <p class="text-xs text-slate-400 mt-1">상담 전 1분 브리핑 · 질문 추천 · 개입 아이디어</p>
+                      </div>
+                      <div class="flex gap-2">
+                        <button onclick="generateCounselingAid('${c.caseId}')" class="bg-purple-600 text-white rounded-xl px-3 py-2 text-xs font-bold">초안 생성</button>
+                        <button onclick="copyCounselingAid('${c.caseId}')" class="bg-white border border-purple-200 text-purple-700 rounded-xl px-3 py-2 text-xs font-bold">복사</button>
+                      </div>
+                    </div>
+                    <div class="space-y-3">
+                      <textarea id="aid-focus-${c.caseId}" rows="3" placeholder="오늘 상담 초점" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.focus || ""}</textarea>
+                      <textarea id="aid-questions-${c.caseId}" rows="5" placeholder="상담에서 확인할 질문" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.questions || ""}</textarea>
+                      <textarea id="aid-intervention-${c.caseId}" rows="4" placeholder="개입 아이디어" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.intervention || ""}</textarea>
+                      <textarea id="aid-caution-${c.caseId}" rows="3" placeholder="주의사항" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.caution || ""}</textarea>
+                      <textarea id="aid-next-${c.caseId}" rows="3" placeholder="다음 회기 계획" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.nextPlan || ""}</textarea>
+                      <textarea id="aid-source-${c.caseId}" rows="2" placeholder="참고자료" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-500">${aid.source || ""}</textarea>
+                      <button onclick="saveCounselingAid('${c.caseId}')" class="w-full bg-slate-900 text-white rounded-2xl py-3 text-sm font-extrabold">AI 상담보조 저장</button>
+                    </div>
+                    ${aid.updatedAt ? `<p class="text-[11px] text-slate-400 mt-3">마지막 업데이트: ${aid.updatedAt}</p>` : ""}
+                  </div>
+
                   <div class="bg-slate-900 text-white rounded-2xl p-5">
                     <h3 class="text-sm font-extrabold mb-3">마음 타임라인</h3>
                     <div class="border-l border-white/20 pl-4 space-y-4">
                       <div><p class="text-xs font-bold text-emerald-300">${c.res.date || ""} · 예약</p><p class="text-xs text-slate-300">${c.res.program || ""}</p></div>
-                      ${c.intake ? `<div><p class="text-xs font-bold text-emerald-300">AI 접수</p><p class="text-xs text-slate-300">접수면접 요약 저장</p></div>` : ""}
+                      ${c.intake ? `<div><p class="text-xs font-bold text-emerald-300">AI 접수</p><p class="text-xs text-slate-300">마음 체크인 요약 저장</p></div>` : ""}
                       ${c.tests.map(t => `<div><p class="text-xs font-bold text-emerald-300">심리검사</p><p class="text-xs text-slate-300">${t}</p></div>`).join("")}
                       ${c.reports.map(r => `<div><p class="text-xs font-bold text-emerald-300">보고서</p><p class="text-xs text-slate-300">${r.title || ""}</p></div>`).join("")}
                       ${c.sessions.map(s => `<div><p class="text-xs font-bold text-emerald-300">${s.date || ""} · 회기</p><p class="text-xs text-slate-300">${s.goal || ""}</p></div>`).join("")}
@@ -523,9 +659,27 @@ function documentsView(){
   `);
 }
 
-function dashboardView(){const today=todayReservations();return layout(`<div class="grid grid-cols-2 gap-4 sm:gap-5 mb-8">${card('오늘 예약',today.length+'건','오늘 진행 예정','📅','blue')}${card('AI 접수면접',state.intakes.length+'건','저장된 접수 요약','🤖','purple')}${card('결과작성 대기',state.reservations.filter(r=>r.status==='결과작성'||r.status==='검사진행').length+'건','보고서 작성 필요','📝','orange')}${card('상담완료',state.reservations.filter(r=>r.status==='상담완료').length+'건','누적 완료','✅','emerald')}</div><div class="grid grid-cols-1 xl:grid-cols-3 gap-6"><div class="xl:col-span-2 bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><h2 class="text-lg font-extrabold mb-5">오늘 일정</h2>${today.length?today.map(r=>`<div class="flex items-center justify-between border-b border-slate-100 py-4 last:border-0"><div><p class="font-extrabold">${esc(r.time)||'--:--'} · ${esc(r.name)}님</p><p class="text-sm text-slate-500 mt-1">${esc(r.program)} / ${esc(r.type)}</p></div><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(r.status)}">${r.status||'승인대기'}</span></div>`).join(''):empty('오늘 예약 일정이 없습니다.')}</div><div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><h2 class="text-lg font-extrabold mb-5">상담 업무 보드</h2>${taskBoard()}</div></div>`)}
-function reservationView(){return layout(`<div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden"><div class="p-6 border-b border-slate-100"><h2 class="text-xl font-extrabold">예약 · 검사 CRM</h2><p class="text-sm text-slate-500 mt-1">예약, AI접수, 검사발송, 보고서, 상담완료까지 진행률로 관리합니다.</p></div><div class="p-5 sm:p-6 space-y-5">${state.reservations.map(r=>{const p=progress(r),tests=requestedTests(r);return`<div class="rounded-[2rem] border border-slate-100 bg-slate-50 p-5 sm:p-6"><div class="flex flex-wrap items-center gap-2 mb-4"><p class="text-xl font-extrabold">${esc(r.name)}님</p><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(r.status)}">${r.status||'승인대기'}</span>${p.ai?'<span class="text-xs font-bold px-3 py-1 rounded-full bg-purple-100 text-purple-700">AI접수 완료</span>':'<span class="text-xs font-bold px-3 py-1 rounded-full bg-slate-200 text-slate-500">AI접수 없음</span>'}${r.adminMemo?'<span class="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700">메모 있음</span>':''}</div><div class="bg-white rounded-2xl border border-slate-100 p-4 mb-5"><div class="flex justify-between mb-2"><p class="text-xs font-bold text-slate-500">상담 진행률</p><p class="text-sm font-extrabold text-emerald-700">${p.pct}%</p></div><div class="h-3 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-emerald-500 rounded-full" style="width:${p.pct}%"></div></div><div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-4">${p.steps.map(s=>`<div class="rounded-xl px-2 py-2 text-center text-[11px] font-bold ${s[1]?'bg-emerald-50 text-emerald-700 border border-emerald-100':'bg-slate-50 text-slate-400 border border-slate-100'}">${s[1]?'✓':'□'} ${s[0]}</div>`).join('')}</div></div><div class="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4"><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">연락처</p><p class="font-bold mt-1">${esc(r.phone)}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">프로그램</p><p class="font-bold mt-1">${esc(r.program)}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">상담 방식</p><p class="font-bold mt-1">${esc(r.type)}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">일정</p><p class="font-bold mt-1">${esc(r.date)} ${esc(r.time)}</p></div></div><div class="grid grid-cols-1 xl:grid-cols-3 gap-4"><div class="xl:col-span-2"><div class="bg-white rounded-2xl border border-slate-100 p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-sm font-extrabold">신청 검사 및 발송 관리</h3><button onclick="markAllTestsSent(${r.id})" class="bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl px-3 py-2 text-xs font-bold">전체 발송완료</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3">${tests.length?tests.map(t=>`<div class="border border-slate-100 rounded-2xl p-4 bg-slate-50"><p class="text-sm font-extrabold">${esc(t)}</p><select onchange='updateTestStatus(${r.id}, ${JSON.stringify(t)}, this.value)' class="mt-3 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">${['미발송','발송완료','검사완료','결과확인'].map(st=>`<option value="${st}" ${(r.testStatuses||{})[t]===st?'selected':''}>${st}</option>`).join('')}</select></div>`).join(''):empty('신청된 검사가 없습니다.')}</div></div><div class="bg-white rounded-2xl border border-slate-100 p-4 mt-4"><div class="flex justify-between items-center mb-3"><div><h3 class="text-sm font-extrabold">관리자 메모</h3><p class="text-xs text-slate-400 mt-1">연락, 결제, 검사 발송, 상담 참고사항을 기록합니다.</p></div><button onclick="saveMemo(${r.id})" class="bg-slate-900 text-white rounded-xl px-4 py-2 text-xs font-bold">메모 저장</button></div><textarea id="memo-${r.id}" rows="3" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none" placeholder="예) 오전 연락 완료, 결제 확인 대기, TCI 먼저 발송 예정">${esc(r.adminMemo)}</textarea></div></div><div class="bg-white rounded-2xl border border-slate-100 p-4"><p class="text-xs font-bold text-slate-500 mb-2">예약 상태 변경</p><select onchange="updateReservation(${r.id},{status:this.value})" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold mb-3">${STATUS.map(st=>`<option value="${st}" ${(r.status||'승인대기')===st?'selected':''}>${st}</option>`).join('')}</select><div class="grid grid-cols-2 gap-2"><button onclick="copyPaymentMessage(${r.id})" class="bg-emerald-600 text-white rounded-2xl py-3 text-xs font-extrabold">결제안내</button><button onclick="copyTestGuide(${r.id})" class="bg-indigo-600 text-white rounded-2xl py-3 text-xs font-extrabold">검사안내</button><button onclick="copyDocumentReminder(${r.id})" class="bg-teal-600 text-white rounded-2xl py-3 text-xs font-extrabold">서류안내</button><button onclick="updateReservation(${r.id},{status:'검사진행'})" class="bg-slate-900 text-white rounded-2xl py-3 text-xs font-extrabold">검사발송</button><button onclick="setReportFromReservation(${r.id})" class="bg-purple-600 text-white rounded-2xl py-3 text-xs font-extrabold">보고서 작성</button><button onclick="openIntake(${r.id})" class="bg-white border border-purple-200 text-purple-700 rounded-2xl py-3 text-xs font-extrabold">AI요약</button><button onclick="updateReservation(${r.id},{status:'상담완료'})" class="bg-green-600 text-white rounded-2xl py-3 text-xs font-extrabold">상담완료</button><button onclick="deleteReservation(${r.id})" class="col-span-2 bg-white border border-rose-200 text-rose-700 rounded-2xl py-3 text-xs font-extrabold">삭제</button></div></div></div></div>`}).join('')||empty('예약이 없습니다.')}</div></div>`)}
-function intakeView(){return layout(`<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">${state.intakes.length?state.intakes.map(i=>`<div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex justify-between gap-3 mb-4"><div><p class="font-extrabold text-lg">${esc(i.name||'이름 미입력')}</p><p class="text-xs text-slate-500 mt-1">${esc(i.phone)} · ${esc(i.email)}</p><p class="text-xs text-slate-400 mt-1">${esc(i.date)}</p></div><span class="text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1 rounded-full h-fit">${esc(i.status||'신규접수')}</span></div>${i.risk?`<p class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-2xl p-3 mb-4">위기 신호: ${esc(i.risk)}</p>`:''}<pre class="whitespace-pre-wrap text-xs leading-relaxed bg-slate-50 border border-slate-100 rounded-2xl p-4 max-h-96 overflow-auto">${esc(i.summary||'요약 없음')}</pre><button onclick='copyText(${JSON.stringify(i.summary||'')})' class="mt-4 text-xs font-bold border border-slate-200 rounded-xl px-4 py-2">요약 복사</button></div>`).join(''):empty('저장된 AI 접수면접 요약이 없습니다.')}</div>`)}
+function dashboardView(){
+  const today=todayReservations();
+  const wait=state.reservations.filter(r=>!r.status||r.status==='승인대기').length;
+  const pay=state.reservations.filter(r=>['예약승인','예약확정','결제대기'].includes(r.status)).length;
+  const test=state.reservations.filter(r=>['결제완료','검사링크발송','검사진행','검사완료'].includes(r.status)).length;
+  const reports=state.reservations.filter(r=>['검사완료','결과작성'].includes(r.status)).length;
+  const recent=state.reservations.slice().sort((a,b)=>String(b.id).localeCompare(String(a.id))).slice(0,8);
+  return layout(`<div class="grid grid-cols-2 gap-4 sm:gap-5 mb-8">${card('오늘 예약',today.length+'건','오늘 진행 예정','📅','blue')}${card('승인 대기',wait+'건','예약 확인 필요','🔴','orange')}${card('결제 대기',pay+'건','입금 확인 필요','💳','purple')}${card('검사 진행',test+'건','링크 발송/완료 확인','🧠','emerald')}</div>
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
+      <div class="flex items-center justify-between mb-5"><div><h2 class="text-lg font-extrabold">오늘의 운영 현황</h2><p class="text-sm text-slate-500 mt-1">예약 승인 → 결제 → 검사 발송 → 상담 준비 흐름을 확인합니다.</p></div><button onclick="setMenu('reservation')" class="text-xs font-bold bg-slate-900 text-white rounded-xl px-4 py-2">예약관리</button></div>
+      ${today.length?today.map(r=>`<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 py-4 last:border-0"><div><p class="font-extrabold">${esc(r.time)||'--:--'} · ${esc(r.name)}님</p><p class="text-sm text-slate-500 mt-1">${esc(r.program)} / ${esc(r.type)}</p></div><div class="flex gap-2"><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(r.status)}">${r.status||'승인대기'}</span><button onclick="runNextAction(${r.id})" class="text-xs font-bold bg-emerald-600 text-white rounded-xl px-3 py-1">${nextActionLabel(r)}</button></div></div>`).join(''):empty('오늘 예약 일정이 없습니다.')}
+      <h3 class="text-sm font-extrabold mt-8 mb-3">최근 예약</h3>
+      <div class="space-y-3">${recent.length?recent.map(r=>`<div class="bg-slate-50 border border-slate-100 rounded-2xl p-4"><div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"><div><p class="font-extrabold text-sm">${esc(r.name)}님 · ${esc(r.program)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.date)} ${esc(r.time)} · ${esc(r.type)}</p></div><button onclick="runNextAction(${r.id})" class="text-xs font-bold bg-slate-900 text-white rounded-xl px-3 py-2">${nextActionLabel(r)}</button></div><div class="mt-3">${operationPipeline(r)}</div></div>`).join(''):empty('예약 데이터가 없습니다.')}</div>
+    </div>
+    <div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><h2 class="text-lg font-extrabold mb-5">오늘 할 일</h2>${taskBoard()}<div class="mt-6 bg-emerald-50 border border-emerald-100 rounded-2xl p-4"><p class="text-xs font-extrabold text-emerald-700">운영 원칙</p><p class="text-sm text-slate-600 mt-2 leading-relaxed">AI는 상담을 대신하지 않고, 마음 체크인과 상담 준비를 돕습니다. 최종 해석과 상담은 임상심리 전문가가 진행합니다.</p></div></div>
+  </div>`)
+}
+
+function reservationView(){return layout(`<div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden"><div class="p-6 border-b border-slate-100"><h2 class="text-xl font-extrabold">예약 · 검사 CRM</h2><p class="text-sm text-slate-500 mt-1">예약, AI체크인, 검사발송, 보고서, 상담완료까지 진행률로 관리합니다.</p></div><div class="p-5 sm:p-6 space-y-5">${state.reservations.map(r=>{const p=progress(r),tests=requestedTests(r);return`<div class="rounded-[2rem] border border-slate-100 bg-slate-50 p-5 sm:p-6"><div class="flex flex-wrap items-center gap-2 mb-4"><p class="text-xl font-extrabold">${esc(r.name)}님</p><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(r.status)}">${r.status||'승인대기'}</span>${p.ai?'<span class="text-xs font-bold px-3 py-1 rounded-full bg-purple-100 text-purple-700">AI체크인 완료</span>':'<span class="text-xs font-bold px-3 py-1 rounded-full bg-slate-200 text-slate-500">AI체크인 없음</span>'}${r.adminMemo?'<span class="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700">메모 있음</span>':''}</div><div class="bg-white rounded-2xl border border-slate-100 p-4 mb-5"><div class="flex justify-between mb-2"><p class="text-xs font-bold text-slate-500">상담 진행률</p><p class="text-sm font-extrabold text-emerald-700">${p.pct}%</p></div><div class="h-3 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-emerald-500 rounded-full" style="width:${p.pct}%"></div></div><div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-4">${p.steps.map(s=>`<div class="rounded-xl px-2 py-2 text-center text-[11px] font-bold ${s[1]?'bg-emerald-50 text-emerald-700 border border-emerald-100':'bg-slate-50 text-slate-400 border border-slate-100'}">${s[1]?'✓':'□'} ${s[0]}</div>`).join('')}</div></div><div class="bg-white rounded-2xl border border-slate-100 p-4 mb-4"><div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3"><div><p class="text-sm font-extrabold">운영 단계</p><p class="text-xs text-slate-400 mt-1">다음 처리 버튼으로 예약 흐름을 순서대로 진행합니다.</p></div><button onclick="runNextAction(${r.id})" class="bg-emerald-600 text-white rounded-2xl px-4 py-3 text-xs font-extrabold">${nextActionLabel(r)}</button></div>${operationPipeline(r)}</div><div class="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4"><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">연락처</p><p class="font-bold mt-1">${esc(r.phone)}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">프로그램</p><p class="font-bold mt-1">${esc(r.program)}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">상담 방식</p><p class="font-bold mt-1">${esc(r.type)}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">일정</p><p class="font-bold mt-1">${esc(r.date)} ${esc(r.time)}</p></div></div><div class="grid grid-cols-1 xl:grid-cols-3 gap-4"><div class="xl:col-span-2"><div class="bg-white rounded-2xl border border-slate-100 p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-sm font-extrabold">신청 검사 및 발송 관리</h3><button onclick="markAllTestsSent(${r.id})" class="bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl px-3 py-2 text-xs font-bold">전체 발송완료</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3">${tests.length?tests.map(t=>`<div class="border border-slate-100 rounded-2xl p-4 bg-slate-50"><p class="text-sm font-extrabold">${esc(t)}</p><select onchange='updateTestStatus(${r.id}, ${JSON.stringify(t)}, this.value)' class="mt-3 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">${['미발송','발송완료','검사완료','결과확인'].map(st=>`<option value="${st}" ${(r.testStatuses||{})[t]===st?'selected':''}>${st}</option>`).join('')}</select></div>`).join(''):empty('신청된 검사가 없습니다.')}</div></div><div class="bg-white rounded-2xl border border-slate-100 p-4 mt-4"><div class="flex justify-between items-center mb-3"><div><h3 class="text-sm font-extrabold">관리자 메모</h3><p class="text-xs text-slate-400 mt-1">연락, 결제, 검사 발송, 상담 참고사항을 기록합니다.</p></div><button onclick="saveMemo(${r.id})" class="bg-slate-900 text-white rounded-xl px-4 py-2 text-xs font-bold">메모 저장</button></div><textarea id="memo-${r.id}" rows="3" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none" placeholder="예) 오전 연락 완료, 결제 확인 대기, TCI 먼저 발송 예정">${esc(r.adminMemo)}</textarea></div></div><div class="bg-white rounded-2xl border border-slate-100 p-4"><p class="text-xs font-bold text-slate-500 mb-2">예약 상태 변경</p><select onchange="updateReservation(${r.id},{status:this.value})" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold mb-3">${STATUS.map(st=>`<option value="${st}" ${(r.status||'승인대기')===st?'selected':''}>${st}</option>`).join('')}</select><div class="grid grid-cols-2 gap-2"><button onclick="approveReservation(${r.id})" class="bg-blue-600 text-white rounded-2xl py-3 text-xs font-extrabold">예약승인</button><button onclick="markPaymentComplete(${r.id})" class="bg-emerald-600 text-white rounded-2xl py-3 text-xs font-extrabold">결제완료</button><button onclick="copyPaymentMessage(${r.id})" class="bg-white border border-emerald-200 text-emerald-700 rounded-2xl py-3 text-xs font-extrabold">결제안내</button><button onclick="copyTestGuide(${r.id})" class="bg-indigo-600 text-white rounded-2xl py-3 text-xs font-extrabold">검사안내</button><button onclick="copyDocumentReminder(${r.id})" class="bg-teal-600 text-white rounded-2xl py-3 text-xs font-extrabold">서류안내</button><button onclick="sendTestLinks(${r.id})" class="bg-slate-900 text-white rounded-2xl py-3 text-xs font-extrabold">검사발송</button><button onclick="setReportFromReservation(${r.id})" class="bg-purple-600 text-white rounded-2xl py-3 text-xs font-extrabold">보고서 작성</button><button onclick="openIntake(${r.id})" class="bg-white border border-purple-200 text-purple-700 rounded-2xl py-3 text-xs font-extrabold">AI요약</button><button onclick="updateReservation(${r.id},{status:'상담완료'})" class="bg-green-600 text-white rounded-2xl py-3 text-xs font-extrabold">상담완료</button><button onclick="deleteReservation(${r.id})" class="col-span-2 bg-white border border-rose-200 text-rose-700 rounded-2xl py-3 text-xs font-extrabold">삭제</button></div></div></div></div>`}).join('')||empty('예약이 없습니다.')}</div></div>`)}
+function intakeView(){return layout(`<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">${state.intakes.length?state.intakes.map(i=>`<div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex justify-between gap-3 mb-4"><div><p class="font-extrabold text-lg">${esc(i.name||'이름 미입력')}</p><p class="text-xs text-slate-500 mt-1">${esc(i.phone)} · ${esc(i.email)}</p><p class="text-xs text-slate-400 mt-1">${esc(i.date)}</p></div><span class="text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1 rounded-full h-fit">${esc(i.status||'신규접수')}</span></div>${i.risk?`<p class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-2xl p-3 mb-4">위기 신호: ${esc(i.risk)}</p>`:''}<pre class="whitespace-pre-wrap text-xs leading-relaxed bg-slate-50 border border-slate-100 rounded-2xl p-4 max-h-96 overflow-auto">${esc(i.summary||'요약 없음')}</pre><button onclick='copyText(${JSON.stringify(i.summary||'')})' class="mt-4 text-xs font-bold border border-slate-200 rounded-xl px-4 py-2">요약 복사</button></div>`).join(''):empty('저장된 AI 마음 체크인 요약이 없습니다.')}</div>`)}
 
 function detailedReportTemplate(testType, reportType) {
   const admin = reportType === "관리자용";
@@ -1350,7 +1504,74 @@ function applyDetailedTemplate(){
 }
 
 function reportView(){return layout(`<div class="grid grid-cols-1 xl:grid-cols-3 gap-6"><div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><h2 class="text-xl font-extrabold mb-2">예약자 선택</h2><p class="text-sm text-slate-500 mb-5">예약자를 선택하면 보고서 정보가 자동 입력됩니다.</p><div class="space-y-3 max-h-[720px] overflow-auto">${state.reservations.map(r=>`<button onclick="setReportFromReservation(${r.id})" class="w-full text-left bg-slate-50 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 rounded-2xl p-4"><p class="font-extrabold">${esc(r.name)}님</p><p class="text-xs text-slate-500 mt-1">${esc(r.program)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.date)} ${esc(r.time)}</p></button>`).join('')||empty('예약자가 없습니다.')}</div></div><form onsubmit="createReport(event)" class="xl:col-span-2 bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4"><div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><h2 class="text-xl font-extrabold">관리자 결과보고서 작성</h2><p class="text-sm text-slate-500 mt-1">보고서는 하나만 작성하고, 승인된 보고서만 내담자 결과확인에 공개됩니다.</p></div><button type="button" onclick="applyDetailedTemplate()" class="bg-emerald-600 text-white rounded-2xl px-5 py-3 text-sm font-extrabold">템플릿 적용</button></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><input required value="${esc(state.reportForm.clientName)}" oninput="state.reportForm.clientName=this.value" placeholder="내담자 이름" class="border border-slate-200 rounded-2xl px-4 py-3 text-sm"/><input value="${esc(state.reportForm.phone)}" oninput="state.reportForm.phone=this.value" placeholder="연락처" class="border border-slate-200 rounded-2xl px-4 py-3 text-sm"/><input value="${esc(state.reportForm.program)}" oninput="state.reportForm.program=this.value" placeholder="프로그램명" class="border border-slate-200 rounded-2xl px-4 py-3 text-sm"/><select onchange="state.reportForm.testType=this.value" class="border border-slate-200 rounded-2xl px-4 py-3 text-sm">${['TCI','STS','PAT','KCDI','PAT · KCDI','MMPI-2','SCT','HTP','통합'].map(t=>`<option ${state.reportForm.testType===t?'selected':''}>${t}</option>`).join('')}</select></div><div class="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-sm text-amber-800 font-bold">현재 보고서는 관리자용 원본으로 저장됩니다. 저장 후 [내담자 공개 승인]을 누른 보고서만 내담자가 이름과 연락처로 확인할 수 있습니다.</div><input required value="${esc(state.reportForm.title)}" oninput="state.reportForm.title=this.value" placeholder="보고서 제목" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm"/><textarea required rows="6" oninput="state.reportForm.summary=this.value" placeholder="종합 소견" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm">${esc(state.reportForm.summary)}</textarea><textarea rows="5" oninput="state.reportForm.strength=this.value" placeholder="강점 및 자원" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm">${esc(state.reportForm.strength)}</textarea><textarea rows="5" oninput="state.reportForm.caution=this.value" placeholder="주의점 및 어려움" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm">${esc(state.reportForm.caution)}</textarea><textarea rows="5" oninput="state.reportForm.plan=this.value" placeholder="상담 계획 및 권장사항" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm">${esc(state.reportForm.plan)}</textarea><button class="w-full bg-slate-900 text-white rounded-2xl py-4 text-sm font-extrabold">보고서 저장</button></form><div class="xl:col-span-3 bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><h2 class="text-xl font-extrabold mb-2">저장된 보고서</h2><p class="text-sm text-slate-500 mb-5">관리자가 공개 승인한 보고서만 내담자에게 표시됩니다.</p><div class="grid grid-cols-1 xl:grid-cols-2 gap-4">${state.reports.map(r=>`<div class="border border-slate-100 rounded-2xl p-5 bg-slate-50"><div class="flex justify-between gap-3"><div><p class="font-extrabold">${esc(r.clientName)} · ${esc(r.testType)}</p><p class="text-xs text-slate-500 mt-1">${esc(r.title)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.createdAt)}</p></div><span class="text-[11px] font-bold rounded-full px-3 py-1 h-fit ${r.approvedForClient?'bg-emerald-100 text-emerald-700':'bg-slate-200 text-slate-600'}">${r.approvedForClient?'내담자 공개':'비공개'}</span></div><pre class="whitespace-pre-wrap text-xs bg-white rounded-xl p-3 mt-3 max-h-40 overflow-auto border border-slate-100">${esc(r.summary)}</pre><div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4"><button onclick="toggleReportApproval(${r.id})" class="${r.approvedForClient?'bg-slate-600':'bg-emerald-600'} text-white rounded-xl py-2 text-xs font-bold">${r.approvedForClient?'공개취소':'내담자 공개 승인'}</button><button onclick="copyReportGuide(${r.id})" class="bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl py-2 text-xs font-bold">안내복사</button><button onclick="printReport(${r.id})" class="bg-orange-500 text-white rounded-xl py-2 text-xs font-extrabold">PDF/인쇄</button><button onclick='copyText(${JSON.stringify(r.summary||'')})' class="bg-white border border-slate-200 rounded-xl py-2 text-xs font-bold">요약복사</button><button onclick="deleteReport(${r.id})" class="bg-white border border-rose-200 text-rose-700 rounded-xl py-2 text-xs font-bold">삭제</button></div></div>`).join('')||empty('저장된 보고서가 없습니다.')}</div></div></div>`)}
-function membersView(){const clients=buildClients();return layout(`<div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex items-center justify-between gap-4 mb-6"><div><h2 class="text-xl font-extrabold">내담자 전자차트</h2><p class="text-sm text-slate-500 mt-1">한 명의 내담자별 예약, 신청서·동의서, AI 접수, 검사, 마음기록, 회기기록, 사례개념화를 한 화면에서 확인합니다.</p></div><span class="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">${clients.length}명</span></div><div class="space-y-6">${clients.map(c=>{const tests=[...new Set(c.reservations.flatMap(r=>requestedTests(r)))],memos=c.reservations.filter(r=>r.adminMemo);return`<div class="rounded-[2rem] border border-slate-100 bg-slate-50 p-5 sm:p-6"><div class="flex flex-wrap items-center gap-2 mb-4"><p class="text-xl font-extrabold">👤 ${esc(c.name)}님</p><span class="text-xs font-bold bg-white border border-slate-200 rounded-full px-3 py-1">${esc(c.phone||'연락처 없음')}</span></div><div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5"><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">예약</p><p class="text-2xl font-extrabold">${c.reservations.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">AI접수</p><p class="text-2xl font-extrabold">${c.intakes.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">검사</p><p class="text-2xl font-extrabold">${tests.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">보고서</p><p class="text-2xl font-extrabold">${c.reports.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">회기/상담메모</p><p class="text-2xl font-extrabold">${c.notes.length}</p></div></div><div class="bg-white rounded-2xl border border-slate-100 p-4 mb-5"><h3 class="text-sm font-extrabold mb-3">진행 체크리스트</h3><div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold">${['회원','AI접수','예약/결제','검사','신청서','동의서','상담','결과'].map((label,idx)=>{const done=idx===0|| (label==='AI접수'&&c.intakes.length>0) || (label==='예약/결제'&&c.reservations.some(r=>['예약확정','검사진행','결과작성','상담완료'].includes(r.status))) || (label==='검사'&&tests.length>0) || (label==='상담'&&c.notes.length>0) || (label==='결과'&&c.reports.length>0);return `<span class="rounded-full px-3 py-2 text-center ${done?'bg-emerald-50 text-emerald-700 border border-emerald-100':'bg-slate-50 text-slate-400 border border-slate-100'}">${done?'●':'○'} ${label}</span>`}).join('')}</div></div><div class="grid grid-cols-1 xl:grid-cols-2 gap-5"><div class="space-y-5"><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">예약이력</h3>${c.reservations.length?c.reservations.map(r=>`<div class="border-b border-slate-100 last:border-0 py-3"><p class="text-sm font-bold">${esc(r.date)} ${esc(r.time)} · ${esc(r.program)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.type)} · ${esc(r.status||'승인대기')}</p></div>`).join(''):'<p class="text-sm text-slate-400">예약이력이 없습니다.</p>'}</div><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">신청 검사</h3>${tests.length?`<div class="flex flex-wrap gap-2">${tests.map(t=>`<span class="text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-3 py-1">${esc(t)}</span>`).join('')}</div>`:'<p class="text-sm text-slate-400">신청 검사가 없습니다.</p>'}</div><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">관리자 메모</h3>${memos.length?memos.map(r=>`<div class="bg-amber-50 border border-amber-100 rounded-2xl p-3 mb-2"><p class="text-xs font-bold text-amber-700">${esc(r.date)} · ${esc(r.program)}</p><p class="text-xs text-slate-600 whitespace-pre-line mt-1">${esc(r.adminMemo)}</p></div>`).join(''):'<p class="text-sm text-slate-400">관리자 메모가 없습니다.</p>'}</div></div><div class="space-y-5"><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">상담 메모 추가</h3><input id="date-${c.key}" type="date" value="${new Date().toISOString().slice(0,10)}" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"/><textarea id="note-${c.key}" rows="4" placeholder="주호소, 상담 중 확인된 내용, 다음 회기 계획을 기록하세요." class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none"></textarea><button onclick="saveCounselingNote('${c.key}')" class="w-full mt-3 bg-slate-900 text-white rounded-2xl py-3 text-sm font-extrabold">상담 메모 저장</button><div class="mt-5 space-y-3">${c.notes.length?c.notes.map(n=>`<div class="bg-slate-50 border border-slate-100 rounded-2xl p-4"><div class="flex justify-between mb-2"><p class="text-xs font-bold text-emerald-700">${esc(n.date)}</p><button onclick="deleteCounselingNote('${c.key}',${n.id})" class="text-xs font-bold text-rose-600">삭제</button></div><p class="text-xs text-slate-600 whitespace-pre-line">${esc(n.memo)}</p></div>`).join(''):'<p class="text-sm text-slate-400">저장된 상담 메모가 없습니다.</p>'}</div></div><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">결과보고서</h3>${c.reports.length?c.reports.map(r=>`<div class="border-b border-slate-100 last:border-0 py-3"><div class="flex items-start justify-between gap-3"><div><p class="text-sm font-bold">${esc(r.testType)} · ${esc(r.title)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.createdAt)} · ${r.approvedForClient?'내담자 공개':'비공개'}</p></div><div class="flex gap-1 shrink-0"><button onclick="printReport(${r.id})" class="text-[11px] font-bold bg-orange-500 text-white rounded-lg px-2 py-1">PDF</button><button onclick="toggleReportApproval(${r.id})" class="text-[11px] font-bold ${r.approvedForClient?'bg-slate-200 text-slate-700':'bg-emerald-600 text-white'} rounded-lg px-2 py-1">${r.approvedForClient?'취소':'승인'}</button></div></div></div>`).join(''):'<p class="text-sm text-slate-400">저장된 보고서가 없습니다.</p>'}</div></div></div></div>`}).join('')||empty('회원 데이터가 없습니다.')}</div></div>`)}
+
+/* =========================================================
+   V26 내담자 전자차트 고도화
+   - 상담 전 30초 브리핑
+   - 마음 체크인/검사/보고서/회기기록을 한 화면에서 연결
+   - AI는 상담을 대신하지 않고 상담 준비자료만 제공합니다.
+========================================================= */
+function clientBriefing(c){
+  const tests=[...new Set(c.reservations.flatMap(r=>requestedTests(r)))];
+  const latestReservation=c.reservations[0]||{};
+  const latestIntake=c.intakes[0]||null;
+  const latestReport=c.reports[0]||null;
+  const latestNote=c.notes[0]||null;
+  const issues=[];
+  if(latestIntake && (latestIntake.summary||latestIntake.concern)) issues.push('AI 마음 체크인 내용을 먼저 확인합니다.');
+  if(tests.length) issues.push('신청/진행 검사: '+tests.slice(0,4).join(', '));
+  if(latestReport) issues.push('최근 결과보고서: '+(latestReport.testType||latestReport.title||'보고서 확인'));
+  if(latestNote) issues.push('최근 상담메모가 있습니다. 지난 회기 변화와 과제를 확인합니다.');
+  if(!issues.length) issues.push('예약 기본정보와 주호소를 먼저 확인합니다.');
+  const questions=[];
+  questions.push('현재 가장 힘든 순간이 언제인지 확인하기');
+  questions.push('최근 수면, 식욕, 신체 긴장 등 생활 변화를 확인하기');
+  if(tests.some(t=>String(t).includes('TCI'))) questions.push('기질 특성과 현재 스트레스 반응의 연결 살펴보기');
+  if(tests.some(t=>String(t).includes('MMPI'))) questions.push('정서 및 성격 특성과 주호소의 관련성 살펴보기');
+  if(String(latestReservation.program||'').includes('부모')) questions.push('양육환경과 아동 발달 특성의 상호작용 확인하기');
+  if(String(latestReservation.program||'').includes('부부')) questions.push('각자의 기질 차이와 의사소통 패턴 확인하기');
+  return {issues,questions,goal:'현재 어려움을 검사 결과와 연결하여 이해하고, 첫 실천 목표를 함께 정리합니다.'};
+}
+
+function intakeSummaryBlock(c){
+  if(!c.intakes.length) return '<p class="text-sm text-slate-400">연결된 AI 마음 체크인 기록이 없습니다.</p>';
+  return c.intakes.map(i=>`<div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-3"><p class="text-xs font-extrabold text-emerald-700 mb-2">AI 마음 체크인</p><p class="text-xs text-slate-700 whitespace-pre-line">${esc(i.summary||i.concern||i.content||'요약 없음')}</p></div>`).join('');
+}
+
+function counselorBriefingBlock(c){
+  const b=clientBriefing(c);
+  return `<div class="bg-slate-900 text-white rounded-2xl p-5 mb-5">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <h3 class="text-sm font-extrabold">AI 상담 준비 브리핑</h3>
+      <span class="text-[11px] font-bold bg-white/10 rounded-full px-3 py-1">상담 전 30초 확인</span>
+    </div>
+    <p class="text-xs text-slate-300 mb-4">AI는 상담을 대신하지 않고, 임상심리 전문가가 상담을 준비하는 참고자료를 정리합니다.</p>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div class="bg-white/10 rounded-2xl p-4"><p class="text-xs font-extrabold text-emerald-300 mb-2">오늘 확인할 내용</p>${b.issues.map(x=>`<p class="text-xs text-slate-100 mb-1">• ${esc(x)}</p>`).join('')}</div>
+      <div class="bg-white/10 rounded-2xl p-4"><p class="text-xs font-extrabold text-emerald-300 mb-2">상담 질문 초안</p>${b.questions.slice(0,4).map(x=>`<p class="text-xs text-slate-100 mb-1">• ${esc(x)}</p>`).join('')}</div>
+      <div class="bg-white/10 rounded-2xl p-4"><p class="text-xs font-extrabold text-emerald-300 mb-2">오늘의 상담목표</p><p class="text-xs text-slate-100 whitespace-pre-line">${esc(b.goal)}</p></div>
+    </div>
+  </div>`;
+}
+
+function saveStructuredSession(k){
+  const date=document.getElementById('session-date-'+k)?.value||new Date().toISOString().slice(0,10);
+  const theme=document.getElementById('session-theme-'+k)?.value||'';
+  const emotion=document.getElementById('session-emotion-'+k)?.value||'';
+  const intervention=document.getElementById('session-intervention-'+k)?.value||'';
+  const change=document.getElementById('session-change-'+k)?.value||'';
+  const next=document.getElementById('session-next-'+k)?.value||'';
+  if(!theme.trim()&&!emotion.trim()&&!intervention.trim()&&!change.trim()){alert('회기 핵심 내용을 한 가지 이상 입력해 주세요.');return;}
+  const memo=`[회기기록]\n주제: ${theme}\n정서/반응: ${emotion}\n개입/상담내용: ${intervention}\n변화/관찰: ${change}\n다음 회기/과제: ${next}`;
+  const sk='modumam_counseling_notes_'+k;
+  const notes=load(sk,[]);
+  notes.unshift({id:Date.now(),date,memo,createdAt:new Date().toLocaleString(),type:'structured-session'});
+  save(sk,notes);
+  alert('회기기록이 전자차트에 저장되었습니다.');
+  render();
+}
+
+function membersView(){const clients=buildClients();return layout(`<div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex items-center justify-between gap-4 mb-6"><div><h2 class="text-xl font-extrabold">내담자 전자차트</h2><p class="text-sm text-slate-500 mt-1">한 명의 내담자별 예약, 신청서·동의서, AI 접수, 심리검사, 결과보고서, 회기기록, 상담 준비 브리핑을 한 화면에서 확인합니다.</p></div><span class="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">${clients.length}명</span></div><div class="space-y-6">${clients.map(c=>{const tests=[...new Set(c.reservations.flatMap(r=>requestedTests(r)))],memos=c.reservations.filter(r=>r.adminMemo);return`<div class="rounded-[2rem] border border-slate-100 bg-slate-50 p-5 sm:p-6"><div class="flex flex-wrap items-center gap-2 mb-4"><p class="text-xl font-extrabold">👤 ${esc(c.name)}님</p><span class="text-xs font-bold bg-white border border-slate-200 rounded-full px-3 py-1">${esc(c.phone||'연락처 없음')}</span></div><div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5"><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">예약</p><p class="text-2xl font-extrabold">${c.reservations.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">AI체크인</p><p class="text-2xl font-extrabold">${c.intakes.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">검사</p><p class="text-2xl font-extrabold">${tests.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">보고서</p><p class="text-2xl font-extrabold">${c.reports.length}</p></div><div class="bg-white rounded-2xl p-4 border border-slate-100"><p class="text-xs text-slate-400 font-bold">회기/상담메모</p><p class="text-2xl font-extrabold">${c.notes.length}</p></div></div><div class="bg-white rounded-2xl border border-slate-100 p-4 mb-5"><h3 class="text-sm font-extrabold mb-3">진행 체크리스트</h3><div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold">${['회원','AI체크인','예약/결제','검사','신청서','동의서','상담','결과'].map((label,idx)=>{const done=idx===0|| (label==='AI체크인'&&c.intakes.length>0) || (label==='예약/결제'&&c.reservations.some(r=>['예약확정','검사진행','결과작성','상담완료'].includes(r.status))) || (label==='검사'&&tests.length>0) || (label==='상담'&&c.notes.length>0) || (label==='결과'&&c.reports.length>0);return `<span class="rounded-full px-3 py-2 text-center ${done?'bg-emerald-50 text-emerald-700 border border-emerald-100':'bg-slate-50 text-slate-400 border border-slate-100'}">${done?'●':'○'} ${label}</span>`}).join('')}</div></div>${counselorBriefingBlock(c)}<div class="grid grid-cols-1 xl:grid-cols-2 gap-5"><div class="space-y-5"><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">예약이력</h3>${c.reservations.length?c.reservations.map(r=>`<div class="border-b border-slate-100 last:border-0 py-3"><p class="text-sm font-bold">${esc(r.date)} ${esc(r.time)} · ${esc(r.program)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.type)} · ${esc(r.status||'승인대기')}</p></div>`).join(''):'<p class="text-sm text-slate-400">예약이력이 없습니다.</p>'}</div><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">신청 검사</h3>${tests.length?`<div class="flex flex-wrap gap-2">${tests.map(t=>`<span class="text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-3 py-1">${esc(t)}</span>`).join('')}</div>`:'<p class="text-sm text-slate-400">신청 검사가 없습니다.</p>'}</div><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">AI 마음 체크인 요약</h3>${intakeSummaryBlock(c)}</div><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">관리자 메모</h3>${memos.length?memos.map(r=>`<div class="bg-amber-50 border border-amber-100 rounded-2xl p-3 mb-2"><p class="text-xs font-bold text-amber-700">${esc(r.date)} · ${esc(r.program)}</p><p class="text-xs text-slate-600 whitespace-pre-line mt-1">${esc(r.adminMemo)}</p></div>`).join(''):'<p class="text-sm text-slate-400">관리자 메모가 없습니다.</p>'}</div></div><div class="space-y-5"><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">회기기록 / 상담 메모</h3><input id="session-date-${c.key}" type="date" value="${new Date().toISOString().slice(0,10)}" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"/><input id="session-theme-${c.key}" placeholder="오늘의 핵심 주제" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"/><textarea id="session-emotion-${c.key}" rows="2" placeholder="주요 정서와 내담자 반응" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none mb-3"></textarea><textarea id="session-intervention-${c.key}" rows="3" placeholder="상담 내용 / 사용한 개입 / 확인한 내용" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none mb-3"></textarea><textarea id="session-change-${c.key}" rows="2" placeholder="변화, 관찰점, 위험/보호요인" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none mb-3"></textarea><textarea id="session-next-${c.key}" rows="2" placeholder="다음 회기 계획 또는 과제" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none"></textarea><button onclick="saveStructuredSession('${c.key}')" class="w-full mt-3 bg-slate-900 text-white rounded-2xl py-3 text-sm font-extrabold">회기기록 저장</button><div class="mt-5 space-y-3">${c.notes.length?c.notes.map(n=>`<div class="bg-slate-50 border border-slate-100 rounded-2xl p-4"><div class="flex justify-between mb-2"><p class="text-xs font-bold text-emerald-700">${esc(n.date)}</p><button onclick="deleteCounselingNote('${c.key}',${n.id})" class="text-xs font-bold text-rose-600">삭제</button></div><p class="text-xs text-slate-600 whitespace-pre-line">${esc(n.memo)}</p></div>`).join(''):'<p class="text-sm text-slate-400">저장된 상담 메모가 없습니다.</p>'}</div></div><div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">결과보고서</h3>${c.reports.length?c.reports.map(r=>`<div class="border-b border-slate-100 last:border-0 py-3"><div class="flex items-start justify-between gap-3"><div><p class="text-sm font-bold">${esc(r.testType)} · ${esc(r.title)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.createdAt)} · ${r.approvedForClient?'내담자 공개':'비공개'}</p></div><div class="flex gap-1 shrink-0"><button onclick="printReport(${r.id})" class="text-[11px] font-bold bg-orange-500 text-white rounded-lg px-2 py-1">PDF</button><button onclick="toggleReportApproval(${r.id})" class="text-[11px] font-bold ${r.approvedForClient?'bg-slate-200 text-slate-700':'bg-emerald-600 text-white'} rounded-lg px-2 py-1">${r.approvedForClient?'취소':'승인'}</button></div></div></div>`).join(''):'<p class="text-sm text-slate-400">저장된 보고서가 없습니다.</p>'}</div></div></div></div>`}).join('')||empty('회원 데이터가 없습니다.')}</div></div>`)}
 function statisticsView(){const total=state.reservations.length,complete=state.reservations.filter(r=>r.status==='상담완료').length;return layout(`<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">${card('전체 예약',total+'건','누적','📅','blue')}${card('상담 완료율',total?Math.round(complete/total*100)+'%':'0%','상담완료 기준','✅','emerald')}${card('AI 접수',state.intakes.length+'건','누적 접수','🤖','purple')}${card('보고서',state.reports.length+'건','저장됨','📝','orange')}</div><div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><h2 class="text-xl font-extrabold mb-4">통계 준비중</h2><p class="text-sm text-slate-500">프로그램별 예약, 월별 상담, 재예약률 통계를 확장할 수 있습니다.</p></div>`)}
 function settingsView(){return layout(`<div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm max-w-3xl"><h2 class="text-xl font-extrabold mb-4">환경설정</h2><p class="text-sm text-slate-500 leading-relaxed">현재 버전은 브라우저 localStorage 기반 관리자입니다. 같은 브라우저에서 사용자 예약 데이터와 관리자 데이터가 연결됩니다.</p><div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6"><button onclick="copyText(JSON.stringify(localStorage,null,2))" class="border border-slate-200 rounded-2xl py-3 text-sm font-bold">localStorage 백업 복사</button><button onclick="location.href='/'" class="border border-slate-200 rounded-2xl py-3 text-sm font-bold">사용자 페이지로 이동</button></div></div>`)}
 function loginView(){const locked=state.loginLockedUntil&&Date.now()<state.loginLockedUntil;const remain=locked?Math.ceil((state.loginLockedUntil-Date.now())/1000):0;return`<div class="min-h-screen bg-slate-950 flex items-center justify-center p-4"><form onsubmit="login(event)" class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl"><p class="text-xs font-bold text-emerald-700 mb-2">MODUMAM LAB ADMIN · 보안 로그인</p><h1 class="text-3xl font-extrabold text-slate-900 mb-3">관리자 로그인</h1><p class="text-sm text-slate-500 mb-6">관리자 비밀번호 입력 후 관리자 시스템으로 이동합니다.</p><input type="password" autofocus placeholder="관리자 비밀번호" oninput="state.password=this.value" ${locked?'disabled':''} class="w-full bg-slate-50 border border-slate-200 px-4 py-4 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 disabled:opacity-50"/>${state.loginError?`<div class="mt-3 bg-rose-50 border border-rose-100 text-rose-700 rounded-2xl p-4 text-sm font-bold">${esc(state.loginError)}</div>`:''}${locked?`<div class="mt-3 bg-amber-50 border border-amber-100 text-amber-700 rounded-2xl p-4 text-sm font-bold">잠금 해제까지 ${remain}초</div>`:''}<button ${locked?'disabled':''} class="w-full mt-5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl py-4 text-sm font-extrabold disabled:opacity-50">로그인</button><button type="button" onclick="location.href='/'" class="w-full mt-3 border border-slate-200 rounded-2xl py-4 text-sm font-bold text-slate-600 hover:bg-slate-50">사용자 페이지로 돌아가기</button></form></div>`}

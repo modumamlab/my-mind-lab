@@ -1,9 +1,9 @@
 /* =========================================================
    모두의 마음연구소 사용자 페이지 App
-   파일 역할: 메인 홈페이지, 회원가입/로그인, 예약, AI 마음리포트 화면
+   파일 역할: 메인 홈페이지, 회원가입/로그인, 예약, AI 마음 체크인 화면
 
    대표님이 자주 수정할 위치 찾기
-   1) AI 접수면접 질문: aiIntakeQuestions 검색
+   1) AI 마음 체크인 질문: aiIntakeQuestions 검색
    2) AI 마음정리/리포트 문구: createAiMindReport 검색
    3) 심리검사 추천: recommendTestsAfterInterview 검색
    4) 예약/결제 금액: getPaymentInfo 검색
@@ -200,6 +200,7 @@ async function submitSignup(userData) {
         
         function App() {
             const [activeTab, setActiveTab] = useState('home');
+            const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
             const [selectedPunctuation, setSelectedPunctuation] = useState('all');
             const [testResult, setTestResult] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
@@ -320,7 +321,7 @@ async function submitSignup(userData) {
             const [aiIntakeMessages, setAiIntakeMessages] = useState([
                 {
                     role: "ai",
-                    text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 정답을 잘 말해야 하는 곳이 아니라, 지금 마음에 남아 있는 신호를 천천히 꺼내보는 공간입니다.\n\n오늘은 문제를 바로 해결하기보다, ‘내가 왜 이러지?’라는 질문 뒤에 있는 마음을 함께 살펴보려 합니다.\n\n편안하게 시작해볼게요. 오늘 이 대화를 시작하게 된 가장 큰 마음의 신호는 무엇이었나요?"
+                    text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n\n오늘은 약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 체크인 시간입니다. 정답을 찾기보다, 지금 마음이 보내는 신호를 천천히 살펴보겠습니다.\n\n편한 만큼만 이야기해 주세요. 오늘은 어떤 마음으로 찾아오셨나요?"
                 }
             ]);
             const [aiIntakeInput, setAiIntakeInput] = useState("");
@@ -331,21 +332,20 @@ async function submitSignup(userData) {
                 privacyAgree: false
             });
             const [aiIntakeReport, setAiIntakeReport] = useState(null);
+            const [isAiIntakeSending, setIsAiIntakeSending] = useState(false);
 
             // 추천 검사 설명 팝업
             const [selectedTestPopup, setSelectedTestPopup] = useState(null);
 
             const aiIntakeQuestions = [
-                { key: "opening", question: "오늘 이 대화를 시작하게 된 가장 큰 마음의 신호는 무엇이었나요?" },
-                { key: "emotion", question: "그 이야기를 떠올릴 때, 마음이나 몸에서는 어떤 반응이 느껴지나요? 답답함, 불안, 화, 무기력, 눈물, 긴장처럼 떠오르는 표현 그대로 적어주셔도 괜찮습니다." },
-                { key: "context", question: "그 마음이 특히 커지는 순간은 언제인가요? 특정 사람, 장소, 시간대, 반복되는 상황이 있다면 함께 살펴보고 싶습니다." },
-                { key: "innerSentence", question: "그 상황에서 마음속으로 자주 반복되는 말이 있나요? 예를 들면 ‘내가 문제인가?’, ‘또 이러네’, ‘참아야지’, ‘잘해야 해’ 같은 문장입니다." },
-                { key: "timeline", question: "이 마음은 최근에 갑자기 커진 편인가요, 아니면 오래전부터 반복되어 온 익숙한 어려움에 가까울까요?" },
-                { key: "impact", question: "요즘 이 마음이 일상에는 어떤 영향을 주고 있나요? 잠, 식사, 일, 관계, 양육, 집중, 의욕 중 달라진 부분이 있을까요?" },
-                { key: "coping", question: "그동안 이 마음을 견디기 위해 해왔던 나만의 방법이 있었나요? 잘 되지 않았더라도 괜찮습니다. 버텨온 방식도 중요한 단서입니다." },
-                { key: "wish", question: "상담이나 심리검사를 통해 가장 알고 싶은 것은 무엇인가요? 또는 ‘이 부분만은 달라졌으면 좋겠다’ 싶은 것이 있을까요?" },
+                { key: "opening", question: "오늘은 어떤 마음으로 찾아오셨나요? 가장 먼저 들려주고 싶은 이야기를 편하게 말씀해 주세요." },
+                { key: "mainConcern", question: "제가 조금 더 잘 이해할 수 있도록, 지금 가장 힘든 부분을 하나만 꼽는다면 무엇일까요?" },
+                { key: "timeline", question: "그 어려움은 언제부터 특히 크게 느껴지기 시작했나요?" },
+                { key: "impact", question: "요즘 그 마음이 일상에는 어떤 영향을 주고 있나요? 잠, 식사, 일, 관계, 집중, 의욕 중 달라진 부분이 있을까요?" },
+                { key: "coping", question: "그동안 이 마음을 견디기 위해 해보셨던 방법이 있었나요? 잘 되지 않았더라도 괜찮습니다." },
+                { key: "expectation", question: "지금 가장 바라는 것은 무엇인가요? 단순히 들어주기를 원하시는지, 아니면 심리검사를 통해 조금 더 이해해 보고 싶으신지도 함께 알려주세요." },
                 { key: "safety", question: "마지막으로 안전 확인을 위해 조심스럽게 여쭤볼게요. 최근 스스로를 해치고 싶거나, 사라지고 싶거나, 죽고 싶다는 생각이 있었나요?" }
-            ];
+            ]
 
             
   // 가입/로그인 완료 버튼 처리 함수 (수정본)
@@ -372,7 +372,7 @@ const handleAuthSubmit = async (e) => { // async 키워드 추가 필수
         )
         .then((response) => {
             console.log('관리자 메일 발송 성공!', response.status);
-            alert(`${authForm.name}님, 회원가입이 완료되었습니다! AI 접수면접을 시작합니다.`);
+            alert(`${authForm.name}님, 회원가입이 완료되었습니다! AI 마음 체크인을 시작합니다.`);
 localStorage.setItem('modumamUser', JSON.stringify({ name: authForm.name, phone: authForm.phone, email: authForm.email, joinedAt: new Date().toLocaleString() }));
 setIsLoggedIn(true);
 setIsAuthModalOpen(false);
@@ -429,6 +429,7 @@ setTimeout(() => {
                 setAiIntakeStep(0);
                 setAiIntakeInput("");
                 setAiIntakeReport(null);
+                setIsAiIntakeSending(false);
                 setAiIntakeUser({
                     name: authForm.name || "",
                     phone: authForm.phone || "",
@@ -438,7 +439,7 @@ setTimeout(() => {
                 setAiIntakeMessages([
                     {
                         role: "ai",
-                        text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 정답을 잘 말해야 하는 곳이 아니라, 지금 마음에 남아 있는 신호를 천천히 꺼내보는 공간입니다.\n\n오늘은 문제를 바로 해결하기보다, ‘내가 왜 이러지?’라는 질문 뒤에 있는 마음을 함께 살펴보려 합니다.\n\n편안하게 시작해볼게요. 오늘 이 대화를 시작하게 된 가장 큰 마음의 신호는 무엇이었나요?"
+                        text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n\n오늘은 약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 체크인 시간입니다. 정답을 찾기보다, 지금 마음이 보내는 신호를 천천히 살펴보겠습니다.\n\n편한 만큼만 이야기해 주세요. 오늘은 어떤 마음으로 찾아오셨나요?"
                     }
                 ]);
             };
@@ -452,7 +453,7 @@ setTimeout(() => {
                 }
 
                 if (!isLoggedIn && !savedUser) {
-                    alert('AI 마음지기 접수면접은 회원가입 또는 로그인 후 이용할 수 있습니다.');
+                    alert('AI 마음지기 마음 체크인은 회원가입 또는 로그인 후 이용할 수 있습니다.');
                     setAuthMode('login');
                     setIsAuthModalOpen(true);
                     return;
@@ -520,76 +521,107 @@ setTimeout(() => {
 
             const makeCounselorReply = (userText, nextQuestion, step) => {
                 const text = aiText(userText);
-                let reflection = "말씀해 주신 내용을 보니, 마음이 그냥 지나치기 어려운 신호를 보내고 있었던 것 같습니다.";
+                let reflection = "말씀해 주셔서 감사합니다. 지금 이야기 속에 마음이 보내는 중요한 신호가 담겨 있는 것 같습니다.";
 
                 if (aiHasAny(text, ["직장", "회사", "상사", "업무", "퇴사", "번아웃"])) {
-                    reflection = "일과 책임 속에서 계속 버텨오셨던 것 같습니다. 직장이라는 공간이 편안함보다 긴장을 더 많이 주는 곳이 되었을 수도 있겠어요.";
+                    reflection = "직장 안에서 계속 긴장하고 버텨오셨던 시간이 느껴집니다. 일 자체의 부담뿐 아니라 사람과의 관계, 평가, 책임감까지 함께 무겁게 느껴졌을 수 있겠습니다.";
                 } else if (aiHasAny(text, ["불안", "걱정", "두려", "긴장", "공황"])) {
-                    reflection = "계속 긴장하고 걱정하는 마음이 이어졌다면, 하루를 보내는 것만으로도 많은 에너지가 쓰였을 것 같습니다.";
-                } else if (aiHasAny(text, ["우울", "무기력", "눈물", "허무", "의욕"])) {
-                    reflection = "마음의 힘이 많이 줄어든 상태였을 수 있겠어요. 말로 꺼내는 것 자체가 쉽지 않았을 텐데 적어주셔서 감사합니다.";
+                    reflection = "계속 마음이 긴장되어 있었다면 하루를 보내는 것만으로도 많은 에너지가 쓰였을 것 같습니다. 불안을 없애려고 하기보다, 먼저 그 불안이 무엇을 말하는지 함께 살펴보겠습니다.";
+                } else if (aiHasAny(text, ["우울", "무기력", "눈물", "허무", "의욕", "공허"])) {
+                    reflection = "마음의 힘이 많이 줄어든 상태였을 수 있겠습니다. 이렇게 꺼내어 말하는 것 자체가 쉽지 않았을 텐데 이야기해 주셔서 감사합니다.";
                 } else if (aiHasAny(text, ["화", "분노", "짜증", "억울", "답답"])) {
-                    reflection = "답답함이나 화가 올라온다는 것은 그만큼 오랫동안 참고 버텨온 부분이 있었다는 신호일 수 있습니다.";
+                    reflection = "답답함이나 화가 올라온다는 것은 그만큼 오래 참고 버텨온 부분이 있었다는 신호일 수 있습니다. 그 감정을 잘못된 것으로 보기보다, 무엇을 지키고 싶었는지 함께 살펴보겠습니다.";
                 } else if (aiHasAny(text, ["아이", "자녀", "육아", "양육", "발달", "훈육"])) {
-                    reflection = "양육 안에서의 어려움은 부모가 부족해서라기보다, 아이의 신호와 부모님의 부담이 함께 얽혀 나타나는 경우가 많습니다.";
-                } else if (aiHasAny(text, ["부부", "남편", "아내", "배우자", "관계", "갈등"])) {
-                    reflection = "관계에서 반복되는 어려움은 혼자만의 문제가 아니라, 서로의 기대와 표현 방식이 어긋나면서 커지는 경우가 많습니다.";
+                    reflection = "양육의 어려움은 부모님이 부족해서가 아니라, 아이의 신호와 부모님의 부담이 함께 맞물려 나타나는 경우가 많습니다. 혼자 애쓰셨던 마음도 함께 이해되어야 합니다.";
+                } else if (aiHasAny(text, ["부부", "남편", "아내", "배우자", "커플", "갈등"])) {
+                    reflection = "가까운 관계에서의 어려움은 더 크게 상처로 남을 수 있습니다. 서로의 기대와 표현 방식이 어긋나며 반복된 부분이 있을지도 모르겠습니다.";
+                } else if (aiHasAny(text, ["진로", "취업", "이직", "미래", "적성", "직업"])) {
+                    reflection = "앞으로의 방향을 고민하는 마음이 크셨던 것 같습니다. 진로 고민은 단순히 선택의 문제가 아니라 나를 이해하는 과정과도 연결됩니다.";
                 }
 
-                const bridges = [
-                    "조금 더 천천히 함께 살펴보겠습니다.",
-                    "이 마음의 결을 놓치지 않도록 한 가지를 더 여쭤볼게요.",
-                    "괜찮으시다면 다음 부분도 이어서 확인해보고 싶습니다.",
-                    "지금 이야기에서 중요한 단서를 조금 더 찾아보겠습니다."
+                const summaries = [
+                    "제가 이해한 것이 맞는지 확인하며 천천히 이어가겠습니다.",
+                    "한 번에 많이 묻기보다, 지금 가장 중요한 부분부터 하나씩 살펴보겠습니다.",
+                    "지금까지 말씀해 주신 흐름을 놓치지 않도록 한 가지를 더 여쭤보겠습니다.",
+                    "이 부분은 상담을 준비할 때도 중요한 단서가 될 수 있어 조금만 더 확인해 보겠습니다."
                 ];
 
-                return reflection + "\n\n" + bridges[Math.min(step, bridges.length - 1)] + "\n\n" + nextQuestion;
+                return reflection + "\n\n" + summaries[Math.min(step, summaries.length - 1)] + "\n\n" + nextQuestion;
+            };
+
+            const buildAssessmentPurpose = (theme, allText, riskLevel) => {
+                const text = aiText(allText);
+                if (riskLevel === "높음") return "안전 확인과 위기 지원을 우선합니다. 심리검사는 안정이 확보된 뒤 상담자가 필요성을 판단합니다.";
+                if (theme.type === "parenting") return "아이의 발달 특성과 부모님의 양육방식을 함께 이해하여 부모-자녀 상호작용을 돕기 위한 평가가 필요합니다.";
+                if (theme.type === "couple") return "두 사람의 기질과 성격 차이를 이해하여 반복되는 갈등의 패턴을 살펴보는 평가가 필요합니다.";
+                if (theme.type === "work") return "직무 환경의 영향과 개인의 스트레스 대처 특성을 함께 구분하기 위한 평가가 필요합니다.";
+                if (theme.type === "relationship") return "반복되는 대인관계 패턴과 자기표현 방식을 이해하기 위한 평가가 필요합니다.";
+                if (aiHasAny(text, ["불안", "우울", "무기력", "공황", "잠", "불면"])) return "현재 정서 상태와 평소 기질·성격 특성을 함께 이해하여 상담 방향을 정하기 위한 평가가 필요합니다.";
+                return "반복되는 마음 패턴과 자기이해를 돕기 위한 평가가 필요합니다.";
+            };
+
+            const addRecommendedTest = (tests, name, reason, priority = 1, confidence = "높음") => {
+                if (!tests.some((t) => t.name === name)) tests.push({ name, reason, priority, confidence });
             };
 
             const recommendTestsAfterInterview = (theme, allText, riskLevel) => {
                 const text = aiText(allText);
                 const tests = [];
 
+                if (riskLevel === "높음") {
+                    return [{
+                        name: "전문가 안전상담 우선",
+                        reason: "현재 대화에서 안전 확인이 필요한 표현이 확인되어 심리검사보다 즉각적인 도움과 전문가 상담 연결이 우선입니다.",
+                        priority: 1,
+                        confidence: "매우 높음"
+                    }];
+                }
+
                 if (theme.type === "parenting") {
-                    tests.push({ name: "PAT 부모양육태도검사", reason: "자녀를 바라보는 부모님의 반응 방식과 양육 부담을 함께 살펴볼 필요가 있어 보입니다. PAT는 지지, 통제, 기대, 일관성 등 양육태도의 균형을 이해하는 데 도움이 됩니다." });
-                    tests.push({ name: "KCDI 아동발달검사", reason: "아이의 행동을 문제로만 보기보다 현재 발달 수준과 영역별 특성을 확인할 필요가 있습니다. KCDI는 자녀의 발달 상태를 구체적으로 이해하고 양육 기대를 조율하는 데 도움이 됩니다." });
-                    if (aiHasAny(text, ["기질", "예민", "감정조절", "낯가림", "활동", "충동"])) {
-                        tests.push({ name: "STS 6요인 기질검사", reason: "아이의 타고난 기질과 환경의 맞물림을 이해하면 부모-자녀 상호작용을 더 부드럽게 조율할 수 있습니다." });
-                    }
-                    return tests;
+                    addRecommendedTest(tests, "PAT 부모양육태도검사", "아이의 행동만 따로 보기보다 부모님의 양육방식과 상호작용을 함께 이해하는 데 도움이 됩니다.", 1, "높음");
+                    addRecommendedTest(tests, "K-CDI 아동발달검사", "자녀의 현재 발달 특성을 확인하면 연령에 맞는 기대와 양육 방향을 세우는 데 도움이 됩니다.", 2, "높음");
+                    return tests.slice(0, 2);
                 }
 
                 if (theme.type === "couple") {
-                    tests.push({ name: "TCI 기질 및 성격검사 × 2", reason: "두 사람의 기질 차이와 성격적 반응 방식을 비교하면 반복되는 갈등이 왜 생기는지 보다 구체적으로 이해할 수 있습니다." });
-                    tests.push({ name: "SCT 문장완성검사", reason: "관계 안에서 직접 말하기 어려운 기대, 서운함, 감정 표현의 흐름을 탐색하는 데 도움이 됩니다." });
-                    if (riskLevel !== "낮음" || aiHasAny(text, ["분노", "폭발", "우울", "불안", "충동"])) {
-                        tests.push({ name: "MMPI-2 다면적 인성검사", reason: "정서적 부담이 오래 지속되었거나 갈등 강도가 높다면 우울·불안·분노·충동성 등 심리적 부담의 폭을 함께 확인하는 것이 도움이 됩니다." });
-                    }
-                    return tests;
+                    addRecommendedTest(tests, "부부 TCI 기질 및 성격검사", "서로의 기질과 성격 차이를 이해하면 반복되는 갈등과 표현 방식의 차이를 더 구체적으로 살펴볼 수 있습니다.", 1, "높음");
+                    if (aiHasAny(text, ["우울", "불안", "분노", "폭발", "상처", "반복"])) addRecommendedTest(tests, "MMPI-2 성격검사", "갈등이 오래 지속되며 정서적 부담이 커진 경우 현재 심리적 부담의 폭을 확인하는 데 도움이 될 수 있습니다.", 2, "중간");
+                    return tests.slice(0, 2);
                 }
 
                 if (theme.type === "work") {
-                    tests.push({ name: "TCI 기질 및 성격검사", reason: "직장 환경 자체뿐 아니라 스트레스 상황에서 반복되는 반응 방식과 에너지 소진 패턴을 이해하는 것이 중요해 보입니다." });
-                    tests.push({ name: "직무스트레스 검사", reason: "업무 부담, 역할 갈등, 조직 내 관계, 소진 수준을 구체적으로 확인하여 회복 전략을 세우는 데 도움이 됩니다." });
-                    if (aiHasAny(text, ["우울", "불안", "공황", "무기력", "잠", "불면"])) {
-                        tests.push({ name: "MMPI-2 다면적 인성검사", reason: "긴장과 피로가 오래 지속된 경우 현재 정서 상태와 심리적 부담의 정도를 객관적으로 확인하는 것이 필요할 수 있습니다." });
-                    }
-                    return tests;
+                    addRecommendedTest(tests, "직무스트레스검사", "현재 어려움이 업무환경, 역할갈등, 조직 내 관계, 소진 중 어디와 더 관련되는지 구체적으로 확인하는 데 도움이 됩니다.", 1, "높음");
+                    addRecommendedTest(tests, "TCI 기질 및 성격검사", "직장 스트레스에 반응하는 평소의 기질과 대처방식을 함께 이해하면 상담 방향을 정하는 데 도움이 됩니다.", 2, "높음");
+                    return tests.slice(0, 2);
                 }
 
                 if (theme.type === "relationship") {
-                    tests.push({ name: "TCI 기질 및 성격검사", reason: "관계에서 반복되는 반응이 타고난 기질과 어떤 관련이 있는지 이해하는 데 도움이 됩니다." });
-                    tests.push({ name: "K-IIP 대인관계문제검사", reason: "대인관계에서 반복되는 어려움, 거리감, 의존, 통제, 회피 등 관계 패턴을 구체적으로 확인하는 데 도움이 됩니다." });
-                    tests.push({ name: "SCT 문장완성검사", reason: "관계 속에서 말하지 못한 감정과 내면의 기대를 자연스럽게 탐색하는 데 도움이 됩니다." });
-                    return tests;
+                    addRecommendedTest(tests, "TCI 기질 및 성격검사", "관계에서 반복되는 반응이 기질과 성격 특성과 어떻게 연결되는지 이해하는 데 도움이 됩니다.", 1, "높음");
+                    addRecommendedTest(tests, "대인관계문제검사", "관계에서 반복되는 거리감, 회피, 의존, 통제, 자기표현의 어려움을 구체적으로 확인하는 데 도움이 됩니다.", 2, "높음");
+                    return tests.slice(0, 2);
                 }
 
-                tests.push({ name: "TCI 기질 및 성격검사", reason: "현재의 어려움을 단순한 성격 문제로 보기보다, 타고난 기질과 후천적으로 형성된 성격을 구분하여 이해하는 데 도움이 됩니다." });
-                tests.push({ name: "SCT 문장완성검사", reason: "말로 정리하기 어려운 감정, 자기평가, 관계 경험, 마음속 반복 문장을 탐색하는 데 도움이 됩니다." });
-                if (riskLevel !== "낮음" || aiHasAny(text, ["우울", "불안", "공황", "무기력", "죽고", "자해", "분노", "충동"])) {
-                    tests.push({ name: "MMPI-2 다면적 인성검사", reason: "현재 심리적 부담이 어느 정도인지, 우울·불안·스트레스·대인관계 양상을 폭넓게 확인하는 데 도움이 됩니다." });
+                if (aiHasAny(text, ["진로", "취업", "이직", "직업", "적성", "미래"])) {
+                    addRecommendedTest(tests, "직업흥미검사", "흥미와 선호 영역을 확인하면 앞으로의 진로 선택과 직업 방향을 구체화하는 데 도움이 됩니다.", 1, "높음");
+                    addRecommendedTest(tests, "TCI 기질 및 성격검사", "진로 선택에서 반복되는 고민이 기질, 성격, 의사결정 방식과 어떻게 연결되는지 이해하는 데 도움이 됩니다.", 2, "중간");
+                    return tests.slice(0, 2);
                 }
-                return tests;
+
+                if (aiHasAny(text, ["우울", "무기력", "눈물", "허무", "의욕"])) {
+                    addRecommendedTest(tests, "우울검사(무료)", "현재 우울감과 무기력의 정도를 먼저 간단히 확인하는 데 도움이 됩니다.", 1, "높음");
+                    addRecommendedTest(tests, "TCI 기질 및 성격검사", "현재 정서가 평소 기질과 성격 특성과 어떻게 연결되는지 이해하는 데 도움이 됩니다.", 2, "중간");
+                    return tests.slice(0, 2);
+                }
+
+                if (aiHasAny(text, ["불안", "걱정", "두려", "긴장", "공황"])) {
+                    addRecommendedTest(tests, "불안검사(무료)", "현재 불안과 긴장의 정도를 먼저 간단히 확인하는 데 도움이 됩니다.", 1, "높음");
+                    addRecommendedTest(tests, "TCI 기질 및 성격검사", "불안이 상황적 요인인지, 평소의 기질적 민감성과 연결되는지 살펴보는 데 도움이 됩니다.", 2, "중간");
+                    return tests.slice(0, 2);
+                }
+
+                addRecommendedTest(tests, "TCI 기질 및 성격검사", "현재의 어려움을 단순한 성격 문제로 보기보다 타고난 기질과 후천적으로 형성된 성격을 구분하여 이해하는 데 도움이 됩니다.", 1, "높음");
+                addRecommendedTest(tests, "문장완성검사(무료)", "말로 정리하기 어려운 감정과 마음속 반복 문장을 부담 없이 탐색하는 데 도움이 됩니다.", 2, "중간");
+                return tests.slice(0, 2);
             };
 
             const getMindScores = (allText, riskLevel) => {
@@ -657,18 +689,19 @@ setTimeout(() => {
             const createAiMindReport = (messages) => {
                 const mainConcern = getAiAnswerText(messages, 0);
                 const feltSense = getAiAnswerText(messages, 1);
-                const story = getAiAnswerText(messages, 2);
-                const innerSentence = getAiAnswerText(messages, 3);
-                const duration = getAiAnswerText(messages, 4);
-                const impact = getAiAnswerText(messages, 5);
-                const coping = getAiAnswerText(messages, 6);
-                const goal = getAiAnswerText(messages, 7);
-                const risk = getAiAnswerText(messages, 8);
+                const duration = getAiAnswerText(messages, 2);
+                const impact = getAiAnswerText(messages, 3);
+                const coping = getAiAnswerText(messages, 4);
+                const goal = getAiAnswerText(messages, 5);
+                const risk = getAiAnswerText(messages, 6);
+                const story = feltSense;
+                const innerSentence = goal;
 
                 const allText = [mainConcern, feltSense, story, innerSentence, duration, impact, coping, goal, risk].join(" ");
                 const theme = inferAiTheme(allText);
                 const riskLevel = detectRiskLevel(allText);
                 const recommendedTests = recommendTestsAfterInterview(theme, allText, riskLevel);
+                const assessmentPurpose = buildAssessmentPurpose(theme, allText, riskLevel);
                 const scores = getMindScores(allText, riskLevel);
                 const keywords = extractKeywords(allText, theme);
                 const strengths = inferStrengths(allText, theme);
@@ -683,7 +716,7 @@ setTimeout(() => {
 
                 const guide = riskLevel === "높음"
                     ? "현재 안전 확인이 우선적으로 필요해 보입니다. 지금 당장 스스로를 해칠 위험이 있거나 혼자 있기 어렵다면 112, 119, 자살예방상담전화 109 또는 가까운 응급실의 도움을 즉시 요청해 주세요."
-                    : "AI 마음정리는 진단이 아니라 상담 전 마음을 정리하기 위한 참고자료입니다. 심리검사와 전문가 해석상담을 통해 더 정확한 이해로 이어질 수 있습니다.";
+                    : "AI 마음 체크인은 진단이 아니라 마음을 함께 이해하기 위한 대화입니다. 필요하다면 심리검사와 전문가 상담을 통해 더 깊이 이어갈 수 있습니다.";
 
                 const summary = "주호소: " + (mainConcern || "추가 확인 필요") + "\n" +
                     "주요 주제: " + theme.label + "\n" +
@@ -713,7 +746,21 @@ setTimeout(() => {
                     riskText: risk,
                     riskLevel,
                     theme,
+                    assessmentPurpose,
                     recommendedTests,
+                    counselorBriefing: {
+                        mainConcern,
+                        currentEmotion: feltSense,
+                        coreEvent: story,
+                        duration,
+                        impact,
+                        coping,
+                        expectation: goal,
+                        strengths,
+                        assessmentPurpose,
+                        recommendedTests,
+                        preparationQuestions: ["오늘 가장 먼저 다루고 싶은 주제를 확인하기", "최근 생활 리듬과 수면 변화 확인하기", "나에게 도움이 될 수 있는 심리검사의 필요성에 대한 내담자 동의 확인하기"]
+                    },
                     scores,
                     keywords,
                     strengths,
@@ -723,7 +770,7 @@ setTimeout(() => {
                     empathy,
                     guide,
                     summary,
-                    status: "AI접수완료",
+                    status: "AI체크인완료",
                     messages
                 };
             };
@@ -735,8 +782,8 @@ setTimeout(() => {
                 setIntakeSummaries(updated);
             };
 
-            const handleAiIntakeSend = () => {
-                if (!aiIntakeInput.trim()) return;
+            const handleAiIntakeSend = async () => {
+                if (!aiIntakeInput.trim() || isAiIntakeSending) return;
 
                 if (!aiIntakeUser.name || !aiIntakeUser.phone || !aiIntakeUser.privacyAgree) {
                     alert("이름, 연락처, 개인정보 동의 후 진행해 주세요.");
@@ -747,28 +794,55 @@ setTimeout(() => {
                 const nextMessages = [...aiIntakeMessages, { role: "user", text: userText }];
                 const nextStep = aiIntakeStep + 1;
 
-                if (nextStep < aiIntakeQuestions.length) {
-                    const nextQuestion = aiIntakeQuestions[nextStep].question;
-                    const reply = makeCounselorReply(userText, nextQuestion, nextStep);
-                    setAiIntakeMessages([...nextMessages, { role: "ai", text: reply }]);
-                    setAiIntakeStep(nextStep);
-                    setAiIntakeInput("");
-                    return;
-                }
-
-                const completedMessages = [
-                    ...nextMessages,
-                    {
-                        role: "ai",
-                        text: "끝까지 이야기해 주셔서 감사합니다.\n\n지금까지 나눠주신 내용을 바탕으로 마음의 신호를 조심스럽게 정리해볼게요.\n\n심리검사는 질문마다 추천하지 않고, 전체 대화를 상담적으로 정리한 뒤 마지막에 필요한 검사와 그 이유를 안내드리겠습니다."
-                    }
-                ];
-
-                const report = createAiMindReport(completedMessages);
-                saveAiIntakeSummary(report);
-                setAiIntakeMessages(completedMessages);
-                setAiIntakeReport(report);
                 setAiIntakeInput("");
+                setAiIntakeStep(nextStep);
+                setAiIntakeMessages([...nextMessages, { role: "ai", text: "AI 마음지기가 천천히 듣고 있습니다..." }]);
+                setIsAiIntakeSending(true);
+
+                try {
+                    const response = await fetch("/.netlify/functions/gemini-intake", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ messages: nextMessages })
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.error || "AI 마음 체크인 연결 오류");
+                    }
+
+                    const aiText = result.text || "지금 말씀을 잘 듣고 있습니다. 조금만 더 이어서 이야기해 주세요.";
+                    const updatedMessages = [...nextMessages, { role: "ai", text: aiText }];
+                    setAiIntakeMessages(updatedMessages);
+
+                    const userAnswerCount = updatedMessages.filter((m) => m.role === "user").length;
+                    if (userAnswerCount >= 8) {
+                        const closingMessages = [
+                            ...updatedMessages,
+                            {
+                                role: "ai",
+                                text: "지금까지 이야기해 주신 내용을 바탕으로 마음을 조심스럽게 정리해 보겠습니다.
+
+심리검사는 질문마다 권하는 것이 아니라, 전체 이야기를 종합한 뒤 필요한 경우에만 추천드리겠습니다."
+                            }
+                        ];
+                        const report = createAiMindReport(closingMessages);
+                        saveAiIntakeSummary(report);
+                        setAiIntakeMessages(closingMessages);
+                        setAiIntakeReport(report);
+                    }
+                } catch (error) {
+                    console.error(error);
+                    setAiIntakeMessages([
+                        ...nextMessages,
+                        {
+                            role: "ai",
+                            text: "현재 AI 마음 체크인 연결이 원활하지 않습니다. 잠시 후 다시 시도해 주세요."
+                        }
+                    ]);
+                } finally {
+                    setIsAiIntakeSending(false);
+                }
             };
 
             const goToReservationFromAiReport = () => {
@@ -811,7 +885,7 @@ setTimeout(() => {
                 const keywordText = (aiIntakeReport.keywords || []).map((t) => "- " + t).join("\n");
                 const strengthText = (aiIntakeReport.strengths || []).map((t) => "- " + t).join("\n");
 
-                const text = "[모두의 마음연구소 AI 마음정리]\n\n" +
+                const text = "[모두의 마음연구소 AI 상담 준비 브리핑]\n\n" +
                     aiIntakeReport.empathy + "\n\n" +
                     "[마음정리]\n" + aiIntakeReport.mindReflection + "\n\n" +
                     "[현재 마음 지표]\n" +
@@ -822,14 +896,14 @@ setTimeout(() => {
                     "- 회복에너지 " + barText(aiIntakeReport.scores?.energy || 1) + "\n\n" +
                     "[AI가 발견한 키워드]\n" + keywordText + "\n\n" +
                     "[마음의 강점]\n" + strengthText + "\n\n" +
-                    "[추천 심리검사와 이유]\n" + testText + "\n\n" +
+                    "[나에게 도움이 될 수 있는 심리검사와 이유]\n" + testText + "\n\n" +
                     "[추천 상담]\n" + aiIntakeReport.counselingRecommendation + "\n\n" +
                     "[오늘 해볼 수 있는 작은 마음실천]\n" + aiIntakeReport.smallPractice + "\n\n" +
                     "[안내]\n" + aiIntakeReport.guide + "\n\n" +
                     "※ 본 리포트는 진단이 아니라 상담 전 마음을 정리하기 위한 참고자료입니다.";
 
                 navigator.clipboard.writeText(text);
-                alert("AI 마음정리가 복사되었습니다.");
+                alert("상담자용 브리핑이 복사되었습니다.");
             };
 
 
@@ -1179,9 +1253,9 @@ const getRecommendedTestInfo = (testName) => {
   }
 
   return {
-    title: cleanName || '추천 심리검사',
+    title: cleanName || '나에게 도움이 될 수 있는 심리검사',
     subtitle: '현재 호소와 상담 목적에 따라 추천된 검사입니다.',
-    desc: 'AI 접수면접에서 나타난 어려움과 상담 목적을 바탕으로 추천되었습니다.',
+    desc: 'AI 마음 체크인에서 나타난 어려움과 상담 목적을 바탕으로 추천되었습니다.',
     use: '상담에서 내담자를 더 깊이 이해하고 방향을 세우는 참고자료로 활용됩니다.'
   };
 };
@@ -1400,7 +1474,7 @@ const psychTests = [
     mindState,
     mindPunctuation,
     aiRole: "Modumam Lab 상담 접수를 담당하는 AI 마음지기",
-    aiPurpose: "AI 접수면접과 AI 마음이해를 통해 현재의 마음을 정리하고, 필요한 경우 심리검사를 추천합니다. 진단이나 최종 해석은 하지 않습니다.",
+    aiPurpose: "AI 마음 체크인과 AI 마음이해를 통해 현재의 마음을 정리하고, 필요한 경우 심리검사를 추천합니다. 진단이나 최종 해석은 하지 않습니다.",
     expertRole: "심리검사 최종 해석과 상담은 국가기술자격 임상심리사 1급이 진행합니다."
 })
     })
@@ -1443,7 +1517,7 @@ const generateIntakeSummary = () => {
     const hasAnyInput = Object.values(intakeForm).some(value => String(value).trim());
 
     if (!hasAnyInput) {
-        setIntakeResult('현재 마음 상태를 한두 문장이라도 적어주시면 접수면접을 완료할 수 있습니다.');
+        setIntakeResult('현재 마음 상태를 한두 문장이라도 적어주시면 마음 체크인을 완료할 수 있습니다.');
         return;
     }
 
@@ -1468,7 +1542,7 @@ const generateIntakeSummary = () => {
     const updatedSummaries = [newSummary, ...intakeSummaries];
     setIntakeSummaries(updatedSummaries);
     localStorage.setItem("modumam_intake_summaries", JSON.stringify(updatedSummaries));
-    setIntakeResult('접수면접이 완료되었습니다. 작성하신 내용은 관리자 전용 화면에서만 확인됩니다. 담당자가 확인 후 상담과 검사 진행 방향을 안내드리겠습니다.');
+    setIntakeResult('마음 체크인이 완료되었습니다. 작성하신 내용은 관리자 전용 화면에서만 확인됩니다. 담당자가 확인 후 상담과 검사 진행 방향을 안내드리겠습니다.');
 };
 
 const toggleTest = (test) => {
@@ -1574,7 +1648,8 @@ setBookingSignature('');
 const getPaymentInfo = (res) => {
   /* =====================================================
      결제 금액 계산 규칙 V20
-     - 개인 마음이음: 상담비(기본검사 포함) 대면 80,000원 / 비대면 50,000원
+     - 기본 가격: 대면 상담비 50,000원 + 기본검사 30,000원 = 80,000원
+     - 기본 가격: 비대면 상담비 20,000원 + 기본검사 30,000원 = 50,000원
      - 부부 마음이음, 부모-자녀 마음이음: 기본검사 2개 구성 → 기본검사 추가 30,000원
      - 추가검사: 1건당 30,000원
      - 무료검사: 문장완성검사, 집-나무-사람 그림검사, 우울검사, 불안검사, 스트레스검사
@@ -1597,8 +1672,8 @@ const getPaymentInfo = (res) => {
   const isFaceToFace = !isRemote && (type === "찾아가는(대면)" || type === "장소 조율(대면)" || type === "대면" || type.includes("대면"));
   const counselingAmount = isFaceToFace ? 80000 : 50000;
   const counselingLabel = isFaceToFace
-    ? "상담비(기본검사 + 대면상담) 80,000원"
-    : "상담비(기본검사 + 비대면상담) 50,000원";
+    ? "상담비(대면) 50,000원 + 기본검사 30,000원"
+    : "상담비(비대면) 20,000원 + 기본검사 30,000원";
 
   const needsBasicExtra = program.includes("부부") || program.includes("부모-자녀");
   const basicExtraAmount = needsBasicExtra ? 30000 : 0;
@@ -1701,8 +1776,8 @@ if (userAge === 'parent') {
                 return (currentPhone && ip && currentPhone === ip) || (currentName && iname && currentName === iname);
             });
             const myPageSteps = [
-                { title: '회원가입', desc: isLoggedIn || currentUser ? '완료' : 'AI 접수면접 전 필요', done: !!(isLoggedIn || currentUser), locked: false },
-                { title: 'AI 접수면접', desc: hasMyIntake ? '완료' : '회원가입 후 이용', done: hasMyIntake, locked: !(isLoggedIn || currentUser) },
+                { title: '회원가입', desc: isLoggedIn || currentUser ? '완료' : 'AI 마음 체크인 전 필요', done: !!(isLoggedIn || currentUser), locked: false },
+                { title: 'AI 마음 체크인', desc: hasMyIntake ? '완료' : '회원가입 후 이용', done: hasMyIntake, locked: !(isLoggedIn || currentUser) },
                 { title: '검사신청·결제', desc: hasPaidAccess ? '확인 완료' : 'AI 추천 후 진행', done: hasPaidAccess, locked: !(isLoggedIn || currentUser) },
                 { title: '상담신청서·동의서', desc: '예약 3일 전 안내', done: userReservations.some(r => r.bookingPrivacyConsent || r.bookingCounselingConsent), locked: !(isLoggedIn || currentUser) },
                 { title: '마음기록', desc: hasPaidAccess ? '이용 가능' : '신청/결제 후 열림', done: mindRecords.length > 0, locked: !hasPaidAccess },
@@ -1712,10 +1787,10 @@ if (userAge === 'parent') {
             return (
                 <div className="min-h-screen flex flex-col selection:bg-slate-200">
                     
-                   <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 transition-all">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-        <div className="flex items-center space-x-4 cursor-pointer" onClick={() => scrollToSection('home')}>
-            <div className="flex space-x-1 items-center bg-slate-100 p-2.5 rounded-xl">
+                   <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 transition-all">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 md:h-20 flex items-center justify-between">
+        <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 cursor-pointer" onClick={() => scrollToSection('home')}>
+            <div className="flex space-x-1 items-center bg-slate-100 p-2 sm:p-2.5 rounded-xl flex-shrink-0">
                 <span className="font-extrabold text-mind-question text-base font-mono">?</span>
                 <span className="font-extrabold text-mind-exclamation text-base font-mono">!</span>
                 <span className="font-extrabold text-mind-comma text-base font-mono">,</span>
@@ -1723,8 +1798,8 @@ if (userAge === 'parent') {
             </div>
 
             <div className="flex flex-col">
-                <span className="font-extrabold text-slate-900 text-lg leading-tight">모두의 마음연구소</span>
-                <span className="text-[10px] text-slate-400 font-medium tracking-wide">Question - Awareness - Recharge - Restart</span>
+                <span className="font-extrabold text-slate-900 text-base sm:text-lg leading-tight whitespace-nowrap">모두의 마음연구소</span>
+                <span className="hidden sm:block text-[10px] text-slate-400 font-medium tracking-wide">Question - Awareness - Recharge - Restart</span>
             </div>
         </div>
 
@@ -1734,7 +1809,7 @@ if (userAge === 'parent') {
             </button>
 
             <button onClick={() => scrollToSection('mind-care')} className="text-sm font-bold text-slate-600 hover:text-emerald-600 transition-colors">
-                AI 마음리포트
+                AI 마음 체크인
             </button>
 
             <button onClick={() => scrollToSection('tests')} className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors">
@@ -1742,7 +1817,7 @@ if (userAge === 'parent') {
             </button>
 
             <button onClick={() => scrollToSection('ai-intake')} className="text-sm font-bold text-slate-600 hover:text-amber-600 transition-colors">
-                AI 접수면접
+                AI 마음 체크인
             </button>
 
             <button
@@ -1763,37 +1838,30 @@ if (userAge === 'parent') {
 
         <div className="md:hidden flex items-center gap-2">
             <button
-                onClick={() => scrollToSection('mind-care')}
-                className="bg-emerald-600 text-white px-3 py-2 rounded-full text-xs font-bold"
+                onClick={() => setIsMobileMenuOpen(prev => !prev)}
+                className="bg-slate-950 text-white px-4 py-2 rounded-full text-xs font-extrabold shadow-sm"
+                aria-label="모바일 메뉴 열기"
             >
-                리포트
-            </button>
-
-            <button
-                onClick={() => scrollToSection('ai-intake')}
-                className="bg-amber-500 text-white px-3 py-2 rounded-full text-xs font-bold"
-            >
-                접수
-            </button>
-
-            <button
-                onClick={() => scrollToSection('reservations')}
-                className="bg-slate-950 text-white px-3 py-2 rounded-full text-xs font-bold"
-            >
-                검사예약
-            </button>
-
-            <button
-                onClick={handleMyPageClick}
-                className="bg-emerald-700 text-white px-3 py-2 rounded-full text-xs font-bold"
-            >
-                마이
+                메뉴
             </button>
 
             {/* 모바일 관리자 버튼 숨김: /admin/index.html 직접 접속 */}
 
         </div>
     </div>
+
+    {isMobileMenuOpen && (
+        <div className="md:hidden border-t border-slate-100 bg-white/95 backdrop-blur-xl shadow-lg">
+            <div className="px-4 py-4 grid grid-cols-3 gap-2 text-center text-[11px] font-extrabold">
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('about'); }} className="rounded-2xl border border-slate-100 bg-slate-50 px-2 py-3 text-slate-700">연구소</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('mind-care'); }} className="rounded-2xl border border-emerald-100 bg-emerald-50 px-2 py-3 text-emerald-700">리포트</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('tests'); }} className="rounded-2xl border border-indigo-100 bg-indigo-50 px-2 py-3 text-indigo-700">검사</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('ai-intake'); }} className="rounded-2xl border border-amber-100 bg-amber-50 px-2 py-3 text-amber-700">접수</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reservations'); }} className="rounded-2xl border border-slate-200 bg-slate-900 px-2 py-3 text-white">예약</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }} className="rounded-2xl border border-emerald-200 bg-emerald-700 px-2 py-3 text-white">마이</button>
+            </div>
+        </div>
+    )}
 </header>
 
                     <main className="flex-grow">
@@ -1996,7 +2064,7 @@ if (userAge === 'parent') {
     <div className="max-w-4xl mx-auto">
         <div className="text-center mb-16">
             <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
-                무료 AI 마음리포트
+                무료 AI 마음 체크인
             </span>
 
             <h2 className="text-3xl font-extrabold text-slate-900">
@@ -2093,7 +2161,7 @@ if (userAge === 'parent') {
     ) : (
         <>
             <Icon name="sparkles" className="w-5 h-5" />
-            <span>AI 마음리포트 받기</span>
+            <span>AI 마음 체크인 받기</span>
         </>
     )}
 </button>
@@ -2133,7 +2201,7 @@ if (userAge === 'parent') {
 }}
     className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all"
 >
-    AI 접수면접 시작하기
+    AI 마음 체크인 시작하기
 </button>
 
                                                 </div>
@@ -2170,7 +2238,7 @@ if (userAge === 'parent') {
 
                                 {!hasPaidAccess && (
                                     <div className="mb-6 rounded-3xl bg-amber-50 border border-amber-100 p-5 text-sm text-amber-900 leading-relaxed">
-                                        마이페이지는 상담 또는 심리검사 신청/결제 후 이용하실 수 있습니다. 먼저 AI 접수면접 또는 예약 신청을 진행해 주세요.
+                                        마이페이지는 상담 또는 심리검사 신청/결제 후 이용하실 수 있습니다. 먼저 AI 마음 체크인 또는 예약 신청을 진행해 주세요.
                                     </div>
                                 )}
 
@@ -2190,7 +2258,7 @@ if (userAge === 'parent') {
 
                                 {!isLoggedIn && !currentUser && (
                                     <div className="mt-6 rounded-3xl bg-amber-50 border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                        <p className="text-sm text-amber-900 font-bold">AI 접수면접과 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
+                                        <p className="text-sm text-amber-900 font-bold">AI 마음 체크인과 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
                                         <button onClick={() => { setAuthMode('signup'); setIsAuthModalOpen(true); }} className="bg-slate-900 text-white rounded-full px-5 py-3 text-sm font-bold">회원가입하기</button>
                                     </div>
                                 )}
@@ -2228,7 +2296,7 @@ if (userAge === 'parent') {
                                 {!hasPaidAccess ? (
                                     <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                                         <p className="text-sm font-extrabold text-slate-700">마음기록은 상담 이용자 전용 기능입니다.</p>
-                                        <p className="text-xs text-slate-400 mt-2">AI 접수면접 후 추천 검사 또는 상담을 신청·결제하면 마음성장 공간이 열립니다.</p>
+                                        <p className="text-xs text-slate-400 mt-2">AI 마음 체크인 후 추천 검사 또는 상담을 신청·결제하면 마음성장 공간이 열립니다.</p>
                                     </div>
                                 ) : mindRecords.length === 0 ? (
                                     <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-400">
@@ -2448,7 +2516,7 @@ if (userAge === 'parent') {
                             <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
                                 <div>
                                     <span className="inline-block text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full mb-4">
-                                        AI 접수면접
+                                        AI 마음 체크인
                                     </span>
                                     <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight mb-5">
                                         모두의 마음연구소 AI 마음지기와 만나보세요
@@ -2467,7 +2535,7 @@ if (userAge === 'parent') {
                                             </div>
                                             <div className="bg-amber-50 rounded-2xl p-4">
                                                 <p className="font-bold text-amber-800">2. 대화</p>
-                                                <p className="text-xs text-slate-500 mt-1">AI 마음지기 접수면접</p>
+                                                <p className="text-xs text-slate-500 mt-1">AI 마음지기 마음 체크인</p>
                                             </div>
                                             <div className="bg-amber-50 rounded-2xl p-4">
                                                 <p className="font-bold text-amber-800">3. 리포트</p>
@@ -2497,7 +2565,7 @@ if (userAge === 'parent') {
                                         <div className="bg-emerald-50 rounded-2xl p-4">
                                             <p className="text-sm font-bold text-emerald-800">필요한 검사를 추천합니다</p>
                                             <p className="text-sm text-slate-600 mt-1">
-                                                AI 접수면접 내용을 바탕으로 현재 호소와 상담 목적에 맞는 심리검사를 추천하고, 추천 이유를 함께 안내합니다.
+                                                AI 마음 체크인 내용을 바탕으로 현재 호소와 상담 목적에 맞는 심리검사를 추천하고, 추천 이유를 함께 안내합니다.
                                             </p>
                                         </div>
                                         <div className="bg-indigo-50 rounded-2xl p-4">
@@ -2657,24 +2725,58 @@ if (userAge === 'parent') {
 {bookingProgram.includes("개인 마음이음") && (
   <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
     <p className="text-xs font-bold text-slate-700 mb-3">
-      개인 마음이음 선택 검사
+      개인 마음이음 기본 검사
     </p>
-    <p className="text-[11px] text-slate-500 mb-3">상담 방식에는 기본검사 1개가 포함됩니다. 필요한 경우 유료/무료 추가검사를 선택할 수 있습니다.</p>
 
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 gap-2 mb-3">
+      {[
+        "TCI 기질 및 성격검사(기본)"
+      ].map((test) => (
+        <div key={test} className="flex items-center gap-2 p-2 rounded-lg border border-slate-100 bg-white">
+          <span className="text-emerald-600 text-xs font-bold">✓</span>
+          <span className="text-xs text-slate-700 font-semibold">{test}</span>
+        </div>
+      ))}
+    </div>
+
+    <p className="text-[11px] text-slate-500 mb-3">
+      기본검사는 프로그램에 포함되어 있으며, 추가검사는 필요에 따라 선택하실 수 있습니다.
+    </p>
+
+    <p className="text-xs font-bold text-slate-700 mb-3">
+      유료 추가검사 (+30,000원/건)
+    </p>
+    <div className="grid grid-cols-2 gap-2 mb-4">
       {[
         "MMPI-2 다면적 인성검사",
         "회복탄력성 검사",
         "대인관계문제검사",
         "직무스트레스 검사",
-        "진로·직업흥미 검사",
+        "진로·직업흥미 검사"
+      ].map((test) => (
+        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-slate-100 bg-white">
+          <input
+            type="checkbox"
+            checked={selectedTests.includes(test)}
+            onChange={() => toggleTest(test)}
+          />
+          <span className="text-xs text-slate-700">{test}</span>
+        </label>
+      ))}
+    </div>
+
+    <p className="text-xs font-bold text-slate-700 mb-3">
+      무료 추가검사
+    </p>
+    <div className="grid grid-cols-2 gap-2">
+      {[
         "문장완성검사(무료)",
         "집-나무-사람 그림검사(무료)",
         "우울검사(무료)",
         "불안검사(무료)",
         "스트레스검사(무료)"
       ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-slate-100">
+        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-slate-100 bg-white">
           <input
             type="checkbox"
             checked={selectedTests.includes(test)}
@@ -2727,7 +2829,8 @@ if (userAge === 'parent') {
       ))}
     </div>
     <p className="mt-3 text-[11px] text-emerald-700 leading-relaxed font-semibold">
-      ※ 부모-자녀 마음이음은 기본검사 2개 80,000원 + 상담비가 합산됩니다.
+      기본검사는 프로그램에 포함되어 있으며, 추가검사는 필요에 따라 선택하실 수 있습니다.<br />
+      ※ 부모-자녀 마음이음은 기본검사 2개 구성으로 기본검사 추가 30,000원이 합산됩니다.
     </p>
   </div>
 )}
@@ -2736,7 +2839,28 @@ if (userAge === 'parent') {
 {bookingProgram.includes("부부 마음이음") && (
   <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
     <p className="text-xs font-bold text-blue-700 mb-3">
-      부부 마음이음 추가 검사
+      부부 마음이음 기본 검사
+    </p>
+
+    <div className="grid grid-cols-1 gap-2 mb-3">
+      {[
+        "본인 TCI 기질 및 성격검사(기본)",
+        "배우자 TCI 기질 및 성격검사(기본)"
+      ].map((test) => (
+        <div key={test} className="flex items-center gap-2 p-2 rounded-lg border border-blue-100 bg-white">
+          <span className="text-emerald-600 text-xs font-bold">✓</span>
+          <span className="text-xs text-slate-700 font-semibold">{test}</span>
+        </div>
+      ))}
+    </div>
+
+    <p className="text-[11px] text-blue-600 mb-3 leading-relaxed">
+      기본검사는 프로그램에 포함되어 있으며, 추가검사는 필요에 따라 선택하실 수 있습니다.<br />
+      ※ 부부 마음이음은 기본검사 2개 구성으로 기본검사 추가 30,000원이 합산됩니다.
+    </p>
+
+    <p className="text-xs font-bold text-blue-700 mb-3">
+      유료 추가검사 (+30,000원/건)
     </p>
 
     <div className="grid grid-cols-2 gap-2">
@@ -2755,11 +2879,6 @@ if (userAge === 'parent') {
         </label>
       ))}
     </div>
-
-    <p className="mt-3 text-[11px] text-blue-600 leading-relaxed">
-      기본검사 2개 80,000원 + 상담비가 합산됩니다.<br />
-      유료 추가검사는 1건당 30,000원이 추가됩니다.
-    </p>
   </div>
 )}
             {/* 3. 상담 방식 선택 */}
@@ -3270,8 +3389,8 @@ ${paymentInfo.detail}
                                                   className="mt-1"
                                               />
                                               <span>
-                                                  개인정보 수집 및 AI 접수면접 대화 저장에 동의합니다.
-                                                  AI 마음리포트는 진단이 아니며, 상담 전 마음 상태를 정리하기 위한 참고자료입니다.
+                                                  개인정보 수집 및 AI 마음 체크인 대화 저장에 동의합니다.
+                                                  AI 마음 체크인는 진단이 아니며, 상담 전 마음 상태를 정리하기 위한 참고자료입니다.
                                               </span>
                                           </label>
 
@@ -3325,23 +3444,31 @@ ${paymentInfo.detail}
                                                           <button
                                                               type="button"
                                                               onClick={handleAiIntakeSend}
-                                                              className="bg-slate-900 text-white rounded-2xl px-5 text-sm font-extrabold"
+                                                              disabled={isAiIntakeSending}
+                                                              className={`rounded-2xl px-5 text-sm font-extrabold ${isAiIntakeSending ? "bg-slate-300 text-white" : "bg-slate-900 text-white"}`}
                                                           >
-                                                              전송
+                                                              {isAiIntakeSending ? "작성중" : "전송"}
                                                           </button>
                                                       </div>
                                                       <p className="text-[11px] text-slate-400 mt-2">
-                                                          마음 대화 {aiIntakeStep + 1} / {aiIntakeQuestions.length}
+                                                          AI 마음 체크인 · 약 10~15분 · {Math.min(aiIntakeMessages.filter((m) => m.role === "user").length, 8)} / 8
                                                       </p>
                                                   </div>
                                               </>
                                           ) : (
                                               <div className="overflow-auto p-5 sm:p-6 bg-slate-50">
                                                   <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
-                                                      <p className="text-xs font-bold text-emerald-700 mb-2">AI 마음리포트</p>
+                                                      <p className="text-xs font-bold text-emerald-700 mb-2">AI 마음 체크인</p>
                                                       <h3 className="text-2xl font-extrabold text-slate-900 mb-4">
-                                                          {aiIntakeUser.name || "내담자"}님의 마음 신호를 정리했어요
+                                                          오늘 이야기해 주셔서 감사합니다
                                                       </h3>
+                                                      <p className="text-sm text-slate-600 leading-relaxed mb-5 whitespace-pre-line">오늘 소중한 이야기를 들려주셔서 감사합니다.
+
+지금의 마음을 이해하는 첫걸음을 함께 내디뎠습니다.
+
+필요하실 때 언제든 다시 찾아와 주세요.
+
+조금 더 깊이 자신의 마음을 이해하고 싶다면, 심리검사와 전문가 상담을 통해 함께 이어가겠습니다.</p>
 
                                                       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-4">
                                                           <h4 className="text-sm font-extrabold text-amber-800 mb-2">공감 피드백</h4>
@@ -3350,7 +3477,7 @@ ${paymentInfo.detail}
                                                           </p>
                                                       </div>
 
-                                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                                                      <div style={{display:"none"}} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                                                           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
                                                               <p className="text-xs font-bold text-slate-500 mb-1">스트레스</p>
                                                               <p className="text-lg font-extrabold text-slate-900">{barText(aiIntakeReport.scores?.stress || 1)}</p>
@@ -3369,14 +3496,14 @@ ${paymentInfo.detail}
                                                           </div>
                                                       </div>
 
-                                                      <div className="bg-white border border-slate-100 rounded-2xl p-5 mb-4">
-                                                          <h4 className="text-sm font-extrabold text-slate-900 mb-2">상담자가 이해한 마음정리</h4>
+                                                      <div style={{display:"none"}} className="bg-white border border-slate-100 rounded-2xl p-5 mb-4">
+                                                          <h4 className="text-sm font-extrabold text-slate-900 mb-2">상담자용 마음정리</h4>
                                                           <pre className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap font-sans">
                                                               {aiIntakeReport.mindReflection || aiIntakeReport.summary}
                                                           </pre>
                                                       </div>
 
-                                                      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 mb-4">
+                                                      <div style={{display:"none"}} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 mb-4">
                                                           <h4 className="text-sm font-extrabold text-indigo-800 mb-3">AI가 발견한 키워드</h4>
                                                           <div className="flex flex-wrap gap-2">
                                                               {(aiIntakeReport.keywords || []).map((keyword) => (
@@ -3387,7 +3514,7 @@ ${paymentInfo.detail}
                                                           </div>
                                                       </div>
 
-                                                      <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 mb-4">
+                                                      <div style={{display:"none"}} className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 mb-4">
                                                           <h4 className="text-sm font-extrabold text-emerald-800 mb-3">마음의 강점</h4>
                                                           <div className="flex flex-wrap gap-2">
                                                               {(aiIntakeReport.strengths || []).map((strength) => (
@@ -3399,7 +3526,7 @@ ${paymentInfo.detail}
                                                       </div>
 
                                                       <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 mb-4">
-                                                          <h4 className="text-sm font-extrabold text-emerald-800 mb-3">추천 심리검사</h4>
+                                                          <h4 className="text-sm font-extrabold text-emerald-800 mb-3">나에게 도움이 될 수 있는 심리검사</h4>
                                                           <div className="flex flex-wrap gap-2">
                                                               {(aiIntakeReport.recommendedTests || []).map((test) => (
                                                                   <div key={test.name || test} className="bg-white border border-emerald-100 rounded-2xl p-4">
@@ -3411,7 +3538,7 @@ ${paymentInfo.detail}
                                                               ))}
                                                           </div>
                                                           <p className="text-xs text-slate-500 leading-relaxed mt-4">
-                                                              심리검사는 질문마다 추천하지 않고, 전체 대화를 정리한 뒤 상담적 필요에 따라 안내됩니다.
+                                                              심리검사는 오늘 나눈 이야기를 더 깊이 이해하기 위한 선택지입니다. 최종 검사는 전문가 상담에서 함께 조율할 수 있습니다.
                                                           </p>
                                                       </div>
 
@@ -3420,7 +3547,7 @@ ${paymentInfo.detail}
                                                           <p className="text-lg font-extrabold text-slate-900">{aiIntakeReport.counselingRecommendation}</p>
                                                       </div>
 
-                                                      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-4">
+                                                      <div style={{display:"none"}} className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-4">
                                                           <h4 className="text-sm font-extrabold text-amber-800 mb-2">오늘 해볼 수 있는 작은 마음실천</h4>
                                                           <p className="text-sm text-slate-700 leading-relaxed">{aiIntakeReport.smallPractice}</p>
                                                       </div>
@@ -3434,10 +3561,10 @@ ${paymentInfo.detail}
 
                                                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                           <button type="button" onClick={copyAiReportForUser} className="bg-white border border-slate-200 text-slate-700 rounded-2xl py-3 text-sm font-bold">
-                                                              리포트 복사
+                                                              상담자용 내용 복사
                                                           </button>
                                                           <button type="button" onClick={goToReservationFromAiReport} className="bg-emerald-600 text-white rounded-2xl py-3 text-sm font-extrabold">
-                                                              심리검사 신청하기
+                                                              심리검사 예약하기
                                                           </button>
                                                           <button type="button" onClick={closeAiIntakeChat} className="bg-slate-900 text-white rounded-2xl py-3 text-sm font-extrabold">
                                                               확인
@@ -3445,7 +3572,7 @@ ${paymentInfo.detail}
                                                       </div>
 
                                                       <p className="text-xs text-slate-400 mt-5 leading-relaxed">
-                                                          AI 마음리포트는 진단이 아니며, 상담 전 마음 상태를 정리하기 위한 참고자료입니다.
+                                                          AI 마음 체크인는 진단이 아니며, 상담 전 마음 상태를 정리하기 위한 참고자료입니다.
                                                           최종 해석과 상담계획은 전문가 상담을 통해 확정됩니다.
                                                       </p>
                                                   </div>
@@ -3648,7 +3775,7 @@ ${paymentInfo.detail}
         <div className="relative bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-slate-100 z-10 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-extrabold text-slate-900">
-                    {authMode === 'signup' ? 'AI 접수면접 회원가입' : '로그인하기'}
+                    {authMode === 'signup' ? 'AI 마음 체크인 회원가입' : '로그인하기'}
                 </h3>
 
                 <button
@@ -3663,11 +3790,11 @@ ${paymentInfo.detail}
             {authMode === 'signup' && (
                 <div className="mb-5 text-sm text-slate-600 leading-relaxed bg-emerald-50 border border-emerald-100 rounded-xl p-4">
                     <p className="font-semibold text-emerald-700 mb-2">
-                        AI 접수면접 안내
+                        AI 마음 체크인 안내
                     </p>
 
                     <p>
-                        AI 접수면접은 현재의 마음을 보다 깊이 이해하고,
+                        AI 마음 체크인은 현재의 마음을 보다 깊이 이해하고,
                         필요한 심리검사와 상담 준비를 위한 과정입니다.
                     </p>
 
@@ -3739,16 +3866,16 @@ ${paymentInfo.detail}
                         </p>
 
                         <p>
-                            수집 항목: 이름, 연락처, 이메일, AI 접수면접 내용
+                            수집 항목: 이름, 연락처, 이메일, AI 마음 체크인 내용
                         </p>
 
                         <p className="mt-2">
-                            이용 목적: AI 마음이해, AI 접수면접, 심리검사 추천,
+                            이용 목적: AI 마음이해, AI 마음 체크인, 심리검사 추천,
                             심리검사 예약 및 상담 서비스 제공
                         </p>
 
                         <p className="mt-2">
-                            AI 접수면접은 마음이해를 위한 보조 서비스이며,
+                            AI 마음 체크인은 마음이해를 위한 보조 서비스이며,
                             의학적 진단이나 심리검사의 최종 해석을 대신하지 않습니다.
                         </p>
 
@@ -3773,7 +3900,7 @@ ${paymentInfo.detail}
                     type="submit"
                     className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-colors shadow-lg mt-2"
                 >
-                    {authMode === 'signup' ? '회원가입하고 AI 접수면접 시작하기' : '로그인'}
+                    {authMode === 'signup' ? '회원가입하고 AI 마음 체크인 시작하기' : '로그인'}
                 </button>
             </form>
 
@@ -3867,8 +3994,8 @@ ${paymentInfo.detail}
       <strong className="block text-slate-200 mb-1">
         온라인 마음 링크 서비스 (비대면)
       </strong>
-      Zoom · 전화 상담<br />
-      기본 5만 원 / 추가 검사 3만 원
+      Zoom · 화상 · 전화 상담<br />
+      상담 2만 원 / 기본검사 3만 원 / 추가검사 3만 원
     </li>
 
     <li>
@@ -3876,7 +4003,7 @@ ${paymentInfo.detail}
         찾아가는 프리미엄 서비스 (대면)
       </strong>
       장소 조율 · 방문 상담<br />
-      기본 8만 원 / 추가 검사 3만 원
+      상담 5만 원 / 기본검사 3만 원 / 추가검사 3만 원
 
       <span className="block mt-2 text-slate-500 italic">
         ※ 천안·아산 외 지역은 별도 문의주세요.
