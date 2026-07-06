@@ -1,20 +1,13 @@
-function rememberExpressions(aiMessages) {
+function buildExpressionGuide(aiMessages) {
   const recent = aiMessages.slice(-5).join(" ");
   const used = [];
-  ["힘드셨", "부담", "흐름", "영향", "살펴", "이어져", "긴장", "혼자"].forEach(w => {
+  ["말씀해 주신 내용을 보니", "중요한 단서", "그 부담이 생활에", "마음이 그냥 지나가기 어려운 신호", "살펴보고 싶습니다", "흐름이라면", "영향을 주고 있나요", "수면, 식사"].forEach(w => {
     if (recent.includes(w)) used.push(w);
   });
-  return used;
+  if (!used.length) return "같은 시작 문장과 같은 끝 질문을 반복하지 마세요.";
+  return `최근 반복되었거나 피해야 할 표현: ${used.join(", ")}
+이번 답변에서는 위 표현을 사용하지 마세요.
+특히 '말씀해 주신 내용을 보니', '중요한 단서', '살펴보고 싶습니다'로 시작하거나 끝내지 마세요.
+질문 없이 짧게 머무르는 응답도 자연스럽습니다.`;
 }
-
-function buildExpressionGuide(aiMessages) {
-  const used = rememberExpressions(aiMessages);
-  if (!used.length) {
-    return "최근 반복 표현은 많지 않습니다. 그래도 같은 문장 구조를 반복하지 마세요.";
-  }
-  return `최근 사용된 표현: ${used.join(", ")}
-이번 답변에서는 위 표현을 가능한 한 반복하지 말고, 더 쉬운 일상적 상담 언어를 사용하세요.
-같은 시작 문장과 같은 끝 질문을 반복하지 마세요.`;
-}
-
-module.exports = { rememberExpressions, buildExpressionGuide };
+module.exports = { buildExpressionGuide };

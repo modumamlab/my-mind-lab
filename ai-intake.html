@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI 접수면접 | 모두의 마음연구소</title>
+  <title>AI 마음체크인 | 모두의 마음연구소</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -19,7 +19,7 @@
       </button>
 
       <span class="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full">
-        AI 접수면접
+        AI 마음체크인
       </span>
     </header>
 
@@ -73,7 +73,7 @@
         </div>
 
         <p class="text-xs text-slate-400 mt-3">
-          ※ AI 접수면접은 마음이해를 위한 보조 과정이며, 최종 해석과 상담은 임상심리사 1급이 진행합니다.
+          ※ AI 마음체크인은 마음이해를 위한 보조 과정이며, 최종 해석과 상담은 임상심리사 1급이 진행합니다.
         </p>
       </div>
 
@@ -83,6 +83,8 @@
   <script>
   let step = 1;
   let conversationMessages = [];
+  let sessionStart = Date.now();
+  let abuseWarningCount = 0;
   const branchQuestions = {
     work: "그 일에서 가장 힘든 부분은 업무 자체인가요, 사람과의 관계인가요?",
     family: "가족 안에서 가장 반복되는 어려움은 무엇인가요?",
@@ -222,7 +224,7 @@
   message => message.role === "user"
 ).length;
 
-if (userAnswerCount >= 8) {
+if (false && userAnswerCount >= 8) {
   addTyping();
 
   setTimeout(() => {
@@ -243,7 +245,9 @@ if (userAnswerCount >= 8) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        messages: conversationMessages
+        messages: conversationMessages,
+        sessionStart,
+        abuseWarningCount
       })
     });
 
@@ -253,6 +257,7 @@ if (userAnswerCount >= 8) {
       throw new Error(result.error || "AI 연결 오류");
     }
 
+    if (typeof result.abuseWarningCount === 'number') abuseWarningCount = result.abuseWarningCount;
     const aiText = result.text;
 
     removeTyping();
