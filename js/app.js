@@ -261,8 +261,10 @@ async function submitSignup(userData) {
             const [bookingDiagnosis, setBookingDiagnosis] = useState('');
             const [bookingRisk, setBookingRisk] = useState('');
             const [bookingPrivacyConsent, setBookingPrivacyConsent] = useState(false);
+            const [bookingServiceConsent, setBookingServiceConsent] = useState(false);
             const [bookingCounselingConsent, setBookingCounselingConsent] = useState(false);
             const [bookingCancelConsent, setBookingCancelConsent] = useState(false);
+            const [bookingConsentModal, setBookingConsentModal] = useState(null);
             const [bookingSignature, setBookingSignature] = useState('');
 
             // Mind Chatbot / Analyzer Input
@@ -318,8 +320,6 @@ async function submitSignup(userData) {
             // AI Intake Chat / Mind Report State
             const [isAiIntakeOpen, setIsAiIntakeOpen] = useState(false);
             const [aiIntakeStep, setAiIntakeStep] = useState(0);
-            const [aiIntakeSessionStart, setAiIntakeSessionStart] = useState(Date.now());
-            const [aiIntakeAbuseWarningCount, setAiIntakeAbuseWarningCount] = useState(0);
             const [aiIntakeMessages, setAiIntakeMessages] = useState([
                 {
                     role: "ai",
@@ -428,8 +428,6 @@ setTimeout(() => {
 
             const resetAiIntake = () => {
                 setAiIntakeStep(0);
-                setAiIntakeSessionStart(Date.now());
-                setAiIntakeAbuseWarningCount(0);
                 setAiIntakeInput("");
                 setAiIntakeReport(null);
                 setAiIntakeUser({
@@ -784,11 +782,97 @@ setTimeout(() => {
                 setIntakeSummaries(updated);
             };
 
+            const buildSilenceFollowUp = (messages) => {
+                const allText = messages.map((m) => m.text || "").join(" ");
+                const previousAiText = messages
+                    .filter((m) => m.role === "ai")
+                    .map((m) => m.text || "")
+                    .join(" ");
+
+                const pickNew = (questions) => {
+                    return questions.find((q) => !previousAiText.includes(q.slice(0, 18))) || null;
+                };
+
+                if (allText.includes("교수") || allText.includes("직장") || allText.includes("업무") || allText.includes("상사") || allText.includes("퇴사") || allText.includes("그만")) {
+                    return pickNew([
+                        "업무 지시가 일관되지 않았을 때, 가장 혼란스러웠던 순간이 떠오르시나요?",
+                        "그 일이 반복되면서 마음이 가장 크게 흔들렸던 때는 언제였나요?",
+                        "그 상황에서 가장 견디기 어려웠던 부분은 무엇이었나요?",
+                        "그동안 그 일을 버티게 했던 이유가 있었다면 무엇이었을까요?"
+                    ]);
+                }
+
+                if (allText.includes("부모") || allText.includes("엄마") || allText.includes("아빠") || allText.includes("가족")) {
+                    return pickNew([
+                        "가족 이야기 중에서 지금 가장 마음에 남아 있는 장면이 있으신가요?",
+                        "그 상황에서 가장 서운했거나 힘들었던 부분은 무엇이었나요?",
+                        "그때 가족에게 가장 듣고 싶었던 말이 있었다면 무엇이었을까요?"
+                    ]);
+                }
+
+                if (allText.includes("불안") || allText.includes("숨") || allText.includes("떨") || allText.includes("두근") || allText.includes("긴장")) {
+                    return pickNew([
+                        "그 불안이 올라올 때 몸에서는 어떤 반응이 가장 먼저 느껴지나요?",
+                        "불안이 가장 크게 올라오는 상황은 언제인가요?",
+                        "그 순간 머릿속에는 어떤 생각이 가장 크게 떠오르나요?"
+                    ]);
+                }
+
+                if (allText.includes("우울") || allText.includes("무기력") || allText.includes("지쳐") || allText.includes("외로") || allText.includes("힘들")) {
+                    return pickNew([
+                        "요즘 하루 중 가장 버겁게 느껴지는 시간은 언제인가요?",
+                        "그 마음이 가장 심해지는 순간이 있다면 언제인가요?",
+                        "그동안 혼자 버티면서 가장 많이 소진된 부분은 무엇인가요?"
+                    ]);
+                }
+
+                return pickNew([
+                    "지금 가장 마음에 남아 있는 장면이 하나 있다면 무엇인가요?",
+                    "그 이야기를 하면서 가장 크게 느껴지는 감정은 무엇인가요?",
+                    "지금 이 문제에서 제일 정리하고 싶은 부분은 무엇인가요?"
+                ]);
+            };
+
+            const startSilenceTimer = (messages) => {
+                if (window.modumamSilenceTimer) {
+                    clearTimeout(window.modumamSilenceTimer);
+                    window.modumamSilenceTimer = null;
+                }
+
+                window.modumamSilenceTimer = setTimeout(() => {
+                    const lastMessage = messages[messages.length - 1];
+
+                    if (!lastMessage || lastMessage.role !== "ai") return;
+
+                    const followUp = buildSilenceFollowUp(messages);
+                    if (!followUp) return;
+
+                    setAiIntakeMessages((prev) => {
+                        const last = prev[prev.length - 1];
+
+                        if (!last || last.role !== "ai") return prev;
+                        if (prev.some((m) => m.text === followUp)) return prev;
+
+                        return [
+                            ...prev,
+                            { role: "ai", text: followUp }
+                        ];
+                    });
+
+                    window.modumamSilenceTimer = null;
+                }, 90000); // 90초
+            };
+
             const handleAiIntakeSend = async () => {
+                if (window.modumamSilenceTimer) {
+                    clearTimeout(window.modumamSilenceTimer);
+                    window.modumamSilenceTimer = null;
+                }
+
                 if (!aiIntakeInput.trim()) return;
 
-                if (!aiIntakeUser.name || !aiIntakeUser.phone || !aiIntakeUser.privacyAgree) {
-                    alert("이름, 연락처, 개인정보 동의 후 진행해 주세요.");
+                if (!aiIntakeUser.privacyAgree) {
+                    alert("AI 마음체크인 대화 저장 및 이용 안내에 동의 후 시작해 주세요.");
                     return;
                 }
 
@@ -815,7 +899,12 @@ setTimeout(() => {
                             setAiIntakeAbuseWarningCount(result.abuseWarningCount);
                         }
 
-                        setAiIntakeMessages([...nextMessages, { role: "ai", text: result.text }]);
+                        const aiReply = { role: "ai", text: result.text };
+                        const updatedMessages = [...nextMessages, aiReply];
+
+                        setAiIntakeMessages(updatedMessages);
+                        startSilenceTimer(updatedMessages);
+
                         setAiIntakeStep(nextStep);
                         setAiIntakeInput("");
                         return;
@@ -1398,7 +1487,7 @@ const psychTests = [
     id: 'p1',
     badge: 'AI 마음 체크인 + 전문가 상담',
     title: '개인 마음이음',
-    subtitle: '나를 이해하는 심리검사와 전문가 해석상담',
+    subtitle: '나를 이해하는 심리검사 및 해석',
     desc: '현재의 마음을 이해하고 반복되는 고민의 원인을 함께 찾아갑니다. 검사 결과를 바탕으로 전문 상담사가 나에게 맞는 방향을 제안합니다.',
     target: '✔ 나를 더 이해하고 싶은 분\n✔ 우울·불안·스트레스를 겪는 분\n✔ 진로 방향을 고민하는 분\n✔ 직장 내 스트레스와 소진을 겪는 분',
     test: 'TCI · MMPI-2 · 진로검사 · 직무스트레스 · 회복탄력성 등 맞춤 선택',
@@ -1409,9 +1498,9 @@ const psychTests = [
     id: 'p5',
     badge: 'AI 마음 체크인 + 전문가 상담',
     title: '부부 마음이음',
-    subtitle: '서로를 이해하는 관계 심리상담',
-    desc: '두 사람의 기질과 성격을 함께 이해하고 갈등의 원인을 찾아 건강한 관계 회복을 돕습니다.',
-    target: '✔ 서로를 이해하고 싶은 부부\n✔ 반복되는 갈등이 있는 부부\n✔ 관계를 회복하고 싶은 부부',
+    subtitle: '서로를 이해하는 관계 심리검사 및 해석',
+    desc: 'TCI 검사를 기반으로 두 부부의 기질과 성격을 함께 이해하고 갈등의 원인을 찾아 건강한 관계 회복을 돕습니다.',
+    target: '✔ 서로를 이해하고 싶은 부부\n✔ 반복되는 갈등이 있는 부부\n✔ 관계를 회복하고 싶은 부부\n✔ 기질 및 성격이 궁금한 부부',
     test: '(J)TCI × 2',
     time: '약 80분',
     img: 'https://placehold.co/600x400/EEF7F4/4B5563?text=Couple'
@@ -1420,7 +1509,7 @@ const psychTests = [
     id: 'p3',
     badge: 'AI 마음 체크인 + 전문가 상담',
     title: '부모-자녀 마음이음',
-    subtitle: '아이와 부모를 함께 이해하는 양육 심리상담',
+    subtitle: '아이와 부모를 함께 이해하는 양육상담',
     desc: '부모의 양육태도(PAT)와 자녀의 발달 특성(KCDI)을 함께 살펴, 부모와 자녀를 통합적으로 이해하고 건강한 관계와 양육 방향을 찾아갑니다.',
     target: '✔ 아이를 더 이해하고 싶은 부모\n✔ 양육이 어려운 부모\n✔ 부모-자녀 갈등을 해결하고 싶은 가족',
     test: 'PAT · KCDI (기본) · STS (필요 시 부모 TCI)',
@@ -1558,13 +1647,13 @@ const toggleTest = (test) => {
                 /* =====================================================
                    예약 필수 동의 검증
                    - 팝업 확인만으로 동의 처리하지 않습니다.
-                   - 이용자가 예약 필수 동의 3개를 직접 체크하고,
+                   - 이용자가 예약 필수 동의 4개를 내용보기로 확인하고,
                      전자서명까지 입력해야 예약 신청이 완료됩니다.
                    - 수정 위치: 예약 필수 동의 체크 문구는 bookingConsentBox 검색
                 ===================================================== */
-                if (!bookingPrivacyConsent || !bookingCounselingConsent || !bookingCancelConsent) {
-                    alert('예약 신청 전, 예약 필수 동의 항목 3가지를 모두 체크해 주세요.');
-                    setBookingAlert({ type: 'error', message: '예약 필수 동의 항목을 모두 체크한 뒤 전자서명을 완료해 주세요.' });
+                if (!bookingPrivacyConsent || !bookingServiceConsent || !bookingCounselingConsent || !bookingCancelConsent) {
+                    alert('예약 신청 전, 예약 필수 동의 항목 4가지를 모두 확인해 주세요.');
+                    setBookingAlert({ type: 'error', message: '예약 필수 동의 항목의 [내용보기]를 모두 확인한 뒤 전자서명을 완료해 주세요.' });
                     return;
                 }
 
@@ -1600,15 +1689,17 @@ const toggleTest = (test) => {
     submittedAt: new Date().toLocaleString()
   },
   bookingPrivacyConsent,
+  bookingServiceConsent,
   bookingCounselingConsent,
   bookingCancelConsent,
   consentForm: {
     privacy: bookingPrivacyConsent,
-    counseling: bookingCounselingConsent,
+    service: bookingServiceConsent,
+    confidentiality: bookingCounselingConsent,
     cancelPolicy: bookingCancelConsent,
     signature: bookingSignature.trim(),
     signedAt: new Date().toLocaleString(),
-    documentVersion: '예약 필수 동의 직접체크 v2026-07-05'
+    documentVersion: '예약 필수 동의 팝업확인 v2026-07-07'
   },
   documentStatus: '예약 필수 동의 완료 / 신청서·동의서 발송 예정',
   status: '승인대기'
@@ -1636,6 +1727,7 @@ setBookingMedication('');
 setBookingDiagnosis('');
 setBookingRisk('');
 setBookingPrivacyConsent(false);
+setBookingServiceConsent(false);
 setBookingCounselingConsent(false);
 setBookingCancelConsent(false);
 setBookingSignature(''); 
@@ -1780,6 +1872,92 @@ if (userAge === 'parent') {
                 { title: '결과확인', desc: hasPaidAccess ? '전문가 확인 후 공개' : '검사 신청 후 열림', done: false, locked: !hasPaidAccess }
             ];
                       
+            const punctuationDetails = {
+                question: {
+                    symbol: '?', label: '내가 왜 이러지? (?)', badge: '혼란과 탐색 (Self-Inquiry)', color: 'indigo',
+                    title: '내 마음이 보내는 질문',
+                    desc: '마음이 요동치고 불안이 찾아올 때, 우리는 먼저 브레이크를 걸고 친절하게 내밀한 호기심을 가져야 합니다. "내 마음이 지금 왜 이럴까?"라는 질문은 회피하지 않고 마음의 신호에 귀 기울이는 소중한 첫걸음이 됩니다.',
+                    points: ['불안, 우울, 번아웃 상태를 차분히 살펴보기', '내면의 엉킨 생각 실타래 마주하기']
+                },
+                exclamation: {
+                    symbol: '!', label: '알아차림 (!)', badge: '자각과 수용 (Awareness)', color: 'amber',
+                    title: '감정을 알아차리는 순간',
+                    desc: '"아, 내가 지금 외로웠구나", "내가 그때 그 상처 때문에 아직 힘들어하는구나"라고 스스로 인정하는 과정입니다. 가려져 있던 감정의 본질을 직시할 때 진정한 위로와 정돈이 시작됩니다.',
+                    points: ['기질과 성격을 입체적으로 이해하기', '객관적이고 정교한 심리검사 매칭으로 이어가기']
+                },
+                comma: {
+                    symbol: ',', label: '쉼 (,)', badge: '휴식과 돌봄 (Self-Care)', color: 'emerald',
+                    title: '잠시 쉬어가도 괜찮은 시간',
+                    desc: '숨가쁘게 달려가던 발걸음에 쉼표를 부여하는 작업입니다. 온전히 쉬어도 되는 마음의 자유를 허락할 때, 마음의 배터리가 다시 자라납니다.',
+                    points: ['심리적 이완과 자기돌봄 회복하기', '상담사 및 온전한 지지자와 연결하기']
+                },
+                period: {
+                    symbol: '.', label: '다시 시작 (.)', badge: '매듭과 새로운 도약 (Reset & Restart)', color: 'slate',
+                    title: '오늘의 마음에 마침표 찍기',
+                    desc: '지나간 자책과 아쉬움을 끝매듭 짓는 마침표입니다. 슬픔에 마침표를 찍고, 더 탄력 있고 단단한 힘을 품어 새로운 삶의 첫머리로 들어가는 과정입니다.',
+                    points: ['마음의 회복탄력성 키우기', '현실 일상과 부드럽게 화해하기']
+                }
+            };
+            const punctuationColorClasses = {
+                question: 'from-indigo-50 border-indigo-100 text-indigo-500 bg-indigo-50',
+                exclamation: 'from-amber-50 border-amber-100 text-amber-500 bg-amber-50',
+                comma: 'from-emerald-50 border-emerald-100 text-emerald-500 bg-emerald-50',
+                period: 'from-slate-100 border-slate-200 text-slate-600 bg-slate-100'
+            };
+            const activePunctuationDetail = punctuationDetails[selectedPunctuation];
+
+            const bookingConsentContents = {
+                privacy: {
+                    title: '개인정보 수집·이용 동의',
+                    badge: '필수 동의 1',
+                    setter: setBookingPrivacyConsent,
+                    body: [
+                        { heading: '수집 항목', lines: ['성명, 연락처, 이메일(선택), 예약 희망일시', '신청 프로그램 및 심리검사 선택 내역', '상담 준비를 위해 이용자가 직접 작성한 상담 관련 정보'] },
+                        { heading: '이용 목적', lines: ['예약 확인 및 일정 안내', '심리검사 링크 발송 및 해석상담 진행', '상담 및 심리검사 서비스 제공과 사후 안내'] },
+                        { heading: '보관 및 동의 거부', lines: ['수집된 정보는 서비스 제공과 관련 법령에 필요한 기간 동안 보관될 수 있습니다.', '동의를 거부할 권리가 있으나, 필수 항목에 동의하지 않을 경우 예약 서비스 이용이 제한될 수 있습니다.'] }
+                    ]
+                },
+                service: {
+                    title: '심리검사 및 상담 서비스 이용 동의',
+                    badge: '필수 동의 2',
+                    setter: setBookingServiceConsent,
+                    body: [
+                        { heading: '서비스 성격', lines: ['심리검사는 현재 마음 상태와 성격·기질·관계 패턴을 이해하기 위한 심리평가 도구입니다.', '본 서비스는 의학적 진단이나 약물치료를 대신하지 않습니다.'] },
+                        { heading: '검사 및 상담 진행', lines: ['검사 결과는 전문가 해석상담과 함께 이해할 때 가장 도움이 됩니다.', '필요한 검사는 신청 내용과 상담자의 판단에 따라 조정될 수 있습니다.'] },
+                        { heading: '결과 안내', lines: ['온라인 검사 링크와 결과 관련 안내는 신청자 본인에게만 제공됩니다.', '최종 해석과 상담계획은 전문가 상담을 통해 확정됩니다.'] }
+                    ]
+                },
+                confidentiality: {
+                    title: '비밀보장 및 상담윤리 안내',
+                    badge: '필수 동의 3',
+                    setter: setBookingCounselingConsent,
+                    body: [
+                        { heading: '비밀보장 원칙', lines: ['상담 및 심리검사 과정에서 알게 된 개인정보와 상담 내용은 상담윤리에 따라 비밀이 보장됩니다.', '동의 없이 제3자에게 상담 내용을 제공하지 않습니다.'] },
+                        { heading: '비밀보장의 예외', lines: ['자해·자살 또는 타해 위험이 매우 높은 경우', '아동학대, 노인학대, 가정폭력 등 관련 법령상 신고의무가 있는 경우', '법원의 적법한 요청이나 안전을 위한 긴급 조치가 필요한 경우'] },
+                        { heading: '안전 우선', lines: ['위 예외 상황에서는 내담자와 주변인의 안전을 위해 필요한 범위에서 보호자, 관계기관 또는 응급지원과 연결될 수 있습니다.'] }
+                    ]
+                },
+                cancel: {
+                    title: '예약 변경·취소 및 노쇼 규정',
+                    badge: '필수 동의 4',
+                    setter: setBookingCancelConsent,
+                    body: [
+                        { heading: '예약 변경', lines: ['예약 변경은 예약 24시간 전까지 요청해 주세요.', '검사 링크 발송 또는 상담 준비가 시작된 이후에는 일정 조정이 제한될 수 있습니다.'] },
+                        { heading: '예약 취소', lines: ['예약 24시간 전까지 취소 요청 시 조정이 가능합니다.', '당일 취소는 검사 준비 및 상담 시간 확보로 인해 환불·변경 규정이 적용될 수 있습니다.'] },
+                        { heading: '노쇼 안내', lines: ['사전 연락 없이 예약 시간에 참석하지 않는 경우 노쇼로 처리될 수 있습니다.', '노쇼 시 재예약이 제한되거나 환불 규정이 적용될 수 있습니다.', '부득이한 사정이 있는 경우 가능한 빨리 연락 주시면 최대한 조정해 드립니다.'] }
+                    ]
+                }
+            };
+
+            const confirmBookingConsent = () => {
+                if (!bookingConsentModal) return;
+                const item = bookingConsentContents[bookingConsentModal];
+                if (item && item.setter) item.setter(true);
+                setBookingConsentModal(null);
+            };
+
+            const bookingAllConsentChecked = bookingPrivacyConsent && bookingServiceConsent && bookingCounselingConsent && bookingCancelConsent;
+
             return (
                 <div className="min-h-screen flex flex-col selection:bg-slate-200">
                     
@@ -1800,27 +1978,23 @@ if (userAge === 'parent') {
         </div>
 
         <nav className="hidden md:flex space-x-8 items-center">
-            <button onClick={() => scrollToSection('about')} className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
-                연구소 소개
+            <button onClick={() => scrollToSection('home')} className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
+                마음 연구
             </button>
 
             <button onClick={() => scrollToSection('mind-care')} className="text-sm font-bold text-slate-600 hover:text-emerald-600 transition-colors">
-                AI 마음 체크인
+                AI 마음상담
             </button>
 
             <button onClick={() => scrollToSection('tests')} className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors">
-                심리검사
-            </button>
-
-            <button onClick={() => scrollToSection('ai-intake')} className="text-sm font-bold text-slate-600 hover:text-amber-600 transition-colors">
-                AI 마음 체크인
+                심리 검사
             </button>
 
             <button
                 onClick={() => scrollToSection('reservations')}
                 className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors"
             >
-                심리검사 예약
+                검사 예약
             </button>
 
             <button onClick={handleMyPageClick} className="bg-slate-900 text-white px-6 py-2.5 rounded-full hover:bg-slate-800 hover:scale-105 transition-all shadow-md shadow-slate-100 text-sm font-bold">
@@ -1849,16 +2023,42 @@ if (userAge === 'parent') {
     {isMobileMenuOpen && (
         <div className="md:hidden border-t border-slate-100 bg-white/95 backdrop-blur-xl shadow-lg">
             <div className="px-4 py-4 grid grid-cols-3 gap-2 text-center text-[11px] font-extrabold">
-                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('about'); }} className="rounded-2xl border border-slate-100 bg-slate-50 px-2 py-3 text-slate-700">연구소</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('mind-care'); }} className="rounded-2xl border border-emerald-100 bg-emerald-50 px-2 py-3 text-emerald-700">리포트</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('tests'); }} className="rounded-2xl border border-indigo-100 bg-indigo-50 px-2 py-3 text-indigo-700">검사</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('ai-intake'); }} className="rounded-2xl border border-amber-100 bg-amber-50 px-2 py-3 text-amber-700">접수</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reservations'); }} className="rounded-2xl border border-slate-200 bg-slate-900 px-2 py-3 text-white">예약</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }} className="rounded-2xl border border-emerald-200 bg-emerald-700 px-2 py-3 text-white">마이</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('home'); }} className="rounded-2xl border border-slate-100 bg-slate-50 px-2 py-3 text-slate-700">마음 연구</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('mind-care'); }} className="rounded-2xl border border-emerald-100 bg-emerald-50 px-2 py-3 text-emerald-700">AI 마음상담</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('tests'); }} className="rounded-2xl border border-indigo-100 bg-indigo-50 px-2 py-3 text-indigo-700">심리검사</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reservations'); }} className="rounded-2xl border border-slate-200 bg-slate-900 px-2 py-3 text-white">검사 예약</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }} className="rounded-2xl border border-emerald-200 bg-emerald-700 px-2 py-3 text-white">마이페이지</button>
             </div>
         </div>
     )}
 </header>
+
+                    {activePunctuationDetail && (
+                        <div className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedPunctuation('all')}>
+                            <div className={`w-full max-w-2xl bg-gradient-to-br ${punctuationColorClasses[selectedPunctuation].split(' ')[0]} to-white border ${punctuationColorClasses[selectedPunctuation].split(' ')[1]} rounded-[2rem] shadow-2xl p-6 sm:p-8 fade-in`} onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <span className={`text-xs font-bold uppercase tracking-widest ${punctuationColorClasses[selectedPunctuation].split(' ')[2]}`}>{activePunctuationDetail.badge}</span>
+                                        <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">{activePunctuationDetail.label}</h3>
+                                    </div>
+                                    <div className={`w-16 h-16 rounded-3xl ${punctuationColorClasses[selectedPunctuation].split(' ')[3]} flex items-center justify-center text-5xl font-extrabold font-mono ${punctuationColorClasses[selectedPunctuation].split(' ')[2]}`}>
+                                        {activePunctuationDetail.symbol}
+                                    </div>
+                                </div>
+                                <h4 className="mt-6 text-lg font-extrabold text-slate-900">{activePunctuationDetail.title}</h4>
+                                <p className="mt-3 text-slate-600 leading-relaxed text-sm sm:text-base">{activePunctuationDetail.desc}</p>
+                                <ul className="mt-6 space-y-2 text-sm text-slate-600">
+                                    {activePunctuationDetail.points.map((point, idx) => (
+                                        <li key={idx} className="flex items-center"><Icon name="check" className={`w-4 h-4 mr-2 shrink-0 ${punctuationColorClasses[selectedPunctuation].split(' ')[2]}`} />{point}</li>
+                                    ))}
+                                </ul>
+                                <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-end">
+                                    <button onClick={() => setSelectedPunctuation('all')} className="px-5 py-3 rounded-full bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50">닫기</button>
+                                    <button onClick={() => { setSelectedPunctuation('all'); scrollToSection('mind-care'); }} className="px-5 py-3 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">AI 마음상담으로 이동</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <main className="flex-grow">
                         
@@ -1878,7 +2078,7 @@ if (userAge === 'parent') {
                                 {/* 4 Buttons Paradigm */}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto mb-16">
                                     {/* Question Mark Block */}
-                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-500/5 transition-all text-center cursor-pointer" onClick={() => { scrollToSection('about'); setSelectedPunctuation('question'); }}>
+                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-500/5 transition-all text-center cursor-pointer" onClick={() => setSelectedPunctuation('question')}>
                                         <div className="w-14 h-14 bg-indigo-50 text-mind-question rounded-2xl flex items-center justify-center text-3xl font-extrabold mx-auto mb-4 group-hover:scale-110 transition-transform font-mono">?</div>
                                         <h3 className="text-base font-bold text-slate-800">내가 왜 이러지?</h3>
                                         <p className="text-xs text-slate-400 mt-2">이유 모를 불안과 질문</p>
@@ -1886,7 +2086,7 @@ if (userAge === 'parent') {
                                     </div>
 
                                     {/* Exclamation Mark Block */}
-                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-amber-100 hover:shadow-xl hover:shadow-amber-500/5 transition-all text-center cursor-pointer" onClick={() => { scrollToSection('about'); setSelectedPunctuation('exclamation'); }}>
+                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-amber-100 hover:shadow-xl hover:shadow-amber-500/5 transition-all text-center cursor-pointer" onClick={() => setSelectedPunctuation('exclamation')}>
                                         <div className="w-14 h-14 bg-amber-50 text-mind-exclamation rounded-2xl flex items-center justify-center text-3xl font-extrabold mx-auto mb-4 group-hover:scale-110 transition-transform font-mono">!</div>
                                         <h3 className="text-base font-bold text-slate-800">알아차림</h3>
                                         <p className="text-xs text-slate-400 mt-2">감정을 그대로 마주하기</p>
@@ -1894,7 +2094,7 @@ if (userAge === 'parent') {
                                     </div>
 
                                     {/* Comma Block */}
-                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-emerald-100 hover:shadow-xl hover:shadow-emerald-500/5 transition-all text-center cursor-pointer" onClick={() => { scrollToSection('about'); setSelectedPunctuation('comma'); }}>
+                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-emerald-100 hover:shadow-xl hover:shadow-emerald-500/5 transition-all text-center cursor-pointer" onClick={() => setSelectedPunctuation('comma')}>
                                         <div className="w-14 h-14 bg-emerald-50 text-mind-comma rounded-2xl flex items-center justify-center text-3xl font-extrabold mx-auto mb-4 group-hover:scale-110 transition-transform font-mono">,</div>
                                         <h3 className="text-base font-bold text-slate-800">쉼</h3>
                                         <p className="text-xs text-slate-400 mt-2">생각을 멈추고 쉬기</p>
@@ -1902,7 +2102,7 @@ if (userAge === 'parent') {
                                     </div>
 
                                     {/* Period Block */}
-                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-500/5 transition-all text-center cursor-pointer" onClick={() => { scrollToSection('about'); setSelectedPunctuation('period'); }}>
+                                    <div className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-500/5 transition-all text-center cursor-pointer" onClick={() => setSelectedPunctuation('period')}>
                                         <div className="w-14 h-14 bg-slate-100 text-mind-period rounded-2xl flex items-center justify-center text-3xl font-extrabold mx-auto mb-4 group-hover:scale-110 transition-transform font-mono">.</div>
                                         <h3 className="text-base font-bold text-slate-800">다시 시작</h3>
                                         <p className="text-xs text-slate-400 mt-2">딛고 일어날 수 있는 힘</p>
@@ -1912,7 +2112,7 @@ if (userAge === 'parent') {
 
                                 <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
                                     <button onClick={() => scrollToSection('mind-care')} className="w-full sm:w-auto bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-900/10 hover:scale-105 transition-all">
-                                        내 마음을 부탁해
+                                        AI 마음상담 바로가기
                                     </button>
                                     <button onClick={() => scrollToSection('tests')} className="w-full sm:w-auto bg-white text-slate-700 border border-slate-200 px-8 py-4 rounded-2xl font-bold hover:bg-slate-50 hover:border-slate-300 transition-all">
                                         심리검사 알아보기
@@ -1927,140 +2127,11 @@ if (userAge === 'parent') {
                         </section>
 
                         
-                        <section id="about" className="py-24 px-4 sm:px-6 lg:px-8 bg-white border-y border-slate-100">
-                            <div className="max-w-7xl mx-auto">
-                                <div className="text-center max-w-3xl mx-auto mb-16">
-                                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">
-                                        마음이 보내는 감정을 확인하는 네 개의 부호
-                                    </h2>
-                                    <p className="mt-4 text-lg text-slate-500">
-                                        모두의 마음연구소는 마음이 보내는 신호들을 네 가지 부호의 흐름으로 해석하고 건강한 해결책을 제시하는 공간입니다.
-                                    </p>
-                                </div>
-
-                                <div className="flex flex-wrap justify-center gap-2 mb-10">
-                                    <button 
-                                        onClick={() => setSelectedPunctuation('all')}
-                                        className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${selectedPunctuation === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                    >
-                                        전체 보기
-                                    </button>
-                                    <button 
-                                        onClick={() => setSelectedPunctuation('question')}
-                                        className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${selectedPunctuation === 'question' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                    >
-                                        내가 왜 이러지? (?)
-                                    </button>
-                                    <button 
-                                        onClick={() => setSelectedPunctuation('exclamation')}
-                                        className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${selectedPunctuation === 'exclamation' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                    >
-                                        알아차림 (!)
-                                    </button>
-                                    <button 
-                                        onClick={() => setSelectedPunctuation('comma')}
-                                        className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${selectedPunctuation === 'comma' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                    >
-                                        쉼 (,)
-                                    </button>
-                                    <button 
-                                        onClick={() => setSelectedPunctuation('period')}
-                                        className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${selectedPunctuation === 'period' ? 'bg-slate-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                    >
-                                        다시 시작 (.)
-                                    </button>
-                                </div>
-
-                                {/* Interactive Detailed Explanation Card Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {/* ? Card */}
-                                    {(selectedPunctuation === 'all' || selectedPunctuation === 'question') && (
-                                        <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100/50 p-8 rounded-3xl hover:shadow-xl transition-all fade-in">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <span className="text-xs font-bold text-indigo-500 uppercase tracking-widest">혼란과 탐색 (Self-Inquiry)</span>
-                                                    <h3 className="text-2xl font-extrabold text-slate-900 mt-2">내가 왜 이러지? (?)</h3>
-                                                </div>
-                                                <span className="text-5xl font-extrabold text-indigo-400 font-mono">?</span>
-                                            </div>
-                                            <p className="mt-6 text-slate-600 leading-relaxed text-sm sm:text-base">
-                                                마음이 요동치고 불안이 찾아올 때, 우리는 먼저 브레이크를 걸고 친절하게 내밀한 호기심을 가져야 합니다. "내 마음이 지금 왜 이럴까?"라는 질문은 회피하지 않고 마음의 신호에 귀 기울이는 소중한 첫걸음이 됩니다.
-                                            </p>
-                                            <ul className="mt-6 space-y-2 text-sm text-slate-500">
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-indigo-500 mr-2 shrink-0" />불안, 우울, 번아웃 상태 진단</li>
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-indigo-500 mr-2 shrink-0" />내면의 엉킨 생각 실타래 마주하기</li>
-                                            </ul>
-                                        </div>
-                                    )}
-
-                                    {/* ! Card */}
-                                    {(selectedPunctuation === 'all' || selectedPunctuation === 'exclamation') && (
-                                        <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-100/50 p-8 rounded-3xl hover:shadow-xl transition-all fade-in">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <span className="text-xs font-bold text-amber-500 uppercase tracking-widest">자각과 수용 (Awareness)</span>
-                                                    <h3 className="text-2xl font-extrabold text-slate-900 mt-2">알아차림 (!)</h3>
-                                                </div>
-                                                <span className="text-5xl font-extrabold text-amber-400 font-mono">!</span>
-                                            </div>
-                                            <p className="mt-6 text-slate-600 leading-relaxed text-sm sm:text-base">
-                                                "아, 내가 지금 외로웠구나", "내가 그때 그 상처 때문에 아직 힘들어하는구나"라고 스스로 인정하는 과정입니다. 비로소 가려져 있던 내 안의 감정적 본질을 직시할 때 비로소 진정한 위로와 정돈이 펼쳐집니다.
-                                            </p>
-                                            <ul className="mt-6 space-y-2 text-sm text-slate-500">
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-amber-500 mr-2 shrink-0" />기질과 성격을 입체적으로 통합</li>
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-amber-500 mr-2 shrink-0" />객관적이고 정교한 심리검사 매칭</li>
-                                            </ul>
-                                        </div>
-                                    )}
-
-                                    {/* , Card */}
-                                    {(selectedPunctuation === 'all' || selectedPunctuation === 'comma') && (
-                                        <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-100/50 p-8 rounded-3xl hover:shadow-xl transition-all fade-in">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <span className="text-xs font-bold text-emerald-500 uppercase tracking-widest">휴식과 돌봄 (Self-Care)</span>
-                                                    <h3 className="text-2xl font-extrabold text-slate-900 mt-2">쉼 (,)</h3>
-                                                </div>
-                                                <span className="text-5xl font-extrabold text-emerald-400 font-mono">,</span>
-                                            </div>
-                                            <p className="mt-6 text-slate-600 leading-relaxed text-sm sm:text-base">
-                                                숨가쁘게 달려가던 발걸음에 영양 가득한 쉼표를 부여하는 작업입니다. 소음에서 벗어나 온전히 휴식을 누려도 되는 마음의 자유를 선물합니다. 아무것도 하지 않는 편안한 순간에 마음의 배터리가 다시 자라납니다.
-                                            </p>
-                                            <ul className="mt-6 space-y-2 text-sm text-slate-500">
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-emerald-500 mr-2 shrink-0" />심리적 이완 요법 및 힐링 워크숍</li>
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-emerald-500 mr-2 shrink-0" />상담사 및 온전한 지지자와의 연결</li>
-                                            </ul>
-                                        </div>
-                                    )}
-
-                                    {/* . Card */}
-                                    {(selectedPunctuation === 'all' || selectedPunctuation === 'period') && (
-                                        <div className="bg-gradient-to-br from-slate-100 to-white border border-slate-200/50 p-8 rounded-3xl hover:shadow-xl transition-all fade-in">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">매듭과 새로운 도약 (Reset & Restart)</span>
-                                                    <h3 className="text-2xl font-extrabold text-slate-900 mt-2">다시 시작 (.)</h3>
-                                                </div>
-                                                <span className="text-5xl font-extrabold text-slate-400 font-mono">.</span>
-                                            </div>
-                                            <p className="mt-6 text-slate-600 leading-relaxed text-sm sm:text-base">
-                                                지나간 자책과 아쉬움을 끝매듭 짓는 마침표입니다. 슬픔에 마침표를 던져 끝내고, 더 탄력 있고 단단한 힘을 품어 새로운 삶의 첫머리로 진입하는 아름답고 단단한 마음의 부활을 추구합니다.
-                                            </p>
-                                            <ul className="mt-6 space-y-2 text-sm text-slate-500">
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-slate-500 mr-2 shrink-0" />마음의 회복탄력성 극대화 코칭</li>
-                                                <li className="flex items-center"><Icon name="check" className="w-4 h-4 text-slate-500 mr-2 shrink-0" />현실 일상과의 부드러운 화해</li>
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </section>
-
                        <section id="mind-care" className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
             <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
-                무료 AI 마음 체크인
+                AI 마음상담
             </span>
 
             <h2 className="text-3xl font-extrabold text-slate-900">
@@ -2068,15 +2139,16 @@ if (userAge === 'parent') {
             </h2>
 
             <p className="mt-4 text-slate-500 text-sm sm:text-base leading-relaxed">
-                간단한 질문을 통해 지금의 마음을 살펴보고,
-                <br />
                 AI가 분석한 무료 마음리포트를 받아보세요.
+                <br />
+                모두의 마음연구소 AI 마음상담이 궁금하시면, AI 마음체크인을 통해 이야기를 이어가세요.
             </p>
         </div>
 
-                                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-                                    <div className="p-6 sm:p-10">
-                                        <div className="mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden h-full flex flex-col">
+                                    <div className="p-6 sm:p-10 h-full flex flex-col">
+                                        <div className="mb-7">
                                             <label className="block text-sm font-bold text-slate-700 mb-3">
                                                 1. 지금 내 마음이 보내는 신호는 어느 쪽인가요?
                                             </label>
@@ -2084,34 +2156,34 @@ if (userAge === 'parent') {
                                                 <button 
                                                     type="button"
                                                     onClick={() => setMindPunctuation('?')}
-                                                    className={`py-4 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '?' ? 'border-mind-question bg-indigo-50/50 text-mind-question' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '?' ? 'border-mind-question bg-indigo-50/50 text-mind-question' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
                                                 >
-                                                    <span className="text-2xl font-black font-mono">?</span>
-                                                    <span className="text-xs font-medium mt-1">내가왜이러지</span>
+                                                    <span className="text-4xl font-black font-mono">?</span>
+                                                    <span className="text-sm font-bold mt-3">내가왜이러지</span>
                                                 </button>
                                                 <button 
                                                     type="button"
                                                     onClick={() => setMindPunctuation('!')}
-                                                    className={`py-4 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '!' ? 'border-mind-exclamation bg-amber-50/50 text-mind-exclamation' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '!' ? 'border-mind-exclamation bg-amber-50/50 text-mind-exclamation' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
                                                 >
-                                                    <span className="text-2xl font-black font-mono">!</span>
-                                                    <span className="text-xs font-medium mt-1">알아차림</span>
+                                                    <span className="text-4xl font-black font-mono">!</span>
+                                                    <span className="text-sm font-bold mt-3">알아차림</span>
                                                 </button>
                                                 <button 
                                                     type="button"
                                                     onClick={() => setMindPunctuation(',')}
-                                                    className={`py-4 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === ',' ? 'border-mind-comma bg-emerald-50/50 text-mind-comma' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === ',' ? 'border-mind-comma bg-emerald-50/50 text-mind-comma' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
                                                 >
-                                                    <span className="text-2xl font-black font-mono">,</span>
-                                                    <span className="text-xs font-medium mt-1">쉼</span>
+                                                    <span className="text-4xl font-black font-mono">,</span>
+                                                    <span className="text-sm font-bold mt-3">쉼</span>
                                                 </button>
                                                 <button 
                                                     type="button"
                                                     onClick={() => setMindPunctuation('.')}
-                                                    className={`py-4 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '.' ? 'border-mind-period bg-slate-100 text-mind-period' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '.' ? 'border-mind-period bg-slate-100 text-mind-period' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
                                                 >
-                                                    <span className="text-2xl font-black font-mono">.</span>
-                                                    <span className="text-xs font-medium mt-1">다시시작</span>
+                                                    <span className="text-4xl font-black font-mono">.</span>
+                                                    <span className="text-sm font-bold mt-3">다시시작</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -2121,13 +2193,13 @@ if (userAge === 'parent') {
                                                 2. 어떤 고민이나 일들이 머릿속을 스치고 지나가나요? (자세히 적을수록 분석이 섬세해집니다)
                                             </label>
                                             <textarea 
-                                                rows="4" 
+                                                rows="5" 
                                                 value={mindState}
                                                 onChange={(e) => {
     setMindState(e.target.value);
 }}
                                                 placeholder="예) 요즘 아무리 쉬어도 지친 감정이 해소되지 않고 마음이 무겁습니다. 자존감도 부쩍 떨어지고 일도 손에 안 잡히는데... 왜 그런 것인지 어떻게 해야 할까요?"
-                                                className={`w-full px-5 py-4 border rounded-2xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-300 resize-none text-sm leading-relaxed ${mindInputError ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200'}`}
+                                                className={`w-full px-5 py-4 border rounded-2xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-300 resize-none text-sm leading-relaxed min-h-[150px] ${mindInputError ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200'}`}
                                             ></textarea>
                                             
                                             {mindInputError && (
@@ -2138,13 +2210,14 @@ if (userAge === 'parent') {
                                             )}
                                         </div>
 
+                                        <div className="mt-auto pt-8">
                                         <button 
     type="button" 
     onClick={() => {
     generateMindAnalysis();
 }}
     disabled={isAnalyzing}
-    className="w-full py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold shadow-lg transition-all flex items-center justify-center space-x-2"
+    className="w-full h-[54px] rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold shadow-lg transition-all flex items-center justify-center space-x-2"
 >
     {isAnalyzing ? (
         <>
@@ -2157,10 +2230,14 @@ if (userAge === 'parent') {
     ) : (
         <>
             <Icon name="sparkles" className="w-5 h-5" />
-            <span>AI 마음 체크인 받기</span>
+            <span>AI 마음리포트 받기</span>
         </>
     )}
 </button>
+                                        <p className="mt-4 text-center text-xs text-slate-400 font-medium">
+                                            ※ AI가 무료로 내 마음을 분석해 드려요.
+                                        </p>
+                                        </div>
                                     </div>
 
                                     {/* Analysis Output Window */}
@@ -2169,7 +2246,7 @@ if (userAge === 'parent') {
                                             <div className="flex items-center space-x-3 mb-4">
                                                 <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white">
                                                     <Icon name="smile" className="w-5 h-5" />
-                                                </div>
+                                              </div>
                                                 <div>
                                                     <h4 className="font-bold text-slate-800">모두의 마음연구소 AI 마음지기</h4>
                                                     <p className="text-xs text-slate-400">당신의 이야기에 정성을 모아 답변을 드려요</p>
@@ -2197,14 +2274,31 @@ if (userAge === 'parent') {
 }}
     className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all"
 >
-    AI 마음 체크인 시작하기
+    AI 마음 상담 시작하기
 </button>
 
                                                 </div>
                                         </div>
                                     )}
                                 </div>
-                            </div>
+            <div className="bg-white rounded-3xl border border-amber-100 p-6 sm:p-8 shadow-xl h-full flex flex-col">
+                <span className="inline-block text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full mb-4">회원 전용 AI 마음체크인</span>
+                <h3 className="text-2xl font-extrabold text-slate-900 leading-tight mb-4">AI 마음 체크인</h3>
+                <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                    마음리포트 이후 더 깊게 이야기하고 싶을 때 이어지는 채팅형 상담입니다. 모두의 마음연구소 AI마음지기와 자연스럽게 대화를 이어가고, 마지막에 마음정리와 심리검사 추천을 안내합니다.
+                </p>
+                <div className="space-y-3 mb-6">
+                    <div className="bg-amber-50 rounded-2xl p-4"><p className="font-bold text-amber-800 text-sm">1. 로그인 또는 회원가입</p><p className="text-xs text-slate-500 mt-1">마음체크인은 회원 전용입니다.</p></div>
+                    <div className="bg-slate-50 rounded-2xl p-4"><p className="font-bold text-slate-900 text-sm">2. 10~15분 자연스러운 대화</p><p className="text-xs text-slate-500 mt-1">질문지처럼 묻지 않고, 현재 고민을 따라갑니다.</p></div>
+                    <div className="bg-emerald-50 rounded-2xl p-4"><p className="font-bold text-emerald-800 text-sm">3. 마음정리 + 심리검사 추천</p><p className="text-xs text-slate-500 mt-1">대화의 마지막에만 필요한 검사와 추천 이유를 안내합니다.</p></div>
+                </div>
+                <button type="button" onClick={openAiIntakeChat} className="mt-auto w-full h-[54px] bg-slate-900 hover:bg-slate-800 text-white px-7 rounded-2xl text-sm font-extrabold shadow-lg">
+                    AI 마음상담 시작하기
+                </button>
+                <p className="mt-4 text-xs text-slate-400 font-medium leading-relaxed">※ 회원 가입 또는 로그인 후 이용할 수 있습니다.</p>
+            </div>
+        </div>
+    </div>
                         </section>
 
                         
@@ -2296,7 +2390,7 @@ if (userAge === 'parent') {
                                     </div>
                                 ) : mindRecords.length === 0 ? (
                                     <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-400">
-                                        아직 저장된 마음기록이 없습니다. ‘내 마음을 부탁해’에서 마음리포트를 받아보세요.
+                                        아직 저장된 마음기록이 없습니다. ‘AI 마음상담’에서 마음리포트를 받아보세요.
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -2329,339 +2423,235 @@ if (userAge === 'parent') {
                         </section>
 
                         <section id="tests" className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50 border-t border-slate-100">
-    <div className="max-w-7xl mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="inline-block text-xs font-bold bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full mb-3">
-                정교한 마음 설계도
+                            <div className="max-w-7xl mx-auto">
+                                <div className="text-center max-w-3xl mx-auto mb-14">
+                                    <span className="inline-block text-xs font-bold bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full mb-3">
+                                        정교한 마음 설계도
                                     </span>
-                                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">심리검사</h2>
+                                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">심리검사와 프로그램</h2>
                                     <p className="mt-4 text-slate-500 text-sm sm:text-base">
-                                        막연했던 마음에 객관적인 검사를 짚어 드립니다. 각계 공인된 정교한 심리 도구들로 자신을 완벽히 이해해 보세요.
+                                        먼저 나에게 필요한 심리검사를 확인하고, 아래에서 마음이음 프로그램을 선택해 예약으로 이어갈 수 있습니다.
                                     </p>
                                 </div>
 
-                   {/* Quick Finder Widget - 가로 2단 레이아웃 버전 */}
-<div className="max-w-5xl mx-auto mb-16 px-4">
-  {/* 메인 타이틀 */}
-  <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center justify-center lg:justify-start">
-    <Icon name="help-circle" className="w-5 h-5 mr-2 text-indigo-500 shrink-0" />
-    나에게 꼭 필요한 검사는 뭘까요?
-  </h3>
-
-  {/* 반응형 그리드: 모바일 세로 1열, 태블릿 이상(lg) 가로 2단 */}
-  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-    
-  {/* [좌측 영역] 조건 선택 카드 (5칸 차지) */}
-<div className="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-xl">
-
-  {/* 카드 제목 */}
-  <div className="mb-6">
-    <h4 className="text-lg font-extrabold text-slate-900">
-      대상 및 고민 선택
-    </h4>
-    <p className="text-xs text-slate-400 mt-1">
-      대상과 고민을 선택하면 가장 적합한 검사 조합을 추천해드립니다.
-    </p>
-  </div>
-
-  {/* 입력 영역 */}
-  <div className="space-y-5">
-      
-        {/* 대상 구분 Select */}
-        <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-            대상 구분
-          </label>
-          <select
-            value={userAge}
-            onChange={(e) => {
-              const target = e.target.value;
-              setUserAge(target);
-              // 부모 선택 시에는 개발(development)을 기본값으로, 그 외에는 기질(character)을 기본값으로 지정
-              if (target === "parent") {
-                setUserWorry("development");
-              } else {
-                setUserWorry("character");
-              }
-            }}
-            className="w-full bg-slate-50 px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="adult">일반 또는 직장인</option>
-            <option value="teen">청소년</option>
-            <option value="parent">부모 또는 양육자</option>
-          </select>
-        </div>
-
-        {/* 가장 고민되는 주제 Select */}
-        <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-            가장 고민되는 주제
-          </label>
-          <select
-            value={userWorry}
-            onChange={(e) => setUserWorry(e.target.value)}
-            className="w-full bg-slate-50 px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {/* 부모/양육자 전용 옵션 */}
-            {userAge === "parent" ? (
-              <>
-                <option value="development">발달 및 부모-자녀 관계</option>
-                <option value="character">기질 및 성격 특성</option>
-                <option value="emotion">불안·우울 등 정신적 피로</option>
-                <option value="relationship">대인관계 및 소통 어려움</option>
-              </>
-            ) : (
-              /* 성인 및 청소년 공통 옵션 */
-              <>
-                <option value="character">기질 및 성격 특성</option>
-                <option value="emotion">불안·우울 등 정신적 피로</option>
-                <option value="relationship">대인관계 및 소통 어려움</option>
-                <option value="meaning">인생의 깊은 의미 성찰</option>
-                <option value="resilience">스트레스 극복 및 멘탈 강인성</option>
-                {/* 청소년 전용 옵션 */}
-                {userAge === "teen" && (
-                  <option value="career">학습·진로</option>
-                )}
-              </>
-            )}
-          </select>
-        </div>
-      </div>
-    </div>
-
-    {/* [우측 영역] 추천 검사 결과 조합 패널 (7칸 차지) */}
-    <div className="lg:col-span-7 bg-indigo-50/50 rounded-3xl p-6 sm:p-8 border border-indigo-100/40 flex flex-col justify-between">
-      <div>
-        <div className="mb-4">
-          <h4 className="text-lg font-extrabold text-slate-900">
-            추천 검사 조합
-          </h4>
-          <p className="text-xs text-slate-400 mt-0.5">
-            선택하신 대상과 고민 주제에 따라 추천된 검사입니다.
-          </p>
-        </div>
-
-        {/* 결과 리스트 출력 구역 */}
-        <div className="space-y-2 mt-4">
-          {recommendedTests && recommendedTests.length > 0 ? (
-            recommendedTests.map((test) => {
-              const isMindSarange = test.includes("마음사랑");
-              const cleanName = test
-                .replace(" (마음사랑)", "")
-                .replace(" (인싸이트)", "");
-
-              return (
-                <button
-                  type="button"
-                  key={test}
-                  onClick={() => setSelectedTestPopup(getRecommendedTestInfo(test))}
-                  className="w-full flex items-center justify-between bg-white border border-indigo-100/60 rounded-xl px-4 py-3 shadow-sm text-left hover:border-indigo-300 hover:shadow-md transition"
-                  title="검사 설명 보기"
-                >
-                  <span className="text-sm font-semibold text-slate-700">
-                    {cleanName}
-                    <span className="ml-2 text-[10px] font-bold text-indigo-500">설명보기</span>
-                  </span>
-                  <span
-                    className={`text-[10px] px-2 py-1 rounded-full font-bold ${
-                      isMindSarange
-                        ? "bg-indigo-100 text-indigo-700"
-                        : "bg-emerald-100 text-emerald-700"
-                    }`}
-                  >
-                    {isMindSarange ? "마음사랑" : "인싸이트"}
-                  </span>
-                </button>
-              );
-            })
-          ) : (
-            <div className="text-center py-8 text-sm text-slate-400 bg-white/50 rounded-xl border border-dashed border-slate-200">
-              추천된 검사 조합이 없습니다.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 우측 패널 하단 고정 버튼 (기존 예약 함수 기능 탑재 완료) */}
-      <div className="mt-6">
-        <button 
-          onClick={() => {
-            if (recommendedTests && recommendedTests.length > 0) {
-              setBookingProgram(`개인 마음이음 - ${recommendedTests.join(", ")}`);
-            } else {
-              setBookingProgram(`개인 마음이음 - 맞춤 심리검사`);
-            }
-            scrollToSection("reservations");
-          }}
-          className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-md text-sm"
-        >
-          검사 신청 및 예약하기
-        </button>
-      </div>
-
-    </div> {/* [우측 영역] 닫기 */}
-  </div> {/* grid 닫기 */}
-</div> {/* max-w-5xl 닫기 */}
-                              
-</div>
-</section>
-         
-
-
-<section id="ai-intake" className="py-24 px-4 sm:px-6 lg:px-8 bg-amber-50/50 border-y border-amber-100">
-                            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-                                <div>
-                                    <span className="inline-block text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full mb-4">
-                                        AI 마음 체크인
-                                    </span>
-                                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight mb-5">
-                                        모두의 마음연구소 AI 마음지기와 만나보세요
-                                    </h2>
-                                    <p className="text-slate-600 leading-relaxed mb-6">
-                                        상담을 신청하기 전, 질문지처럼 답하는 것이 아니라 AI 마음지기와 상담하듯 현재 마음을 천천히 살펴봅니다.
-                                        마지막에는 전체 대화를 바탕으로 마음정리와 필요한 심리검사, 추천 이유를 안내받을 수 있습니다.
-                                    </p>
-
-                                    <div className="bg-white rounded-3xl border border-amber-100 p-5 shadow-sm mb-6">
-                                        <p className="text-sm font-extrabold text-slate-900 mb-2">진행 흐름</p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                                            <div className="bg-amber-50 rounded-2xl p-4">
-                                                <p className="font-bold text-amber-800">1. 동의</p>
-                                                <p className="text-xs text-slate-500 mt-1">개인정보 동의</p>
+                                <div className="space-y-10">
+                                    {/* 왼쪽: 심리검사 */}
+                                    <div className="bg-white rounded-[2rem] p-6 sm:p-8 border border-slate-100 shadow-xl">
+                                        <div className="flex items-start justify-between gap-4 mb-8">
+                                            <div>
+                                                <span className="inline-flex items-center text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full mb-3">
+                                                    심리검사
+                                                </span>
+                                                <h3 className="text-2xl font-extrabold text-slate-900 flex items-center">
+                                                    <Icon name="help-circle" className="w-5 h-5 mr-2 text-indigo-500 shrink-0" />
+                                                    나에게 꼭 필요한 검사는 뭘까요?
+                                                </h3>
+                                                <p className="text-sm text-slate-500 mt-2">
+                                                    대상과 고민을 선택하면 적합한 검사 조합을 추천해드립니다.
+                                                </p>
                                             </div>
-                                            <div className="bg-amber-50 rounded-2xl p-4">
-                                                <p className="font-bold text-amber-800">2. 대화</p>
-                                                <p className="text-xs text-slate-500 mt-1">AI 마음지기 마음 체크인</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                                            <div className="lg:col-span-5 bg-slate-50 rounded-3xl p-5 sm:p-6 border border-slate-100">
+                                                <div className="mb-5">
+                                                    <h4 className="text-base font-extrabold text-slate-900">대상 및 고민 선택</h4>
+                                                    <p className="text-xs text-slate-400 mt-1">현재 상황에 가까운 항목을 골라주세요.</p>
+                                                </div>
+
+                                                <div className="space-y-5">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                                                            대상 구분
+                                                        </label>
+                                                        <select
+                                                            value={userAge}
+                                                            onChange={(e) => {
+                                                                const target = e.target.value;
+                                                                setUserAge(target);
+                                                                if (target === "parent") {
+                                                                    setUserWorry("development");
+                                                                } else {
+                                                                    setUserWorry("character");
+                                                                }
+                                                            }}
+                                                            className="w-full bg-white px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        >
+                                                            <option value="adult">일반 또는 직장인</option>
+                                                            <option value="teen">청소년</option>
+                                                            <option value="parent">부모 또는 양육자</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                                                            가장 고민되는 주제
+                                                        </label>
+                                                        <select
+                                                            value={userWorry}
+                                                            onChange={(e) => setUserWorry(e.target.value)}
+                                                            className="w-full bg-white px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        >
+                                                            {userAge === "parent" ? (
+                                                                <>
+                                                                    <option value="development">발달 및 부모-자녀 관계</option>
+                                                                    <option value="character">기질 및 성격 특성</option>
+                                                                    <option value="emotion">불안·우울 등 정신적 피로</option>
+                                                                    <option value="relationship">대인관계 및 소통 어려움</option>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <option value="character">기질 및 성격 특성</option>
+                                                                    <option value="emotion">불안·우울 등 정신적 피로</option>
+                                                                    <option value="relationship">대인관계 및 소통 어려움</option>
+                                                                    <option value="meaning">인생의 깊은 의미 성찰</option>
+                                                                    <option value="resilience">스트레스 극복 및 멘탈 강인성</option>
+                                                                    {userAge === "teen" && (
+                                                                        <option value="career">학습·진로</option>
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                        </select>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="bg-amber-50 rounded-2xl p-4">
-                                                <p className="font-bold text-amber-800">3. 리포트</p>
-                                                <p className="text-xs text-slate-500 mt-1">공감 피드백 + 검사 안내</p>
+
+                                            <div className="lg:col-span-7 bg-indigo-50/70 rounded-3xl p-5 sm:p-6 border border-indigo-100/60 flex flex-col justify-between">
+                                                <div>
+                                                    <div className="mb-4">
+                                                        <h4 className="text-base font-extrabold text-slate-900">추천 검사 조합</h4>
+                                                        <p className="text-xs text-slate-400 mt-0.5">선택하신 대상과 고민 주제에 따른 추천 검사입니다.</p>
+                                                    </div>
+
+                                                    <div className="space-y-2 mt-4">
+                                                        {recommendedTests && recommendedTests.length > 0 ? (
+                                                            recommendedTests.map((test) => {
+                                                                const isMindSarange = test.includes("마음사랑");
+                                                                const cleanName = test
+                                                                    .replace(" (마음사랑)", "")
+                                                                    .replace(" (인싸이트)", "");
+
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        key={test}
+                                                                        onClick={() => setSelectedTestPopup(getRecommendedTestInfo(test))}
+                                                                        className="w-full flex items-center justify-between bg-white border border-indigo-100/60 rounded-xl px-4 py-3 shadow-sm text-left hover:border-indigo-300 hover:shadow-md transition"
+                                                                        title="검사 설명 보기"
+                                                                    >
+                                                                        <span className="text-sm font-semibold text-slate-700">
+                                                                            {cleanName}
+                                                                            <span className="ml-2 text-[10px] font-bold text-indigo-500">설명보기</span>
+                                                                        </span>
+                                                                        <span
+                                                                            className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                                                                                isMindSarange
+                                                                                    ? "bg-indigo-100 text-indigo-700"
+                                                                                    : "bg-emerald-100 text-emerald-700"
+                                                                            }`}
+                                                                        >
+                                                                            {isMindSarange ? "마음사랑" : "인싸이트"}
+                                                                        </span>
+                                                                    </button>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            <div className="text-center py-8 text-sm text-slate-400 bg-white/50 rounded-xl border border-dashed border-slate-200">
+                                                                추천된 검사 조합이 없습니다.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-6">
+                                                    <button 
+                                                        onClick={() => {
+                                                            if (recommendedTests && recommendedTests.length > 0) {
+                                                                setBookingProgram(`개인 마음이음 - ${recommendedTests.join(", ")}`);
+                                                            } else {
+                                                                setBookingProgram(`개인 마음이음 - 맞춤 심리검사`);
+                                                            }
+                                                            scrollToSection("reservations");
+                                                        }}
+                                                        className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-md text-sm"
+                                                    >
+                                                        검사 신청 및 예약하기
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={openAiIntakeChat}
-                                        className="bg-slate-900 text-white px-7 py-4 rounded-full text-sm font-extrabold hover:bg-slate-800 shadow-lg"
-                                    >
-                                        AI 마음지기와 대화 시작하기
-                                    </button>
-                                </div>
+                                    {/* 2행: 프로그램 */}
+                                    <div className="pt-4">
+                                        <div className="text-center max-w-3xl mx-auto mb-10">
+                                            <span className="inline-flex items-center text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full mb-3">
+                                                체계적인 맞춤 치유 경로
+                                            </span>
+                                            <h3 className="text-3xl font-extrabold text-slate-900">모두맘 프로그램</h3>
+                                            <p className="text-sm text-slate-500 mt-3 leading-relaxed">
+                                                심리검사 결과를 바탕으로 전문가 해석상담과 마음이음 과정을 연결합니다.
+                                            </p>
+                                        </div>
 
-                                <div className="bg-white rounded-[2rem] border border-amber-100 p-6 shadow-xl">
-                                    <p className="text-xs font-bold text-amber-700 mb-3">AI 마음지기를 만나면</p>
-                                    <div className="space-y-4">
-                                        <div className="bg-slate-50 rounded-2xl p-4">
-                                            <p className="text-sm font-bold text-slate-900">마음 정리를 돕습니다</p>
-                                            <p className="text-sm text-slate-500 mt-1">
-                                                지금의 어려움과 마음의 신호를 공감적으로 정리하여, 상담 전 자신의 상태를 차분히 이해할 수 있도록 돕습니다.
-                                            </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
+                                            {programs.map((prog) => (
+                                                <article key={prog.id} className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-xl transition-all">
+                                                    <div className="relative h-44 bg-emerald-50 flex items-center justify-center overflow-hidden">
+                                                        <img src={prog.img} alt={prog.title} className="w-full h-full object-cover" />
+                                                        <span className="absolute top-4 right-4 bg-emerald-50 text-emerald-700 rounded-full px-3 py-1 text-[10px] font-bold border border-emerald-100 shadow-sm">
+                                                            ⭐ 만족도 98%
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="p-6 sm:p-7">
+                                                        <div className="flex justify-end -mt-10 mb-5">
+                                                            <span className="bg-indigo-50 text-indigo-700 rounded-full px-4 py-2 text-[11px] font-extrabold border border-indigo-100 shadow-sm">
+                                                                {prog.badge}
+                                                            </span>
+                                                        </div>
+
+                                                        <h4 className="text-xl font-extrabold text-slate-900">
+                                                            {prog.title}
+                                                            {prog.subtitle && (
+                                                                <span className="block text-xs font-semibold text-slate-400 mt-1.5">{prog.subtitle}</span>
+                                                            )}
+                                                        </h4>
+
+                                                        <p className="text-sm text-slate-500 leading-relaxed mt-4 min-h-[72px]">{prog.desc}</p>
+
+                                                        <div className="mt-6 pt-5 border-t border-slate-100">
+                                                            <strong className="block text-xs text-slate-800 font-bold mb-2">이런 분께 추천합니다</strong>
+                                                            <span className="text-xs text-slate-500 leading-6 block whitespace-pre-line min-h-[96px]">{prog.target}</span>
+
+                                                            <button
+                                                                onClick={() => {
+                                                                    let programValue = "개인 마음이음";
+
+                                                                    if (prog.title.includes("부모-자녀")) {
+                                                                        programValue = "부모-자녀 마음이음";
+                                                                    }
+
+                                                                    if (prog.title.includes("부부")) {
+                                                                        programValue = "부부 마음이음";
+                                                                    }
+
+                                                                    setBookingProgram(programValue);
+                                                                    setSelectedTests([]);
+                                                                    setTimeout(() => scrollToSection('reservations'), 0);
+                                                                }}
+                                                                className="mt-6 w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold px-6 py-3.5 rounded-2xl transition-all shadow-sm"
+                                                            >
+                                                                신청하기
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </article>
+                                            ))}
                                         </div>
-                                        <div className="bg-emerald-50 rounded-2xl p-4">
-                                            <p className="text-sm font-bold text-emerald-800">필요한 검사를 추천합니다</p>
-                                            <p className="text-sm text-slate-600 mt-1">
-                                                AI 마음 체크인 내용을 바탕으로 현재 호소와 상담 목적에 맞는 심리검사를 추천하고, 추천 이유를 함께 안내합니다.
-                                            </p>
-                                        </div>
-                                        <div className="bg-indigo-50 rounded-2xl p-4">
-                                            <p className="text-sm font-bold text-indigo-800">심리검사 상담에 도움이 됩니다</p>
-                                            <p className="text-sm text-slate-600 mt-1">
-                                                AI 마음지기가 정리한 내용은 임상심리 전문가가 내담자를 더 깊이 이해하고 심리검사 기반 상담을 준비하는 참고자료로 활용됩니다.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
+                                    </div>                                </div>
                             </div>
                         </section>
-
-
-                        <section id="programs" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
-                            <div className="max-w-7xl mx-auto">
-                                <div className="text-center max-w-3xl mx-auto mb-16">
-                                    <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
-                                        체계적인 맞춤 치유 경로
-                                    </span>
-                                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">모두맘 프로그램</h2>
-                                    <p className="mt-4 text-slate-500 text-sm sm:text-base">
-                                        모두의 마음연구소의 치유 과정은 객관적인 **심리검사를 기반으로 운영**됩니다. 과학적인 데이터를 토대로 상처와 갈등의 진짜 원인을 알아채고, 따뜻하게 마음 채워가는 이음길을 경험해 보세요.
-                                    </p>
-                                </div>
-
-                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-    {programs.map((prog) => (
-        <div key={prog.id} className="bg-white rounded-3xl overflow-hidden border border-slate-100/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
-            <div className="relative h-56 overflow-hidden bg-slate-100">
-                <img 
-                    src={prog.img} 
-                    alt={prog.title} 
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                    onError={(e) => { e.target.src = `https://placehold.co/600x400/ecebe4/334155?text=${prog.title}`; }}
-                />
-                <div className="absolute top-5 right-5">
-    <span className="bg-emerald-50 text-emerald-700 rounded-full px-4 py-2 text-xs font-bold shadow-sm border border-emerald-100">
-        ⭐ 만족도 98%
-    </span>
-</div>
-            </div>
-
-            {/* Overlapping Badge Floating Right */}
-            <div className="flex justify-end -mt-6 pr-6 relative z-10">
-                <span className="bg-[#f0f2ff] text-indigo-600 border border-indigo-100/80 px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm whitespace-nowrap">
-                    {prog.badge}
-                </span>
-            </div>
-
-            <div className="px-8 pt-6 pb-8 flex-grow flex flex-col justify-between">
-                <div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-4">
-                        {prog.title} 
-                        {prog.subtitle && (
-                            <span className="text-sm font-medium text-slate-400 ml-1.5">{prog.subtitle}</span>
-                        )}
-                    </h3>
-                    <p className="text-sm text-slate-500 leading-relaxed mb-6">{prog.desc}</p>
-                </div>
-                
-                {/* Divider and Footer */}
-<div className="pt-6 border-t border-slate-100">
-    <div className="text-xs">
-        <strong className="block text-slate-800 font-bold mb-2">
-            이런 분께 추천합니다
-        </strong>
-
-        <span className="text-slate-500 leading-6 block whitespace-pre-line">
-            {prog.target}
-        </span>
-    </div>
-
-    <button
-    onClick={() => {
-        let programValue = "개인 마음이음";
-
-        if (prog.title.includes("부모-자녀")) {
-            programValue = "부모-자녀 마음이음";
-        }
-
-        if (prog.title.includes("부부")) {
-            programValue = "부부 마음이음";
-        }
-
-        setBookingProgram(programValue);
-        setSelectedTests([]);
-        setTimeout(() => scrollToSection('reservations'), 0);
-    }}
-    className="mt-6 w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold px-6 py-3 rounded-2xl transition-all shadow-sm"
->
-    신청하기
-</button>
-</div>
-            </div>
-        </div>
-    ))}
-</div>
-</div>
-</section>
 
 <section id="reservations" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
 <div className="max-w-7xl mx-auto">
@@ -3044,27 +3034,47 @@ if (userAge === 'parent') {
             </div>
 
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-3" id="bookingConsentBox">
-                <p className="text-sm font-extrabold text-slate-900">예약 필수 동의</p>
-                <p className="text-[11px] text-slate-600 leading-relaxed">상담 및 심리검사 예약, 본인 확인, 일정 안내, 검사/상담 제공 및 기록 관리를 위해 필요한 정보를 수집합니다. 상담 내용은 비밀이 보장되지만 자·타해 위험, 학대·폭력 등 법적 신고의무, 법원 명령 등 예외 상황에서는 안전을 위해 필요한 조치가 이루어질 수 있습니다.</p>
-                <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
-                    <input type="checkbox" checked={bookingPrivacyConsent} onChange={(e) => setBookingPrivacyConsent(e.target.checked)} className="mt-0.5" />
-                    개인정보 수집·이용에 동의합니다.
-                </label>
-                <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
-                    <input type="checkbox" checked={bookingCounselingConsent} onChange={(e) => setBookingCounselingConsent(e.target.checked)} className="mt-0.5" />
-                    심리검사/상담 진행, 비밀보장 및 예외 규정에 동의합니다.
-                </label>
-                <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
-                    <input type="checkbox" checked={bookingCancelConsent} onChange={(e) => setBookingCancelConsent(e.target.checked)} className="mt-0.5" />
-                    예약 변경/취소 및 노쇼 규정을 확인했습니다.
-                </label>
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <p className="text-sm font-extrabold text-slate-900">예약 필수 동의</p>
+                        <p className="text-[11px] text-slate-600 leading-relaxed mt-1">
+                            각 항목의 내용을 확인하면 자동으로 동의 체크가 완료됩니다. 심리검사와 상담 서비스 특성상 충분한 안내 확인 후 예약을 진행합니다.
+                        </p>
+                    </div>
+                    <span className={`shrink-0 text-[10px] font-black rounded-full px-3 py-1 ${bookingAllConsentChecked ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 border border-emerald-200'}`}>
+                        {bookingAllConsentChecked ? '동의 완료' : '확인 필요'}
+                    </span>
+                </div>
+
+                {[
+                    { key: 'privacy', checked: bookingPrivacyConsent, label: '개인정보 수집·이용 동의' },
+                    { key: 'service', checked: bookingServiceConsent, label: '심리검사 및 상담 서비스 이용 동의' },
+                    { key: 'confidentiality', checked: bookingCounselingConsent, label: '비밀보장 및 상담윤리 안내' },
+                    { key: 'cancel', checked: bookingCancelConsent, label: '예약 변경·취소 및 노쇼 규정' }
+                ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between gap-3 bg-white border border-emerald-100 rounded-2xl px-4 py-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <input type="checkbox" checked={item.checked} readOnly className="mt-0.5" />
+                            <span className="text-xs font-semibold text-slate-700 truncate">{item.label}</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setBookingConsentModal(item.key)}
+                            className="shrink-0 text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1.5 hover:bg-emerald-100"
+                        >
+                            내용보기
+                        </button>
+                    </div>
+                ))}
+
                 <input value={bookingSignature} onChange={(e) => setBookingSignature(e.target.value)} placeholder="전자서명: 신청인 성함을 입력해 주세요" className="w-full bg-white border border-emerald-200 px-4 py-3 rounded-xl text-sm" />
             </div>
 
             {/* 7. 최종 제출 버튼 */}
             <button 
                 type="submit"
-                className="w-full py-4 mt-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all shadow-md shadow-slate-900/10 text-sm"
+                disabled={!bookingAllConsentChecked || !bookingSignature.trim()}
+                className={`w-full py-4 mt-2 rounded-xl text-white font-bold transition-all shadow-md shadow-slate-900/10 text-sm ${bookingAllConsentChecked && bookingSignature.trim() ? 'bg-slate-900 hover:bg-slate-800' : 'bg-slate-300 cursor-not-allowed'}`}
             >
                 예약 필수 동의 후 신청하기
             </button>
@@ -3081,7 +3091,7 @@ if (userAge === 'parent') {
                                                 </p>
                                                 <div className="grid grid-cols-2 gap-4 mt-6 text-xs">
                                                     <div className="bg-white/10 p-4 rounded-xl backdrop-blur-sm">
-                                                        <h5 className="font-bold flex items-center text-slate-200"><Icon name="map-pin" className="w-4 h-4 mr-1 text-mind-question shrink-0" />장소조율</h5>
+                                                        <h5 className="font-bold flex items-center text-slate-200"><Icon name="map-pin" className="w-4 h-4 mr-1 text-mind-question shrink-0" />장소 조율</h5>
                                                         <p className="text-[10px] text-slate-400 mt-1">사전 예약을 통해 내담자님과 소통하기 가장 좋은 장소를 조율합니다.</p>
                                                     </div>
                                                     <div className="bg-white/10 p-4 rounded-xl backdrop-blur-sm">
@@ -3334,6 +3344,61 @@ ${paymentInfo.detail}
                             </div>
                         </section>
 
+                      {bookingConsentModal && bookingConsentContents[bookingConsentModal] && (
+                          <div className="fixed inset-0 z-[10003] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+                              <div className="absolute inset-0" onClick={() => setBookingConsentModal(null)}></div>
+                              <div className="relative bg-white rounded-[2rem] w-full max-w-2xl max-h-[88vh] overflow-auto shadow-2xl border border-slate-100 p-6 sm:p-8 fade-in">
+                                  <div className="flex items-start justify-between gap-4 mb-6">
+                                      <div>
+                                          <span className="inline-block text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-3 py-1 mb-3">
+                                              {bookingConsentContents[bookingConsentModal].badge}
+                                          </span>
+                                          <h3 className="text-2xl font-extrabold text-slate-900">
+                                              {bookingConsentContents[bookingConsentModal].title}
+                                          </h3>
+                                          <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                                              아래 내용을 확인한 뒤 확인 버튼을 누르면 해당 항목이 동의 처리됩니다.
+                                          </p>
+                                      </div>
+                                      <button type="button" onClick={() => setBookingConsentModal(null)} className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200">
+                                          ×
+                                      </button>
+                                  </div>
+
+                                  <div className="space-y-4">
+                                      {bookingConsentContents[bookingConsentModal].body.map((section, idx) => (
+                                          <div key={idx} className="rounded-2xl bg-slate-50 border border-slate-100 p-5">
+                                              <h4 className="text-sm font-extrabold text-slate-900 mb-3">{section.heading}</h4>
+                                              <ul className="space-y-2 text-sm text-slate-600 leading-relaxed">
+                                                  {section.lines.map((line, lineIdx) => (
+                                                      <li key={lineIdx} className="flex items-start gap-2">
+                                                          <span className="text-emerald-600 font-black mt-0.5">•</span>
+                                                          <span>{line}</span>
+                                                      </li>
+                                                  ))}
+                                              </ul>
+                                          </div>
+                                      ))}
+                                  </div>
+
+                                  <div className="mt-6 bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                                      <p className="text-xs text-amber-900 leading-relaxed">
+                                          ※ 본 안내는 예약 전 확인용이며, 세부 운영정책은 예약 확정 안내와 실제 상담·검사 진행 상황에 따라 추가 안내될 수 있습니다.
+                                      </p>
+                                  </div>
+
+                                  <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <button type="button" onClick={() => setBookingConsentModal(null)} className="rounded-2xl border border-slate-200 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50">
+                                          닫기
+                                      </button>
+                                      <button type="button" onClick={confirmBookingConsent} className="rounded-2xl bg-slate-900 py-3 text-sm font-extrabold text-white hover:bg-slate-800">
+                                          내용을 확인했습니다
+                                      </button>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+
                       {isAiIntakeOpen && (
                           <div className="fixed inset-0 z-[10002] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
                               <div className="bg-white rounded-[2rem] w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col">
@@ -3354,27 +3419,27 @@ ${paymentInfo.detail}
 
                                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 flex-1 overflow-hidden">
                                       <div className="lg:col-span-1 bg-slate-50 border-r border-slate-100 p-5 overflow-auto">
-                                          <h3 className="text-sm font-extrabold text-slate-900 mb-3">기본 정보 및 동의</h3>
+                                          <h3 className="text-sm font-extrabold text-slate-900 mb-3">AI 마음체크인 이용 동의</h3>
 
                                           <input
                                               value={aiIntakeUser.name}
                                               onChange={(e) => setAiIntakeUser({ ...aiIntakeUser, name: e.target.value })}
                                               placeholder="이름"
-                                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
+                                              className="hidden w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
                                           />
 
                                           <input
                                               value={aiIntakeUser.phone}
                                               onChange={(e) => setAiIntakeUser({ ...aiIntakeUser, phone: e.target.value })}
                                               placeholder="연락처"
-                                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
+                                              className="hidden w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
                                           />
 
                                           <input
                                               value={aiIntakeUser.email}
                                               onChange={(e) => setAiIntakeUser({ ...aiIntakeUser, email: e.target.value })}
                                               placeholder="이메일 선택"
-                                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
+                                              className="hidden w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
                                           />
 
                                           <label className="flex items-start gap-3 bg-white border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed cursor-pointer">
