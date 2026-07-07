@@ -1,21 +1,6 @@
 [build]
-  command = "npm run build"
-  publish = "dist"
-  functions = "netlify/functions"
+  publish = "."
+  command = ""
 
-[dev]
-  command = "npm run dev"
-  port = 8888
-  targetPort = 5173
-  publish = "dist"
-  functions = "netlify/functions"
-
-[[redirects]]
-  from = "/admin"
-  to = "/admin/index.html"
-  status = 200
-
-[[redirects]]
-  from = "/ai-intake"
-  to = "/ai-intake.html"
-  status = 200
+[functions]
+  directory = "netlify/functions"
