@@ -146,7 +146,7 @@ async function callGemini({ apiKey, prompt }) {
               temperature: 0.72,
               topP: 0.9,
               topK: 32,
-              maxOutputTokens: 700
+              maxOutputTokens: 1200
             }
           })
         }
