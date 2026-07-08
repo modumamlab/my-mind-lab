@@ -1,125 +1,278 @@
-import { buildContext } from './ai-checkin-v17/contextEngine.js';
-import { analyzeIntent } from './ai-checkin-v17/intentEngine.js';
-import { detectSafety, makeCrisisReply } from './ai-checkin-v17/safetyEngine.js';
-import { buildCheckinPrompt } from './ai-checkin-v17/promptEngine.js';
-import { postProcess } from './ai-checkin-v17/postProcess.js';
-
-const PROMPT_VERSION = 'v23-stable-ai-dialogue';
+const PROMPT_VERSION = "v25-clinical-core-single-file";
 
 const jsonResponse = (obj, statusCode = 200) => ({
   statusCode,
   headers: {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json; charset=utf-8'
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "application/json; charset=utf-8"
   },
   body: JSON.stringify(obj)
 });
 
-async function callGemini({ apiKey, prompt, intent, enoughForSummary }) {
-  const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
-  const payload = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: intent.mode === 'answer_question' ? 0.45 : 0.62,
-      topP: 0.9,
-      topK: 32,
-      maxOutputTokens: enoughForSummary ? 1100 : 520
-    }
-  };
+const cleanText = (value) => String(value || "").trim();
 
+const makeCrisisReply = () =>
+  "지금은 안전이 가장 중요합니다.\n\n스스로를 해치고 싶거나 당장 안전하지 않다고 느껴진다면, 지금 바로 112, 119 또는 자살예방상담전화 109에 연락해 주세요.\n\n가능하다면 지금 혼자 있지 말고, 곁에 연락할 수 있는 사람에게 바로 알려 주세요.";
+
+const hasCrisisRisk = (text) =>
+  /자살|죽고\s*싶|죽고싶|자해|해치고\s*싶|사라지고\s*싶|끝내고\s*싶|목숨|유서|극단/.test(text);
+
+const hasAbusiveText = (text) =>
+  /씨발|시발|ㅅㅂ|병신|미친년|미친놈|꺼져|죽어라|혐오|비하|장애인\s*비하|인종\s*차별|성적\s*비하/.test(text);
+
+const makeLimitReply = () =>
+  "이 대화는 마음을 안전하게 살펴보기 위한 공간입니다.\n\n욕설, 비방, 혐오나 모욕적인 표현이 이어지면 상담 대화를 계속 진행하기 어렵습니다.\n\n마음을 나누고 싶으시다면, 지금 느끼는 감정이나 상황을 조금 더 안전한 표현으로 다시 적어 주세요.";
+
+const normalizeMessages = (messages) =>
+  (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && cleanText(m.text))
+    .slice(-24)
+    .map((m) => ({
+      role: m.role === "user" ? "user" : "assistant",
+      text: cleanText(m.text)
+    }));
+
+const buildConversationText = (messages) =>
+  messages
+    .map((m) => `${m.role === "user" ? "사용자" : "AI 마음지기"}: ${m.text}`)
+    .join("\n");
+
+const wantsClosing = (text) =>
+  /마무리|정리|리포트|끝낼래|충분|검사|추천|예약/.test(text);
+
+const buildPrompt = ({ messages, minutes }) => {
+  const conversation = buildConversationText(messages);
+  const lastUser = [...messages].reverse().find((m) => m.role === "user")?.text || "";
+  const userTurns = messages.filter((m) => m.role === "user").length;
+  const shouldClose = wantsClosing(lastUser) || minutes >= 15 || userTurns >= 12;
+
+  return `
+당신은 '모두의 마음연구소'의 AI 마음지기입니다.
+
+당신의 역할은 단순히 위로하거나 조언하는 것이 아니라,
+내담자가 자신의 마음을 알아차리고, 이해하며, 다시 연결할 수 있도록 돕는 것입니다.
+
+당신은 정답을 알려주는 사람이 아니라,
+사용자가 자신의 마음을 발견하도록 함께 탐색하는 동반자입니다.
+
+【상담 철학】
+
+사람은 문제 자체보다 자신의 마음을 충분히 이해하지 못할 때 더 오래 힘들어질 수 있습니다.
+당신은 사용자의 마음을 대신 해석하거나 판단하지 않습니다.
+사용자가 자신의 마음을 조금 더 선명하게 바라볼 수 있도록 함께합니다.
+
+【상담 원칙】
+
+- 항상 존중과 공감을 담은 존댓말을 사용합니다.
+- 사용자가 실제로 말한 내용을 중심으로 대화를 이어갑니다.
+- 대화의 전체 맥락을 충분히 이해한 후 자연스럽게 이어갑니다.
+- 사용자의 속도를 존중합니다.
+- 사용자의 표현을 가능한 그대로 반영합니다.
+- 의미가 불분명한 경우에는 해석보다 먼저 이해한 내용이 맞는지 확인합니다.
+- 확인되지 않은 내용은 추측하거나, 진단하거나, 단정하지 않습니다.
+- 사용자가 충분히 말하기 전에는 성급하게 결론을 내리지 않습니다.
+- 해결책을 서둘러 제시하기보다 사용자가 자신의 마음을 스스로 이해하도록 돕습니다.
+- 같은 표현이나 같은 질문을 반복하지 않습니다.
+- 이전 대화를 기억하며 자연스럽게 이어갑니다.
+- 현재 대화에서 가장 적절한 방식으로 공감, 반영, 명료화, 이해, 질문, 정리 중 하나를 자연스럽게 선택합니다.
+- 준비된 예시나 템플릿을 선택하지 않습니다.
+- 매 응답은 현재까지의 대화를 바탕으로 새롭게 생성합니다.
+
+【응답 방식】
+
+- 응답은 일반적으로 2~4문장으로 작성합니다.
+- 질문은 꼭 필요한 경우에만 하나 사용합니다.
+- 질문보다 이해와 반영이 더 적절한 경우에는 질문하지 않습니다.
+- 사용자의 이야기를 충분히 이해했다면 질문 없이 마음을 정리해 줄 수도 있습니다.
+- 상담자가 실제 상담실에서 사용할 법한 자연스럽고 따뜻한 언어를 사용합니다.
+- AI처럼 설명하거나 분석하는 말투보다 사람과 대화하는 말투를 사용합니다.
+
+【상담 종료】
+
+현재 대화 시간은 약 ${minutes}분입니다.
+현재 사용자 발화 수는 ${userTurns}회입니다.
+상담 종료 판단: ${shouldClose ? "마무리를 고려할 수 있음" : "아직 대화를 이어갈 수 있음"}
+
+약 15분 정도의 대화가 이루어졌거나, 사용자가 충분히 자신의 이야기를 했다고 판단되면 자연스럽게 상담을 마무리합니다.
+마무리에서는 지금까지의 마음을 자연스럽게 정리하고, 상담자가 줄 수 있는 심리학적 통찰을 하나 제공합니다.
+필요한 경우에는 심리검사를 추천하고, 추천하는 이유를 함께 설명합니다.
+
+【상담 제한】
+
+욕설, 비방, 혐오, 차별, 모욕, 반복적인 공격적 표현이나 상담의 목적과 무관한 부적절한 대화가 지속될 경우에는 상담을 정중하게 제한합니다.
+
+【안전】
+
+자살, 자해, 타해 등 안전과 관련된 내용이 확인되면 안전을 최우선으로 안내합니다.
+
+【가장 중요한 원칙】
+
+사용자의 이야기를 분류하지 않습니다.
+정해진 응답을 선택하지 않습니다.
+상황별 템플릿을 사용하지 않습니다.
+현재까지의 대화를 충분히 이해한 후, 그 순간 가장 적절한 새로운 응답을 생성합니다.
+
+현재 대화:
+${conversation || "아직 대화가 시작되지 않았습니다."}
+
+마지막 사용자 말:
+${lastUser}
+
+출력 규칙:
+- AI 마음지기의 답변만 작성합니다.
+- 분석 과정이나 지침 설명은 쓰지 않습니다.
+- 제목을 붙이지 않습니다.
+- 2~4문장으로 답합니다.
+- 필요한 경우에만 질문을 하나 사용합니다.
+`;
+};
+
+async function callGemini({ apiKey, prompt }) {
+  const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
   let lastError = null;
+
   for (const model of models) {
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.72,
+              topP: 0.9,
+              topK: 32,
+              maxOutputTokens: 700
+            }
+          })
+        }
+      );
+
       const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
-        return { data, model };
+        const text = data?.candidates?.[0]?.content?.parts
+          ?.map((p) => p.text || "")
+          .join("\n")
+          .trim();
+
+        return { text, model, raw: data };
       }
+
       lastError = { model, status: response.status, data };
-      console.error('[MODUMAM v23] Gemini error', lastError);
+      console.error("[MODUMAM AI] Gemini error", lastError);
     } catch (error) {
       lastError = { model, error: error.message };
-      console.error('[MODUMAM v23] Gemini fetch error', lastError);
+      console.error("[MODUMAM AI] Gemini fetch error", lastError);
     }
   }
-  const error = new Error('Gemini API call failed');
+
+  const error = new Error("Gemini API call failed");
   error.detail = lastError;
   throw error;
 }
 
-export const handler = async function(event) {
-  if (event.httpMethod === 'OPTIONS') return jsonResponse({}, 200);
-  if (event.httpMethod !== 'POST') return jsonResponse({ error: 'POST only' }, 405);
+const postProcess = (text) => {
+  let output = cleanText(text);
+
+  output = output
+    .replace(/피로\/소진/g, "")
+    .replace(/emotion_reflection/g, "")
+    .replace(/말이 바로 나오지 않는군요\.?/g, "")
+    .replace(/그 이야기가 짧지만/g, "")
+    .replace(/좋은 응답[:：]?/g, "")
+    .replace(/대화 예시[:：]?/g, "")
+    .trim();
+
+  if (!output) {
+    return "지금 말씀을 제가 앞서 해석하지 않기 위해 조심스럽게 듣고 있습니다. 지금 이 마음이 몸의 피곤함에 가까운지, 마음까지 함께 지친 느낌에 가까운지 확인해 보고 싶습니다.";
+  }
+
+  return output;
+};
+
+export const handler = async function (event) {
+  if (event.httpMethod === "OPTIONS") return jsonResponse({}, 200);
+  if (event.httpMethod !== "POST") return jsonResponse({ error: "POST only" }, 405);
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const body = JSON.parse(event.body || "{}");
+    const messages = normalizeMessages(body.messages);
     const sessionStart = Number(body.sessionStart || Date.now());
     const minutes = Math.max(0, Math.round((Date.now() - sessionStart) / 60000));
+    const allUserText = messages
+      .filter((m) => m.role === "user")
+      .map((m) => m.text)
+      .join(" ");
 
-    const context = buildContext(messages);
-    const safety = detectSafety(context.allUserText);
-    const intent = analyzeIntent(context);
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
-
-    if (safety.crisis) {
+    if (hasCrisisRisk(allUserText)) {
       return jsonResponse({
         text: makeCrisisReply(),
         isComplete: false,
         promptVersion: PROMPT_VERSION,
-        engine: { context: 'ON', intent: intent.mode, fallback: 'OFF', safety: 'CRISIS' }
+        engine: { mode: "clinical-core", safety: "CRISIS", fallback: "OFF" }
       });
     }
 
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")?.text || "";
+    if (hasAbusiveText(lastUser)) {
+      return jsonResponse({
+        text: makeLimitReply(),
+        isComplete: false,
+        promptVersion: PROMPT_VERSION,
+        engine: { mode: "clinical-core", safety: "LIMITED", fallback: "OFF" }
+      });
+    }
+
+    const apiKey =
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.GOOGLE_GEMINI_API_KEY;
+
     if (!apiKey) {
-      return jsonResponse({
-        error: 'GEMINI_API_KEY is missing',
-        text: 'AI 마음지기 연결 설정이 아직 완료되지 않았습니다. Netlify 환경변수에서 GEMINI_API_KEY를 확인해 주세요.',
-        isComplete: false,
-        promptVersion: PROMPT_VERSION,
-        engine: { context: 'ON', intent: intent.mode, fallback: 'OFF', safety: 'OK' }
-      }, 503);
+      return jsonResponse(
+        {
+          error: "GEMINI_API_KEY is missing",
+          text: "AI 마음지기 연결 설정이 아직 완료되지 않았습니다. Netlify 환경변수에서 GEMINI_API_KEY를 확인해 주세요.",
+          isComplete: false,
+          promptVersion: PROMPT_VERSION,
+          engine: { mode: "clinical-core", safety: "OK", fallback: "OFF" }
+        },
+        503
+      );
     }
 
-    const askedSummary = intent.wantsReport;
-    const enoughForSummary = askedSummary || minutes >= 12 || context.turnCount >= 12;
-    const prompt = buildCheckinPrompt({ context, intent, minutes, enoughForSummary });
-
-    const { data, model } = await callGemini({ apiKey, prompt, intent, enoughForSummary });
-    let text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n').trim();
-
-    if (!text) {
-      return jsonResponse({
-        error: 'Gemini response is empty',
-        text: 'AI 마음지기 응답이 비어 있어 답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
-        isComplete: false,
-        promptVersion: PROMPT_VERSION,
-        engine: { context: 'ON', intent: intent.mode, fallback: 'OFF', safety: 'OK', model }
-      }, 502);
-    }
-
-    text = postProcess(text);
+    const prompt = buildPrompt({ messages, minutes });
+    const { text, model } = await callGemini({ apiKey, prompt });
+    const finalText = postProcess(text);
 
     return jsonResponse({
-      text,
-      isComplete: enoughForSummary || /제가\s*지금까지\s*이해한\s*마음/.test(text),
+      text: finalText,
+      isComplete: wantsClosing(lastUser) || minutes >= 15 || messages.filter((m) => m.role === "user").length >= 12,
       promptVersion: PROMPT_VERSION,
-      engine: { context: 'ON', intent: intent.mode, fallback: 'OFF', safety: 'OK', model, themes: intent.themes }
+      engine: {
+        mode: "clinical-core-single-file",
+        safety: "OK",
+        fallback: "OFF",
+        model
+      }
     });
   } catch (error) {
-    console.error('[MODUMAM v23] handler error', error.detail || error);
-    return jsonResponse({
-      error: 'AI mindjigi handler error',
-      text: 'AI 마음지기 연결 중 오류가 발생했습니다. 정해진 상담 문장으로 대신 답하지 않겠습니다. 잠시 후 다시 시도해 주세요.',
-      isComplete: false,
-      promptVersion: PROMPT_VERSION,
-      engine: { context: 'ON', fallback: 'OFF', safety: 'UNKNOWN' }
-    }, 500);
+    console.error("[MODUMAM AI] handler error", error.detail || error);
+
+    return jsonResponse(
+      {
+        error: "AI mindjigi handler error",
+        text: "AI 마음지기 연결이 잠시 원활하지 않습니다.\n\n이전처럼 정해진 상담 문장으로 대신 답하지 않겠습니다. 잠시 후 다시 보내 주세요.",
+        isComplete: false,
+        promptVersion: PROMPT_VERSION,
+        engine: { mode: "clinical-core-single-file", safety: "UNKNOWN", fallback: "OFF" }
+      },
+      502
+    );
   }
 };
