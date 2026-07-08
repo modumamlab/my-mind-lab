@@ -3362,8 +3362,8 @@ ${paymentInfo.detail}
                       )}
 
                       {isAiIntakeOpen && (
-                          <div className="fixed inset-0 z-[10002] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-                              <div className="bg-white rounded-[2rem] w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col">
+                          <div className="fixed inset-0 z-[10002] bg-slate-950/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+                              <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] w-full max-w-5xl max-h-none sm:max-h-[92vh] overflow-visible sm:overflow-hidden shadow-2xl border border-slate-100 flex flex-col my-2 sm:my-0">
                                   <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between">
                                       <div>
                                           <p className="text-xs font-bold text-amber-700 mb-1">MODUMAM LAB AI INTAKE</p>
@@ -3408,7 +3408,7 @@ ${paymentInfo.detail}
                                           </div>
                                       </div>
 
-                                      <div className="lg:col-span-2 flex flex-col max-h-[72vh]">
+                                      <div className="lg:col-span-2 flex flex-col min-h-[60vh] sm:max-h-[72vh]">
                                           {!aiIntakeReport ? (
                                               <>
                                                   <div ref={chatBodyRef} id="ai-chat-body" className="flex-1 overflow-auto p-5 sm:p-6 space-y-4 bg-white">
