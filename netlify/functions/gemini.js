@@ -1,4 +1,4 @@
-exports.handler = async (event) => {
+export const handler = async (event) => {
   try {
     const { mindState, mindPunctuation } = JSON.parse(event.body || "{}");
 
