@@ -1,4 +1,4 @@
-const PROMPT_VERSION = "v1-clinical-core-with-closing";
+const PROMPT_VERSION = "v1-clinical-core-stable-20260708";
 
 const jsonResponse = (obj, statusCode = 200) => ({
   statusCode,
@@ -19,7 +19,7 @@ const normalizeMessages = (messages) =>
     .slice(-30)
     .map((m) => ({
       role: m.role === "user" ? "user" : "assistant",
-      text: cleanText(m.text)
+      text: cleanText(m.text).slice(0, 1600)
     }));
 
 const buildConversationText = (messages) =>
@@ -28,30 +28,40 @@ const buildConversationText = (messages) =>
     .join("\n");
 
 const hasCrisisRisk = (text) =>
-  /자살|죽고\s*싶|죽고싶|자해|해치고\s*싶|사라지고\s*싶|끝내고\s*싶|목숨|유서|극단|살기\s*싫|죽을래/.test(text);
+  /자살|죽고\s*싶|죽고싶|자해|해치고\s*싶|사라지고\s*싶|끝내고\s*싶|목숨|유서|극단|살기\s*싫|죽을래|죽을\s*래|죽여|해칠/.test(text);
 
 const makeCrisisReply = () =>
-  "지금은 안전이 가장 중요합니다.\n\n스스로를 해치고 싶거나 당장 안전하지 않다고 느껴진다면 지금 바로 112, 119 또는 자살예방상담전화 109에 연락해 주세요.\n\n가능하다면 지금 혼자 있지 말고, 곁에 연락할 수 있는 사람에게 바로 알려 주세요.";
+  [
+    "지금은 대화를 이어가기보다 안전을 먼저 확인해야 하는 상황일 수 있습니다.",
+    "스스로를 해치고 싶거나 당장 안전하지 않다고 느껴진다면 혼자 있지 말고, 지금 바로 112, 119, 자살예방상담전화 109 또는 가까운 응급실에 도움을 요청해 주세요.",
+    "가능하다면 곁에 있는 사람에게 지금의 상태를 바로 알려 주세요."
+  ].join("\n\n");
 
 const hasAbusiveText = (text) =>
-  /씨발|시발|ㅅㅂ|병신|미친년|미친놈|꺼져|죽어라|혐오|비하|차별|모욕|개새끼|좆|ㅈ같/.test(text);
+  /씨발|시발|ㅅㅂ|ㅂㅅ|병신|미친년|미친놈|꺼져|죽어라|혐오|비하|차별|모욕|개새끼|좆|ㅈ같/.test(text);
 
 const makeLimitReply = () =>
-  "이 대화는 마음을 안전하게 살펴보기 위한 공간입니다.\n\n욕설, 비방, 혐오나 모욕적인 표현이 이어지면 상담 대화를 계속 진행하기 어렵습니다.\n\n마음을 나누고 싶으시다면 지금 느끼는 감정이나 상황을 조금 더 안전한 표현으로 다시 적어 주세요.";
+  [
+    "이 대화는 마음을 안전하게 살펴보기 위한 공간입니다.",
+    "욕설, 비방, 혐오나 공격적인 표현이 계속되면 상담을 이어가기 어렵습니다.",
+    "마음을 나누고 싶은 주제가 있다면 그 내용으로 다시 이야기해 주세요."
+  ].join("\n\n");
 
 const wantsClosing = (text) =>
-  /마무리|정리|리포트|끝낼래|충분|고마워|감사|도움이\s*됐|이제\s*알|정리됐|여기까지|괜찮아졌|괜찮아/.test(text);
+  /마무리|정리|리포트|보고서|끝낼래|충분|그만|마칠|여기까지|고마워|감사|도움이\s*됐|이제\s*알|정리됐|괜찮아졌/.test(text);
 
 const looksIncomplete = (text) => {
   const t = cleanText(text);
   if (!t) return true;
-  const completeEndings = /[.!?。？！]$|(습니다|습니까|어요|예요|네요|지요|까요|듯합니다|같습니다|있습니다|없습니다|바랍니다|주세요|드립니다)$/;
+  const completeEndings =
+    /[.!?。？！]$|(습니다|습니까|어요|예요|네요|지요|까요|듯합니다|같습니다|있습니다|없습니다|바랍니다|주세요|드립니다|겠습니다|입니다)$/;
   if (completeEndings.test(t)) return false;
-  return /셨|했|되|하|쓰셨|느껴|생각|마음과|에너지를|많이|수|있|없|같|때문$/.test(t) || t.length < 80;
+  return /셨|했|되|하|쓰셨|느껴|생각|마음과|에너지를|많이|수|있|없|같|때문|부터|에서|으로|에게|지만|고$/.test(t) || t.length < 80;
 };
 
 const postProcess = (text) => {
   let output = cleanText(text);
+
   output = output
     .replace(/^AI 마음지기\s*[:：]\s*/i, "")
     .replace(/^답변\s*[:：]\s*/i, "")
@@ -63,6 +73,7 @@ const postProcess = (text) => {
     .replace(/그 이야기가 짧지만/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
   return output;
 };
 
@@ -193,11 +204,13 @@ async function callGemini({ apiKey, prompt, maxOutputTokens = 1200 }) {
       );
 
       const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
         const text = data?.candidates?.[0]?.content?.parts
-          ?.map((p) => p.text || "")
+          ?.map((part) => part.text || "")
           .join("\n")
           .trim();
+
         return { text, model, raw: data };
       }
 
@@ -215,7 +228,7 @@ async function callGemini({ apiKey, prompt, maxOutputTokens = 1200 }) {
 }
 
 async function completeIfNeeded({ apiKey, text }) {
-  let finalText = postProcess(text);
+  const finalText = postProcess(text);
   if (!looksIncomplete(finalText)) return finalText;
 
   const retryPrompt = `
@@ -237,11 +250,11 @@ ${finalText}
 `;
 
   try {
-    const retry = await callGemini({ apiKey, prompt: retryPrompt, maxOutputTokens: 700 });
+    const retry = await callGemini({ apiKey, prompt: retryPrompt, maxOutputTokens: 900 });
     const retried = postProcess(retry.text);
-    return retried || finalText;
-  } catch (e) {
-    console.error("[MODUMAM AI] retry failed", e.detail || e);
+    return retried || finalText || "지금 마음을 충분히 이해하기 위해 잠시 멈춰 듣고 있습니다. 방금 말씀하신 내용에서 가장 중요하게 남아 있는 부분을 함께 살펴보겠습니다.";
+  } catch (error) {
+    console.error("[MODUMAM AI] retry failed", error.detail || error);
     return finalText || "AI 마음지기 응답이 완성되지 않았습니다. 잠시 후 다시 보내 주세요.";
   }
 }
@@ -257,7 +270,10 @@ export const handler = async function (event) {
     const minutes = Math.max(0, Math.round((Date.now() - sessionStart) / 60000));
     const userTurns = messages.filter((m) => m.role === "user").length;
     const lastUser = [...messages].reverse().find((m) => m.role === "user")?.text || "";
-    const allUserText = messages.filter((m) => m.role === "user").map((m) => m.text).join(" ");
+    const allUserText = messages
+      .filter((m) => m.role === "user")
+      .map((m) => m.text)
+      .join(" ");
 
     if (hasCrisisRisk(allUserText)) {
       return jsonResponse({
@@ -277,20 +293,32 @@ export const handler = async function (event) {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+    const apiKey =
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.GOOGLE_GEMINI_API_KEY;
+
     if (!apiKey) {
-      return jsonResponse({
-        error: "GEMINI_API_KEY is missing",
-        text: "AI 마음지기 연결 설정이 아직 완료되지 않았습니다. Netlify 환경변수에서 GEMINI_API_KEY를 확인해 주세요.",
-        isComplete: false,
-        promptVersion: PROMPT_VERSION,
-        engine: { mode: "clinical-core", safety: "OK", fallback: "OFF" }
-      }, 503);
+      return jsonResponse(
+        {
+          error: "GEMINI_API_KEY is missing",
+          text: "AI 마음지기 연결 설정이 아직 완료되지 않았습니다. Netlify 환경변수에서 GEMINI_API_KEY를 확인해 주세요.",
+          isComplete: false,
+          promptVersion: PROMPT_VERSION,
+          engine: { mode: "clinical-core", safety: "OK", fallback: "OFF" }
+        },
+        503
+      );
     }
 
     const shouldClose = wantsClosing(lastUser) || minutes >= 15 || userTurns >= 12;
     const prompt = buildPrompt({ messages, minutes, shouldClose });
-    const { text, model } = await callGemini({ apiKey, prompt, maxOutputTokens: shouldClose ? 1600 : 1200 });
+    const { text, model } = await callGemini({
+      apiKey,
+      prompt,
+      maxOutputTokens: shouldClose ? 1600 : 1200
+    });
+
     const finalText = await completeIfNeeded({ apiKey, text });
 
     return jsonResponse({
@@ -298,7 +326,7 @@ export const handler = async function (event) {
       isComplete: shouldClose,
       promptVersion: PROMPT_VERSION,
       engine: {
-        mode: "clinical-core-with-closing",
+        mode: "clinical-core-stable",
         safety: "OK",
         fallback: "OFF",
         model,
@@ -309,12 +337,16 @@ export const handler = async function (event) {
     });
   } catch (error) {
     console.error("[MODUMAM AI] handler error", error.detail || error);
-    return jsonResponse({
-      error: "AI mindjigi handler error",
-      text: "AI 마음지기 연결이 잠시 원활하지 않습니다.\n\n이전처럼 정해진 상담 문장으로 대신 답하지 않겠습니다. 잠시 후 다시 보내 주세요.",
-      isComplete: false,
-      promptVersion: PROMPT_VERSION,
-      engine: { mode: "clinical-core-with-closing", safety: "UNKNOWN", fallback: "OFF" }
-    }, 502);
+
+    return jsonResponse(
+      {
+        error: "AI mindjigi handler error",
+        text: "AI 마음지기 연결이 잠시 원활하지 않습니다.\n\n이전처럼 정해진 상담 문장으로 대신 답하지 않겠습니다. 잠시 후 다시 보내 주세요.",
+        isComplete: false,
+        promptVersion: PROMPT_VERSION,
+        engine: { mode: "clinical-core-stable", safety: "UNKNOWN", fallback: "OFF" }
+      },
+      502
+    );
   }
 };

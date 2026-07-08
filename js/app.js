@@ -331,11 +331,8 @@ async function submitSignup(userData) {
             ]);
             const [aiIntakeInput, setAiIntakeInput] = useState("");
             const [aiIntakeUser, setAiIntakeUser] = useState({
-                name: "",
-                phone: "",
-                email: "",
-                privacyAgree: false
-            });
+                     privacyAgree: false
+         });
             const [aiIntakeReport, setAiIntakeReport] = useState(null);
             const [aiIntakeSessionStart, setAiIntakeSessionStart] = useState(Date.now());
             const [aiIntakeAbuseWarningCount, setAiIntakeAbuseWarningCount] = useState(0);
@@ -379,7 +376,7 @@ const handleAuthSubmit = async (e) => { // async 키워드 추가 필수
         )
         .then((response) => {
             console.log('관리자 메일 발송 성공!', response.status);
-            alert(`${authForm.name}님, 회원가입이 완료되었습니다! AI 마음 상담을 시작합니다.`);
+            alert(`${authForm.name}님, 회원가입이 완료되었습니다! AI 마음상담을 시작합니다.`);
 localStorage.setItem('modumamUser', JSON.stringify({ name: authForm.name, phone: authForm.phone, email: authForm.email, joinedAt: new Date().toLocaleString() }));
 setIsLoggedIn(true);
 setIsAuthModalOpen(false);
@@ -463,7 +460,7 @@ setTimeout(() => {
                 }
 
                 if (!isLoggedIn && !savedUser) {
-                    alert('AI 마음지기 마음 상담은 회원가입 또는 로그인 후 이용할 수 있습니다.');
+                    alert('AI 마음지기 마음상담은 회원가입 또는 로그인 후 이용할 수 있습니다.');
                     setAuthMode('login');
                     setIsAuthModalOpen(true);
                     return;
@@ -811,7 +808,7 @@ setTimeout(() => {
                 if (!aiIntakeInput.trim()) return;
 
                 if (!aiIntakeUser.privacyAgree) {
-                    alert("AI 마음상담 대화 저장 및 이용 안내에 동의 후 시작해 주세요.");
+                    alert("개인정보 수집 및 AI 마음상담 대화 저장에 동의해 주세요");
                     return;
                 }
 
@@ -935,7 +932,7 @@ setTimeout(() => {
 
                 const text = "[모두의 마음연구소 AI 상담 준비 브리핑]\n\n" +
                     aiIntakeReport.empathy + "\n\n" +
-                    "[마음정리]\n" + aiIntakeReport.mindReflection + "\n\n" +
+                    "[마음리포트]\n" + aiIntakeReport.mindReflection + "\n\n" +
                     "[현재 마음 지표]\n" +
                     "- 스트레스 " + barText(aiIntakeReport.scores?.stress || 1) + "\n" +
                     "- 불안 " + barText(aiIntakeReport.scores?.anxiety || 1) + "\n" +
@@ -1062,7 +1059,7 @@ setTimeout(() => {
             ===================================================== */
             const handleMyPageClick = () => {
                 if (!hasPaidAccess) {
-                    alert('마이페이지는 상담 또는 심리검사 신청/결제 후 이용하실 수 있습니다.\n예약 또는 검사 신청 후 이용해 주세요.');
+                    alert('마이페이지는 심리검사 신청 또는 상담을 신청한 회원님을 위한 공간입니다.\n예약 및 일정관리, 심리검사 결과보고서 확인, 상담 진행 내역 등을 한곳에서 편리하게 이용하실 수 있습ㄴ다.');
                     return;
                 }
                 scrollToSection('mypage');
@@ -2313,7 +2310,7 @@ if (userAge === 'parent') {
 
                                 {!isLoggedIn && !currentUser && (
                                     <div className="mt-6 rounded-3xl bg-amber-50 border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                        <p className="text-sm text-amber-900 font-bold">AI 마음 상담과 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
+                                        <p className="text-sm text-amber-900 font-bold">AI 마음상담과 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
                                         <button onClick={() => { setAuthMode('signup'); setIsAuthModalOpen(true); }} className="bg-slate-900 text-white rounded-full px-5 py-3 text-sm font-bold">회원가입하기</button>
                                     </div>
                                 )}
@@ -3382,43 +3379,26 @@ ${paymentInfo.detail}
                                       </button>
                                   </div>
 
-                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 flex-1 overflow-hidden">
-                                      <div className="lg:col-span-1 bg-slate-50 border-r border-slate-100 p-5 overflow-auto">
+                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 flex-1 overflow-y-auto lg:overflow-hidden">
+                                      <div className="lg:col-span-1 bg-slate-50 border-r border-slate-100 p-5 overflow-visible lg:overflow-auto">
                                           <h3 className="text-sm font-extrabold text-slate-900 mb-3">AI 마음상담 이용 동의</h3>
+                                          
+                                          <label className="flex items-start gap-3 bg-white border border-slate-200 rounded-2xl p-4 cursor-pointer">
+    <input
+        type="checkbox"
+        checked={aiIntakeUser.privacyAgree}
+        onChange={(e) =>
+            setAiIntakeUser({
+                privacyAgree: e.target.checked
+            })
+        }
+    />
 
-                                          <input
-                                              value={aiIntakeUser.name}
-                                              onChange={(e) => setAiIntakeUser({ ...aiIntakeUser, name: e.target.value })}
-                                              placeholder="이름"
-                                              className="hidden w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
-                                          />
-
-                                          <input
-                                              value={aiIntakeUser.phone}
-                                              onChange={(e) => setAiIntakeUser({ ...aiIntakeUser, phone: e.target.value })}
-                                              placeholder="연락처"
-                                              className="hidden w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
-                                          />
-
-                                          <input
-                                              value={aiIntakeUser.email}
-                                              onChange={(e) => setAiIntakeUser({ ...aiIntakeUser, email: e.target.value })}
-                                              placeholder="이메일 선택"
-                                              className="hidden w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"
-                                          />
-
-                                          <label className="flex items-start gap-3 bg-white border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed cursor-pointer">
-                                              <input
-                                                  type="checkbox"
-                                                  checked={aiIntakeUser.privacyAgree}
-                                                  onChange={(e) => setAiIntakeUser({ ...aiIntakeUser, privacyAgree: e.target.checked })}
-                                                  className="mt-1"
-                                              />
-                                              <span>
-                                                  개인정보 수집 및 AI 마음 상담 대화 저장에 동의합니다.
-                                                  AI 마음 상담은 진단이 아니며, 상담 전 마음 상태를 이해하기 위한 참고자료입니다.
-                                              </span>
-                                          </label>
+    <span className="text-xs text-slate-600 leading-relaxed">
+        개인정보 수집 및 AI 마음상담 대화 저장에 동의합니다.<br/>
+        AI 마음상담은 진단이 아니며, 현재 마음을 이해하기 위한 참고자료입니다.
+    </span>
+</label>
 
                                           <div className="mt-5 bg-amber-50 border border-amber-100 rounded-2xl p-4">
                                               <p className="text-xs font-bold text-amber-800 mb-2">안전 안내</p>
@@ -3504,7 +3484,7 @@ ${paymentInfo.detail}
 
 필요하실 때 언제든 다시 찾아와 주세요.
 
-조금 더 깊이 자신의 마음을 이해하고 싶다면, 심리검사와 전문가 상담을 통해 함께 이어가겠습니다.</p>
+조금 더 깊이 자신의 마음을 이해하고 싶다면, 심리검사와 전문가 상담을 통해 함께 이어갈 수 있습니다.</p>
 
                                                       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-4">
                                                           <h4 className="text-sm font-extrabold text-amber-800 mb-2">공감 피드백</h4>
@@ -3811,7 +3791,7 @@ ${paymentInfo.detail}
         <div className="relative bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-slate-100 z-10 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-extrabold text-slate-900">
-                    {authMode === 'signup' ? 'AI 마음 상담 회원가입' : '로그인하기'}
+                    {authMode === 'signup' ? 'AI 마음상담 회원가입' : '로그인하기'}
                 </h3>
 
                 <button
@@ -3826,11 +3806,11 @@ ${paymentInfo.detail}
             {authMode === 'signup' && (
                 <div className="mb-5 text-sm text-slate-600 leading-relaxed bg-emerald-50 border border-emerald-100 rounded-xl p-4">
                     <p className="font-semibold text-emerald-700 mb-2">
-                        AI 마음 상담 안내
+                        AI 마음상담 안내
                     </p>
 
                     <p>
-                        AI 마음 상담은 현재의 마음을 보다 깊이 이해하고,
+                        AI 마음상담은 현재의 마음을 보다 깊이 이해하고,
                         필요한 심리검사와 상담 준비를 위한 과정입니다.
                     </p>
 
