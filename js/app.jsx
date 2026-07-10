@@ -325,7 +325,7 @@ async function submitSignup(userData) {
             const [aiIntakeMessages, setAiIntakeMessages] = useState([
                 {
                     role: "ai",
-                    text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n\n오늘은 약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 상담 시간입니다. 정답을 찾기보다, 지금 마음이 보내는 신호를 천천히 살펴보겠습니다.\n\n편한 만큼만 이야기해 주세요. 오늘은 어떤 마음으로 찾아오셨나요?",
+                    text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 상담 시간입니다. 편안한 마음으로 이야기해 주세요.\n오늘 어떤 마음으로 찾아오셨나요?",
                     time: getChatTime()
                 }
             ]);
@@ -445,7 +445,7 @@ setTimeout(() => {
                 setAiIntakeMessages([
                     {
                         role: "ai",
-                        text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n\n오늘은 약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 상담 시간입니다. 정답을 찾기보다, 지금 마음이 보내는 신호를 천천히 살펴보겠습니다.\n\n편한 만큼만 이야기해 주세요. 오늘은 어떤 마음으로 찾아오셨나요?",
+                        text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 상담 시간입니다. 편안한 마음으로 이야기해 주세요\n오늘 어떤 마음으로 찾아오셨나요?",
                         time: getChatTime()
                     }
                 ]);
@@ -460,8 +460,8 @@ setTimeout(() => {
                 }
 
                 if (!isLoggedIn && !savedUser) {
-                    alert('AI 마음지기 마음상담은 회원가입 또는 로그인 후 이용할 수 있습니다.');
-                    setAuthMode('login');
+                    // v28 수정: AI 마음체크는 회원 전용이므로 alert 대신 회원가입/로그인 팝업을 바로 엽니다.
+                    setAuthMode('signup');
                     setIsAuthModalOpen(true);
                     return;
                 }
@@ -527,8 +527,8 @@ setTimeout(() => {
             };
 
             const makeCounselorReply = (userText, nextQuestion, step) => {
-                // v22 HotFix: 규칙 기반 상담 문장을 사용하지 않습니다. 실제 응답은 Gemini 함수에서 생성합니다.
-                return nextQuestion || "AI 마음지기 연결이 잠시 원활하지 않습니다.";
+                // v28 수정: 규칙 기반 상담 문장을 사용하지 않고, Gemini 함수 실패 시에도 연결 오류 문구를 반복하지 않습니다.
+                return nextQuestion || "방금 답변을 안정적으로 완성하지 못했습니다. 같은 내용을 한 번만 다시 보내 주세요.";
             };
 
             const buildAssessmentPurpose = (theme, allText, riskLevel) => {
@@ -706,7 +706,7 @@ setTimeout(() => {
 
                 const guide = riskLevel === "높음"
                     ? "현재 안전 확인이 우선적으로 필요해 보입니다. 지금 당장 스스로를 해칠 위험이 있거나 혼자 있기 어렵다면 112, 119, 자살예방상담전화 109 또는 가까운 응급실의 도움을 즉시 요청해 주세요."
-                    : "AI 마음상담은 진단이 아니라 마음을 함께 이해하기 위한 대화입니다. 필요하다면 심리검사와 전문가 상담을 통해 더 깊이 이어갈 수 있습니다.";
+                    : "AI 마음체크는 진단이 아니라 마음을 함께 이해하기 위한 대화입니다. 보다 정확한 이해를 위해서는 심리검사와 전문가 해석상담을 통해 현재의 마음 패턴, 강점 부분을 함께 살펴보는 것이 도움이 됩니다.";
 
                 const summary = "주호소: " + (mainConcern || "추가 확인 필요") + "\n" +
                     "주요 주제: " + theme.label + "\n" +
@@ -790,13 +790,14 @@ setTimeout(() => {
 
 
            const getLocalMindChatReply = (lastText, messages = []) => {
+                // v28 수정: AI 함수 오류 시 기계적인 상담문을 만들지 않고, 짧은 재시도 안내만 표시합니다.
                 const allText = messages.map((m) => String(m.text || '')).join(' ');
 
                 if (/자살|죽고\s*싶|죽고싶|자해|해치고|사라지고\s*싶|끝내고\s*싶|극단|목숨|유서/.test(allText)) {
                     return "지금은 안전이 가장 중요합니다.\n\n스스로를 해치고 싶거나 당장 안전하지 않다고 느껴진다면, 지금 바로 112, 119, 자살예방상담전화 109 또는 가까운 응급실의 도움을 받아 주세요.\n\n가능하다면 지금 혼자 있지 말고, 곁에 연락할 수 있는 사람에게 바로 알려 주세요.";
                 }
 
-                return "AI 마음지기 연결이 잠시 원활하지 않습니다.\n\n이전처럼 정해진 상담 문장으로 대신 답하지 않겠습니다. 잠시 후 다시 보내 주세요.";
+                return "방금 답변을 안정적으로 완성하지 못했습니다.\n\n같은 내용을 한 번만 다시 보내주시면, 이어서 조심스럽게 듣겠습니다.";
             };
 
             const handleAiIntakeSend = async () => {
@@ -808,7 +809,7 @@ setTimeout(() => {
                 if (!aiIntakeInput.trim()) return;
 
                 if (!aiIntakeUser.privacyAgree) {
-                    alert("개인정보 수집 및 AI 마음상담 대화 저장에 동의해 주세요");
+                    alert("개인정보 수집 및 AI 마음상담 이용에 동의해 주세요");
                     return;
                 }
 
@@ -1052,17 +1053,42 @@ setTimeout(() => {
             };
 
             /* =====================================================
-               마이페이지 접근 안내
-               - 홈페이지에는 무료/유료 회원 구분을 따로 표시하지 않습니다.
-               - 상담 또는 심리검사 신청·결제/예약확정이 확인된 이용자만 마이페이지로 이동합니다.
-               - 조건 변경 위치: hasPaidAccess 계산식
+               [MOD-20260710-001] 마이페이지 접근 안내
+               - 마이페이지는 결제 여부가 아니라 로그인 여부로 접근을 판단합니다.
+               - 회원이면 누구나 마이페이지로 이동할 수 있습니다.
+               - 마음기록/결과확인은 기존처럼 신청·결제 후 열립니다.
             ===================================================== */
             const handleMyPageClick = () => {
-                if (!hasPaidAccess) {
-                    alert('마이페이지는 심리검사 신청 또는 상담을 신청한 회원님을 위한 공간입니다.\n예약 및 일정관리, 심리검사 결과보고서 확인, 상담 진행 내역 등을 한곳에서 편리하게 이용하실 수 있습ㄴ다.');
+                let savedUser = null;
+                try {
+                    savedUser = JSON.parse(localStorage.getItem('modumamUser') || 'null');
+                } catch (e) {
+                    savedUser = null;
+                }
+
+                if (!isLoggedIn && !savedUser) {
+                    setAuthMode('login');
+                    setIsAuthModalOpen(true);
                     return;
                 }
+
                 scrollToSection('mypage');
+            };
+
+            /* =====================================================
+               [MOD-v1.1.0-001] 로그아웃 처리
+               - 저장된 회원 정보를 삭제하고 화면을 비회원 상태로 되돌립니다.
+               - AI 마음체크 창과 모바일 메뉴를 함께 닫습니다.
+            ===================================================== */
+            const handleLogout = () => {
+                localStorage.removeItem('modumamUser');
+                setIsLoggedIn(false);
+                setAuthForm({ name: '', phone: '', email: '', password: '' });
+                setIsMobileMenuOpen(false);
+                setIsAiIntakeOpen(false);
+                setAiIntakeReport(null);
+                alert('로그아웃되었습니다.');
+                setTimeout(() => scrollToSection('home'), 80);
             };
 
             const openAdminLogin = () => {
@@ -1447,8 +1473,8 @@ const psychTests = [
     id: 'p1',
     badge: 'AI 마음 상담 + 전문가 상담',
     title: '개인 마음이음',
-    subtitle: '나를 이해하는 심리검사와 마음치유 해석상담',
-    desc: '현재의 마음을 이해하고 반복되는 고민의 원인을 함께 찾아갑니다. 검사 결과를 바탕으로 전문 상담사가 나에게 맞는 방향을 제안합니다.',
+    subtitle: '나를 이해하는 심리검사와 해석상담',
+    desc: '심리검사를 통해 현재의 마음을 이해하고, 반복되는 고민의 원인을 함께 살펴보며 자신에게 맞는 변화와 성장의 방향을 찾아갑니다.',
     target: '✔ 나를 더 이해하고 싶은 분\n✔ 우울·불안·스트레스를 겪는 분\n✔ 진로 방향을 고민하는 분\n✔ 직장 내 스트레스와 소진을 겪는 분',
     test: 'TCI · MMPI-2 · 진로검사 · 직무스트레스 · 회복탄력성 등 맞춤 선택',
     time: '약 50분',
@@ -1458,8 +1484,8 @@ const psychTests = [
     id: 'p5',
     badge: 'AI 마음 상담 + 전문가 상담',
     title: '부부 마음이음',
-    subtitle: '서로를 이해하는 심리검사와 관계를 회복하는 해석상담',
-    desc: '두 사람의 기질과 성격을 이해하는 심리검사를 통해 서로의 갈등의 원인을 찾아 서로를 이해하고 건강한 관계 회복을 돕습니다.',
+    subtitle: '서로를 이해하는 심리검사와 해석상담',
+    desc: '심리검사를 통해 서로의 기질과 성격을 이해하고, 공감과 더 건강한 소통으로 행복한 관계를 만들어갑니다.',
     target: '✔ 서로를 이해하고 싶은 부부\n✔ 반복되는 갈등이 있는 부부\n✔ 관계를 회복하고 싶은 부부',
     test: '(J)TCI × 2',
     time: '약 80분',
@@ -1469,8 +1495,8 @@ const psychTests = [
     id: 'p3',
     badge: 'AI 마음 상담 + 전문가 상담',
     title: '부모-자녀 마음이음',
-    subtitle: '아이 발달과 기질을 이해하는 심리검사와 건강한 양육을 위한 양육상담',
-    desc: '부모의 양육태도와 자녀의 발달 특성을 함께 살펴, 부모와 자녀를 통합적으로 이해하고 건강한 관계와 양육 방향을 찾아갑니다.',
+    subtitle: '아이의 행동관찰과 심리검사 기반 양육상담',
+    desc: '부모의 양육태도와 자녀의 발달 특성을 이해하고, 건강한 양육과 부모·자녀 관계 형성을 돕습니다.',
     target: '✔ 아이를 더 이해하고 싶은 부모\n✔ 양육이 어려운 부모\n✔ 부모-자녀 갈등을 해결하고 싶은 가족',
     test: 'PAT · KCDI (기본) · STS (필요 시 부모 TCI)',
     time: '약 80분 (행동관찰 포함)',
@@ -1519,7 +1545,7 @@ const psychTests = [
     mindState,
     mindPunctuation,
     aiRole: "Modumam Lab 상담 접수를 담당하는 AI 마음지기",
-    aiPurpose: "AI 마음리포트와 AI 마음상담을 통해 마음을 이해하고 현재의 마음을 정리하며, 필요한 경우 심리검사를 추천합니다. 진단이나 최종 해석은 하지 않습니다.",
+    aiPurpose: "AI 마음리포트와 AI 마음체크를 통해 마음을 이해하고 현재의 마음을 정리하며, 필요한 경우 심리검사를 추천합니다. 진단이나 최종 해석은 하지 않습니다.",
     expertRole: "심리검사 최종 해석과 상담은 국가기술자격 임상심리사 1급이 진행합니다."
 })
     })
@@ -1797,10 +1823,9 @@ if (userAge === 'parent') {
 };
 
             /* =====================================================
-               마이페이지 이용 권한 판단
-               - 홈페이지에는 무료/유료 회원 구분을 표시하지 않습니다.
-               - 상담 또는 심리검사 신청·결제/예약확정이 확인되면 마이페이지가 열립니다.
-               수정 위치: 권한 기준을 바꾸려면 hasPaidAccess 계산식 수정
+               [MOD-20260710-002] 마이페이지 이용 권한 판단
+               - 마이페이지 접근 권한은 로그인 여부로 판단합니다.
+               - hasPaidAccess는 마음기록/결과확인 등 결제 후 기능 잠금에만 사용합니다.
             ===================================================== */
             let currentUser = null;
             try {
@@ -1938,6 +1963,44 @@ if (userAge === 'parent') {
         </div>
 
         <nav className="hidden md:flex space-x-8 items-center">
+            {/* [MOD-v1.1.0-002] PC 회원 메뉴: 로그인 전 회원가입|로그인, 로그인 후 이름|로그아웃 */}
+            <div className="flex items-center gap-2 text-sm font-bold whitespace-nowrap">
+                {isLoggedIn || currentUser ? (
+                    <>
+                        <span className="flex items-center gap-2 text-slate-700">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>
+                            <span>{currentUser?.name || authForm.name || '회원'}님</span>
+                        </span>
+                        <span className="text-slate-300">|</span>
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="text-slate-500 hover:text-rose-500 transition-colors"
+                        >
+                            로그아웃
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => { setAuthMode('signup'); setIsAuthModalOpen(true); }}
+                            className="text-slate-600 hover:text-emerald-600 transition-colors"
+                        >
+                            회원가입
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                            type="button"
+                            onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }}
+                            className="text-slate-600 hover:text-slate-900 transition-colors"
+                        >
+                            로그인
+                        </button>
+                    </>
+                )}
+            </div>
+
             <button onClick={() => scrollToSection('home')} className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
                 마음연구
             </button>
@@ -1954,12 +2017,15 @@ if (userAge === 'parent') {
                 onClick={() => scrollToSection('reservations')}
                 className="text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors"
             >
-                심리검사 예약
+                검사예약
             </button>
 
-            <button onClick={handleMyPageClick} className="bg-slate-900 text-white px-6 py-2.5 rounded-full hover:bg-slate-800 hover:scale-105 transition-all shadow-md shadow-slate-100 text-sm font-bold">
-                마이페이지
-            </button>
+            {/* [MOD-v1.1.4-001] 마이페이지 메뉴는 로그인한 회원에게만 표시 */}
+            {(isLoggedIn || currentUser) && (
+                <button onClick={handleMyPageClick} className="bg-slate-900 text-white px-6 py-2.5 rounded-full hover:bg-slate-800 hover:scale-105 transition-all shadow-md shadow-slate-100 text-sm font-bold">
+                    마이페이지
+                </button>
+            )}
 
             {/* 관리자 버튼은 개인정보 보호를 위해 홈페이지 화면에서 숨김 처리했습니다.
                 관리자 접속 주소: /admin/index.html */}
@@ -1967,6 +2033,10 @@ if (userAge === 'parent') {
         </nav>
 
         <div className="md:hidden flex items-center gap-2">
+            {/* [MOD-v1.1.0-003] 모바일 회원 상태 표시 */}
+            <span className={`text-[10px] font-extrabold rounded-full px-2.5 py-1 border ${isLoggedIn || currentUser ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                {isLoggedIn || currentUser ? `● ${currentUser?.name || authForm.name || '회원'}님` : '로그인 필요'}
+            </span>
             <button
                 onClick={() => setIsMobileMenuOpen(prev => !prev)}
                 className="bg-slate-950 text-white px-4 py-2 rounded-full text-xs font-extrabold shadow-sm"
@@ -1982,12 +2052,47 @@ if (userAge === 'parent') {
 
     {isMobileMenuOpen && (
         <div className="md:hidden border-t border-slate-100 bg-white/95 backdrop-blur-xl shadow-lg">
-            <div className="px-4 py-4 grid grid-cols-3 gap-2 text-center text-[11px] font-extrabold">
+            <div className="px-4 pt-4 text-center">
+                {/* [MOD-v1.1.0-004] 모바일 메뉴 회원가입/로그인/로그아웃 */}
+                <div className={`mb-3 rounded-2xl border px-3 py-2 text-xs font-extrabold ${isLoggedIn || currentUser ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                    {isLoggedIn || currentUser ? `${currentUser?.name || authForm.name || '회원'}님 로그인 중` : '로그인 후 이용할 수 있습니다'}
+                </div>
+                {isLoggedIn || currentUser ? (
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="mb-3 w-full rounded-2xl border border-rose-100 bg-white px-3 py-2 text-xs font-extrabold text-rose-500"
+                    >
+                        로그아웃
+                    </button>
+                ) : (
+                    <div className="mb-3 grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { setIsMobileMenuOpen(false); setAuthMode('signup'); setIsAuthModalOpen(true); }}
+                            className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700"
+                        >
+                            회원가입
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setIsMobileMenuOpen(false); setAuthMode('login'); setIsAuthModalOpen(true); }}
+                            className="rounded-2xl border border-slate-100 bg-white px-3 py-2 text-xs font-extrabold text-slate-700"
+                        >
+                            로그인
+                        </button>
+                    </div>
+                )}
+            </div>
+            <div className="px-4 pb-4 grid grid-cols-3 gap-2 text-center text-[11px] font-extrabold">
                 <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('home'); }} className="rounded-2xl border border-slate-100 bg-slate-50 px-2 py-3 text-slate-700">마음연구</button>
                 <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('mind-care'); }} className="rounded-2xl border border-emerald-100 bg-emerald-50 px-2 py-3 text-emerald-700">AI 마음상담</button>
                 <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('tests'); }} className="rounded-2xl border border-indigo-100 bg-indigo-50 px-2 py-3 text-indigo-700">심리검사</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reservations'); }} className="rounded-2xl border border-slate-200 bg-slate-900 px-2 py-3 text-white">심리검사 예약</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }} className="rounded-2xl border border-emerald-200 bg-emerald-700 px-2 py-3 text-white">마이페이지</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reservations'); }} className="rounded-2xl border border-slate-200 bg-slate-900 px-2 py-3 text-white">검사예약</button>
+                {/* [MOD-v1.1.4-002] 모바일 마이페이지도 로그인한 회원에게만 표시 */}
+                {(isLoggedIn || currentUser) && (
+                    <button onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }} className="rounded-2xl border border-emerald-200 bg-emerald-700 px-2 py-3 text-white">마이페이지</button>
+                )}
             </div>
         </div>
     )}
@@ -2014,7 +2119,7 @@ if (userAge === 'parent') {
                                 </ul>
                                 <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-end">
                                     <button onClick={() => setSelectedPunctuation('all')} className="px-5 py-3 rounded-full bg-white border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50">닫기</button>
-                                    <button onClick={() => { setSelectedPunctuation('all'); scrollToSection('mind-care'); }} className="px-5 py-3 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">AI 마음상담으로 이동</button>
+                                    <button onClick={() => { setSelectedPunctuation('all'); scrollToSection('mind-care'); }} className="px-5 py-3 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">AI 마음체크로 이동</button>
                                 </div>
                             </div>
                         </div>
@@ -2091,7 +2196,7 @@ if (userAge === 'parent') {
     <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
             <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
-                AI 마음상담
+                무료 AI 마음상담
             </span>
 
             <h2 className="text-3xl font-extrabold text-slate-900">
@@ -2099,16 +2204,16 @@ if (userAge === 'parent') {
             </h2>
 
             <p className="mt-4 text-slate-500 text-sm sm:text-base leading-relaxed">
-                AI가 분석한 무료 마음리포트를 받아보세요.
-                <br />
-                모두의 마음연구소 AI 마음상담이 궁금하시면, AI 마음상담을 통해 이야기를 이어가세요.
+               모두의 마음연구소 AI 마음상담은 AI 마음리포트와 AI 마음체크를 통해 마음을 이해하고 알아차릴 수 있도록 돕습니다.
+               <br />
+               AI 마음리포트로 지금의 마음을 살펴보고, AI 마음체크에서 AI 마음지기와의 채팅형 대화를 이어가 보세요.
             </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden h-full flex flex-col">
                                     <div className="p-6 sm:p-10 h-full flex flex-col">
-                                        <span className="inline-block self-start text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-4">무료 AI 마음리포트</span>
+                                        <span className="inline-block self-start text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-4">AI 마음리포트</span>
 
                                         <div className="mb-7">
                                             <label className="block text-sm font-bold text-slate-700 mb-3">
@@ -2244,18 +2349,18 @@ if (userAge === 'parent') {
                                     )}
                                 </div>
             <div className="bg-white rounded-3xl border border-amber-100 p-6 sm:p-8 shadow-xl h-full flex flex-col">
-                <span className="inline-block text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full mb-4">회원 전용 AI 마음상담</span>
+                <span className="inline-block text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full mb-4">AI 마음상담</span>
                 <h3 className="text-2xl font-extrabold text-slate-900 leading-tight mb-4">AI 마음 체크</h3>
                 <p className="text-sm text-slate-600 leading-relaxed mb-6">
                     마음리포트 이후 더 깊게 이야기하고 싶을 때 이어지는 채팅형 상담입니다. 모두의 마음연구소 AI 마음지기와 자연스럽게 대화를 이어가고, 마음을 이해하는 시간을 가져보세요.
                 </p>
                 <div className="space-y-3 mb-6">
-                    <div className="bg-amber-50 rounded-2xl p-4"><p className="font-bold text-amber-800 text-sm">1. 로그인 또는 회원가입</p><p className="text-xs text-slate-500 mt-1">마음상담은 기록 보호를 위해 회원 전용입니다.</p></div>
+                    <div className="bg-amber-50 rounded-2xl p-4"><p className="font-bold text-amber-800 text-sm">1. 로그인 또는 회원가입</p><p className="text-xs text-slate-500 mt-1">마음체크는 회원 전용입니다. 이용하기 위해 로그인 또는 회원가입이 필요합니다.</p></div>
                     <div className="bg-slate-50 rounded-2xl p-4"><p className="font-bold text-slate-900 text-sm">2. 10~15분 자연스러운 대화</p><p className="text-xs text-slate-500 mt-1">질문지처럼 묻지 않고, 현재 고민을 따라갑니다.</p></div>
-                    <div className="bg-emerald-50 rounded-2xl p-4"><p className="font-bold text-emerald-800 text-sm">3. 마음정리 + 심리검사 추천</p><p className="text-xs text-slate-500 mt-1">대화의 마지막에만 필요한 검사와 추천 이유를 안내합니다.</p></div>
+                    <div className="bg-emerald-50 rounded-2xl p-4"><p className="font-bold text-emerald-800 text-sm">3. 마음정리 + 심리검사 추천</p><p className="text-xs text-slate-500 mt-1">마음 정리와 함께 필요한 검사와 추천 이유를 안내합니다.</p></div>
                 </div>
                 <button type="button" onClick={openAiIntakeChat} className="mt-auto w-full h-[54px] bg-slate-900 hover:bg-slate-800 text-white px-7 rounded-2xl text-sm font-extrabold shadow-lg">
-                    AI 마음상담 시작하기
+                    AI 마음체크 시작하기
                 </button>
                 <p className="mt-4 text-center text-xs text-slate-400 font-medium leading-relaxed">※ 회원 가입 또는 로그인 후 이용할 수 있습니다.</p>
             </div>
@@ -2269,7 +2374,14 @@ if (userAge === 'parent') {
                            - 사용자는 여기서 현재 단계만 확인
                            - 결제/예약 확정 후 유료 기능 자동 활성화
                         ===================================================== */}
-                        <section id="mypage" style={{display:'none'}} className="py-20 px-4 sm:px-6 lg:px-8 bg-white border-y border-slate-100">
+                        {/* =====================================================
+                           [MOD-v1.1.4-003] 비회원 마이페이지 화면 숨김
+                           - 마이페이지 메뉴와 섹션은 로그인한 회원에게만 렌더링합니다.
+                           - 비회원은 헤더/모바일 메뉴에서도 마이페이지가 보이지 않으므로
+                             빈 마이페이지 안내 화면이 노출되지 않습니다.
+                        ===================================================== */}
+                        {(isLoggedIn || currentUser) && (
+                        <section id="mypage" className="py-20 px-4 sm:px-6 lg:px-8 bg-white border-y border-slate-100">
                             <div className="max-w-6xl mx-auto">
                                 <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 mb-8">
                                     <div>
@@ -2278,21 +2390,22 @@ if (userAge === 'parent') {
                                         </span>
                                         <h2 className="text-3xl font-extrabold text-slate-900">마이페이지</h2>
                                         <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-                                            상담 또는 심리검사 신청 후 필요한 준비와 결과를 한곳에서 확인합니다.
+                                            회원님의 마음체크, 예약 진행상황, 마음기록과 결과확인 단계를 한곳에서 확인합니다.
                                         </p>
                                     </div>
                                     <div className="rounded-3xl bg-slate-900 text-white px-6 py-5 min-w-[220px] shadow-lg">
                                         <p className="text-xs text-slate-300 font-bold">내 마음 공간</p>
-                                        <p className="text-2xl font-extrabold mt-1">{hasPaidAccess ? '이용 가능' : '신청 후 이용'}</p>
-                                        <p className="text-xs text-slate-400 mt-2">{currentUser?.name ? `${currentUser.name}님` : '로그인 후 확인'}</p>
+                                        <p className="text-2xl font-extrabold mt-1">{isLoggedIn || currentUser ? '회원 공간' : '로그인 필요'}</p>
+                                        <p className="text-xs text-slate-400 mt-2">{currentUser?.name ? `${currentUser.name}님` : '로그인 확인'}</p>
                                     </div>
                                 </div>
 
-                                {!hasPaidAccess && (
-                                    <div className="mb-6 rounded-3xl bg-amber-50 border border-amber-100 p-5 text-sm text-amber-900 leading-relaxed">
-                                        마이페이지는 심리검사 신청/결제 후 이용하실 수 있는 공간입니다.
+                                {/* [MOD-20260710-006] 마이페이지는 회원이면 접근 가능하도록 안내 문구 수정 */}
+                                {isLoggedIn || currentUser ? (
+                                    <div className="mb-6 rounded-3xl bg-emerald-50 border border-emerald-100 p-5 text-sm text-emerald-900 leading-relaxed">
+                                        마이페이지에 오신 것을 환영합니다. 마음기록과 결과확인은 심리검사 신청·결제 후 순차적으로 열립니다.
                                     </div>
-                                )}
+                                ) : null}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {myPageSteps.map((step) => (
@@ -2310,12 +2423,13 @@ if (userAge === 'parent') {
 
                                 {!isLoggedIn && !currentUser && (
                                     <div className="mt-6 rounded-3xl bg-amber-50 border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                        <p className="text-sm text-amber-900 font-bold">AI 마음상담과 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
+                                        <p className="text-sm text-amber-900 font-bold">AI 마음체크 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
                                         <button onClick={() => { setAuthMode('signup'); setIsAuthModalOpen(true); }} className="bg-slate-900 text-white rounded-full px-5 py-3 text-sm font-bold">회원가입하기</button>
                                     </div>
                                 )}
                             </div>
                         </section>
+                        )}
 
                         <section id="mind-records" style={{display:'none'}} className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
                             <div className="max-w-5xl mx-auto">
@@ -2352,7 +2466,7 @@ if (userAge === 'parent') {
                                     </div>
                                 ) : mindRecords.length === 0 ? (
                                     <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-400">
-                                        아직 저장된 마음기록이 없습니다. ‘AI 마음상담’에서 마음리포트를 받아보세요.
+                                        아직 저장된 마음기록이 없습니다. ‘AI 마음상담’에서 마음리포트 또는 AI 마음체크를 이용해 보세요.
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -2406,7 +2520,7 @@ if (userAge === 'parent') {
                                                 </span>
                                                 <h3 className="text-2xl font-extrabold text-slate-900 flex items-center">
                                                     <Icon name="help-circle" className="w-5 h-5 mr-2 text-indigo-500 shrink-0" />
-                                                    나에게 꼭 필요한 검사는 뭘까요?
+                                                    나에게 필요한 검사는 뭘까요?
                                                 </h3>
                                                 <p className="text-sm text-slate-500 mt-2">
                                                     대상과 고민을 선택하면 적합한 검사 조합을 추천해드립니다.
@@ -3381,7 +3495,7 @@ ${paymentInfo.detail}
 
                                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 flex-1 overflow-y-auto lg:overflow-hidden">
                                       <div className="lg:col-span-1 bg-slate-50 border-r border-slate-100 p-5 overflow-visible lg:overflow-auto">
-                                          <h3 className="text-sm font-extrabold text-slate-900 mb-3">AI 마음상담 이용 동의</h3>
+                                          <h3 className="text-sm font-extrabold text-slate-900 mb-3">AI 마음체크 이용 동의</h3>
                                           
                                           <label className="flex items-start gap-3 bg-white border border-slate-200 rounded-2xl p-4 cursor-pointer">
     <input
@@ -3395,8 +3509,8 @@ ${paymentInfo.detail}
     />
 
     <span className="text-xs text-slate-600 leading-relaxed">
-        개인정보 수집 및 AI 마음상담 대화 저장에 동의합니다.<br/>
-        AI 마음상담은 진단이 아니며, 현재 마음을 이해하기 위한 참고자료입니다.
+        개인정보 수집 및 AI 마음체크 대화 저장에 동의합니다.<br/>
+        AI 마음체크는 진단이 아니며, 현재 마음을 이해하기 위한 참고자료입니다.
     </span>
 </label>
 
@@ -3480,11 +3594,9 @@ ${paymentInfo.detail}
                                                       </h3>
                                                       <p className="text-sm text-slate-600 leading-relaxed mb-5 whitespace-pre-line">오늘 소중한 이야기를 들려주셔서 감사합니다.
 
-지금의 마음을 이해하는 첫걸음을 함께 내디뎠습니다.
-
-필요하실 때 언제든 다시 찾아와 주세요.
-
-조금 더 깊이 자신의 마음을 이해하고 싶다면, 심리검사와 전문가 상담을 통해 함께 이어갈 수 있습니다.</p>
+                                                          지금의 마음을 이해하는 첫걸음을 함께 내디뎠습니다.
+                                                          필요하실 때 언제든 다시 찾아와 주세요.
+                                                          조금 더 깊이 자신의 마음을 이해하고 싶다면, 심리검사와 전문가 상담을 통해 함께 이어갈 수 있습니다.</p>
 
                                                       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-4">
                                                           <h4 className="text-sm font-extrabold text-amber-800 mb-2">공감 피드백</h4>
@@ -3791,7 +3903,8 @@ ${paymentInfo.detail}
         <div className="relative bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-slate-100 z-10 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-extrabold text-slate-900">
-                    {authMode === 'signup' ? 'AI 마음상담 회원가입' : '로그인하기'}
+                    {/* v28 수정: AI 마음체크 이용 흐름이 드러나도록 회원가입/로그인 팝업 제목 정리 */}
+                    {authMode === 'signup' ? 'AI 마음체크 회원가입' : 'AI 마음체크 로그인'}
                 </h3>
 
                 <button
@@ -3803,14 +3916,23 @@ ${paymentInfo.detail}
                 </button>
             </div>
 
+            {/* v28 수정: AI 마음체크 이용 시 회원가입 또는 로그인이 필요하다는 안내를 팝업 안에서 먼저 보여줍니다. */}
+            <div className="mb-5 text-sm text-slate-600 leading-relaxed bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                <p className="font-semibold text-indigo-700 mb-2">AI 마음체크 이용 안내</p>
+                <p>
+                    AI 마음체크는 AI 마음지기와 채팅형 대화를 통해 현재의 마음을 더 깊이 이해하는 공간입니다.
+                    이용을 위해 회원가입 또는 로그인을 진행해 주세요.
+                </p>
+            </div>
+
             {authMode === 'signup' && (
                 <div className="mb-5 text-sm text-slate-600 leading-relaxed bg-emerald-50 border border-emerald-100 rounded-xl p-4">
                     <p className="font-semibold text-emerald-700 mb-2">
-                        AI 마음상담 안내
+                        AI 마음체크 안내
                     </p>
 
                     <p>
-                        AI 마음상담은 현재의 마음을 보다 깊이 이해하고,
+                        AI 마음체크는 현재의 마음을 보다 깊이 이해하고,
                         필요한 심리검사와 상담 준비를 위한 과정입니다.
                     </p>
 
@@ -3886,7 +4008,7 @@ ${paymentInfo.detail}
                         </p>
 
                         <p className="mt-2">
-                            이용 목적: AI 마음이해, AI 마음 상담, 심리검사 추천,
+                            이용 목적: AI 마음이해, AI 마음상담, 심리검사 추천,
                             심리검사 예약 및 상담 서비스 제공
                         </p>
 

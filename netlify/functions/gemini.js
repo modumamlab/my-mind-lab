@@ -4,6 +4,8 @@ export const handler = async (event) => {
 
     const apiKey = process.env.GEMINI_API_KEY;
 
+    console.log("GEMINI_API_KEY =", apiKey);
+
     if (!apiKey) {
       return {
         statusCode: 200,
@@ -12,7 +14,6 @@ export const handler = async (event) => {
         })
       };
     }
-
     const prompt = `
 당신은 '모두의 마음연구소'의 AI 마음지기입니다.
 

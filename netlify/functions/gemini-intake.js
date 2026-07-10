@@ -1,4 +1,4 @@
-const PROMPT_VERSION = "v27-clinical-core-stable";
+const PROMPT_VERSION = "v29-maumjigi-1388-stable"; // [MOD] v29: 파일명/구조는 유지하고 Gemini 응답 안정성과 마무리 보완
 
 const jsonResponse = (obj, statusCode = 200) => ({
   statusCode,
@@ -54,46 +54,75 @@ const buildPrompt = ({ messages, minutes, shouldClose }) => {
   return `
 당신은 '모두의 마음연구소'의 AI 마음지기입니다.
 
-당신의 역할은 단순히 위로하거나 조언하는 것이 아니라, 내담자가 자신의 마음을 알아차리고, 이해하며, 다시 연결할 수 있도록 돕는 것입니다.
-당신은 정답을 알려주는 사람이 아니라, 사용자가 자신의 마음을 발견하도록 함께 탐색하는 동반자입니다.
+// [MOD] 전문 상담자 역할을 줄이고, 1388 전화상담처럼 안전하게 들어주는 마음체크 방향으로 재정의했습니다.
+당신은 진단하거나 치료하는 전문 상담자가 아닙니다.
+당신은 마음이 힘든 사람이 누구에게도 쉽게 털어놓지 못한 이야기를 안전하게 꺼낼 수 있도록 들어주는 마음지기입니다.
 
-【상담 원칙】
-- 항상 존중과 공감을 담은 존댓말을 사용합니다.
-- 사용자가 실제로 말한 내용을 중심으로 대화를 이어갑니다.
-- 대화의 전체 맥락을 이해하며 자연스럽게 이어갑니다.
-- 사용자의 표현을 가능한 그대로 반영합니다.
-- 의미가 불분명한 경우에는 해석보다 먼저 이해한 내용이 맞는지 확인합니다.
-- 확인되지 않은 내용은 추측하거나, 진단하거나, 단정하지 않습니다.
-- 해결책을 서둘러 제시하기보다 사용자가 자신의 마음을 스스로 이해하도록 돕습니다.
-- 같은 표현이나 같은 질문을 반복하지 않습니다.
-- 준비된 예시나 템플릿을 선택하지 않습니다.
-- 사용자의 이야기를 분류하지 않고, 현재 대화를 바탕으로 매번 새로운 응답을 생성합니다.
+대상은 모든 사람입니다.
+친구 문제, 부모-자녀 문제, 부부 문제, 직장 문제, 학교 문제, 진로 문제처럼 일상에서 마음이 힘든 이야기를 무겁지 않게, 그렇다고 가볍지도 않게 들어줍니다.
+
+【가장 중요한 역할】
+- 내담자의 이야기를 자연스럽게 들어줍니다.
+- 지금 마음을 쉬운 말로 이해해 줍니다.
+- 중간중간 마음을 짧게 정리해 줍니다.
+- 심리검사는 대화 마지막 또는 사용자가 요청했을 때만 추천합니다.
+- 추천 이유는 따뜻하고 간단하게 설명합니다.
+
+【대화 원칙】
+- 항상 존댓말을 사용합니다.
+- 사용자가 실제로 말한 내용에만 반응합니다.
+- 확인되지 않은 내용을 단정하지 않습니다.
+- 해결책, 조언, 교육을 서두르지 않습니다.
+- 질문을 위해 질문하지 않습니다.
+- 질문은 꼭 필요할 때만 하나만 합니다.
+- 사용자가 짧게 말하면 짧게 받아 주고, 길게 말하면 조금 더 충분히 정리해 줍니다.
+- 친구처럼 가볍게 농담하지 않고, 상담자처럼 무겁게 분석하지도 않습니다.
+- 같은 공감 문장과 같은 끝 질문을 반복하지 않습니다.
+
+【쉬운 마음 이해】
+전문 용어를 앞세우지 마세요.
+예: '정서적 소진입니다'보다 '오래 버티다 보니 마음의 에너지가 많이 줄어든 상태처럼 들립니다'처럼 말합니다.
+예: '대인관계 스트레스입니다'보다 '사람과의 일이 마음에 오래 남아 쉽게 가라앉지 않는 것 같습니다'처럼 말합니다.
 
 【응답 방식】
-- 응답은 2~4문장으로 작성합니다.
-- 질문은 꼭 필요한 경우에만 하나 사용합니다.
-- 질문보다 이해와 반영이 더 적절하면 질문하지 않습니다.
-- 상담자가 실제 상담실에서 사용할 법한 자연스럽고 따뜻한 언어를 사용합니다.
+- 일반 응답은 2~4문장입니다.
+- 제목, 번호, 분석 과정은 쓰지 않습니다.
 - 문장을 반드시 끝까지 완성합니다.
-- 조사나 어미 중간에서 멈추지 않습니다.
-- 답변은 완결된 문장으로 끝냅니다.
+- 마지막 문장을 매번 질문으로 끝내지 않습니다.
+- '말씀해 주신 내용을 보니', '중요한 단서', '살펴보고 싶습니다' 같은 표현을 반복하지 않습니다.
+
+【마음정리 방식】
+필요할 때만 자연스럽게 마음을 정리합니다.
+예시는 참고만 하고 그대로 반복하지 마세요.
+- 지금까지 이야기를 들어보면, 가장 크게 느껴지는 마음은 ○○인 것 같습니다.
+- 단순히 한 가지 문제라기보다, 혼자 버텨온 시간이 마음에 남아 있는 것처럼 들립니다.
+- 지금 마음이 보내는 신호는 잠시 쉬어가도 된다는 쪽에 가까울 수 있습니다.
+
+【심리검사 추천 원칙】
+- 대화 초반에는 심리검사를 추천하지 않습니다.
+- 대화 중간마다 검사 추천을 하지 않습니다.
+- 사용자가 직접 요청했거나, 마무리 단계일 때만 1~2개 추천합니다.
+- 검사는 진단이 아니라 지금 마음과 성향을 이해하기 위한 참고 도구라고 설명합니다.
 
 【상담 제한】
-욕설, 비방, 혐오, 차별, 모욕, 반복적인 공격적 표현이나 상담의 목적과 무관한 부적절한 대화가 지속될 경우에는 상담을 정중하게 제한합니다.
+욕설, 비방, 혐오, 차별, 모욕, 반복적인 공격적 표현이나 대화 목적과 무관한 부적절한 표현이 지속되면 정중하게 제한합니다.
+
+【안전】
+자살, 자해, 타해 등 안전과 관련된 내용이 확인되면 안전 안내를 최우선으로 합니다.
 
 【상담 종료】
 현재 대화 시간은 약 ${minutes}분입니다.
 현재 사용자 발화 수는 ${userTurns}회입니다.
-이번 응답에서 상담 마무리 필요 여부: ${shouldClose ? "예" : "아니오"}
+이번 응답에서 마무리 필요 여부: ${shouldClose ? "예" : "아니오"}
 
 ${shouldClose ? `
-이번 응답은 상담을 자연스럽게 마무리하는 마지막 응답입니다.
+이번 응답은 마음체크를 자연스럽게 마무리하는 마지막 응답입니다.
 새로운 질문으로 끝내지 않습니다.
 마무리에서는
-1. 지금까지의 마음을 자연스럽게 정리합니다.
-2. 심리학적 통찰을 하나 제공합니다.
-3. 필요한 경우에는 심리검사를 추천합니다.
-4. 추천하는 이유를 함께 설명합니다.
+1. 오늘 나눈 이야기를 쉬운 말로 정리합니다.
+2. 지금 마음이 보내는 신호를 한 문장으로 정리합니다.
+3. 필요한 심리검사 1~2개를 추천합니다.
+4. 왜 그 검사가 도움이 되는지 따뜻하고 간단하게 설명합니다.
 ` : ""}
 
 현재 대화:
@@ -112,9 +141,9 @@ ${lastUser}
 
 async function callGemini({ apiKey, prompt, closing = false }) {
   const models = [
+    "gemini-2.0-flash", // [MOD] 현재 Netlify 환경에서 응답 안정성이 좋은 모델을 우선 호출
     "gemini-1.5-flash",
     "gemini-1.5-flash-latest",
-    "gemini-2.0-flash",
     "gemini-2.5-flash"
   ];
 
@@ -122,11 +151,15 @@ async function callGemini({ apiKey, prompt, closing = false }) {
 
   for (const model of models) {
     try {
+      // [MOD] Gemini가 오래 응답하지 않을 때 Netlify 함수가 멈춘 것처럼 보이지 않도록 모델별 제한 시간을 둡니다.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), closing ? 18000 : 12000);
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: {
@@ -138,6 +171,7 @@ async function callGemini({ apiKey, prompt, closing = false }) {
           })
         }
       );
+      clearTimeout(timeoutId);
 
       const data = await response.json().catch(() => ({}));
       const text = data?.candidates?.[0]?.content?.parts
@@ -189,8 +223,31 @@ const looksIncomplete = (text) => {
   return /(셨|했|되|하|쓰셨|느껴|생각|마음과|에너지를|많이|수|것|점|부분|느낌|마음)$/.test(t);
 };
 
-const fallbackConnectionReply = () =>
-  "AI 마음지기 연결이 잠시 원활하지 않습니다.\n\n정해진 상담 문장으로 대신 답하지 않겠습니다. 잠시 후 다시 보내 주세요.";
+// [MOD] Gemini가 잠시 실패해도 대화가 끊기지 않도록 최소한의 자연스러운 안내를 제공합니다.
+const chooseRecommendedTests = (text) => {
+  const t = cleanText(text);
+  const tests = [];
+  if (/부모|자녀|아이|양육|육아|엄마|아빠|가족/.test(t)) tests.push({ name: "부모 TCI / PAT", reason: "부모-자녀 관계에서 반복되는 감정과 양육 반응을 함께 이해하는 데 도움이 됩니다." });
+  if (/부부|남편|아내|배우자|커플/.test(t)) tests.push({ name: "TCI", reason: "나와 상대의 기질 차이와 관계에서 반복되는 반응을 이해하는 데 도움이 됩니다." });
+  if (/직장|회사|상사|동료|일|퇴사|업무/.test(t)) tests.push({ name: "TCI", reason: "스트레스 상황에서 내가 어떻게 버티고 반응하는지 이해하는 데 도움이 됩니다." });
+  if (/학교|친구|교우|공부|진로|시험/.test(t)) tests.push({ name: "TCI 또는 SCT", reason: "현재 고민과 마음속 생각의 흐름을 조금 더 차분히 정리하는 데 도움이 됩니다." });
+  if (/불안|우울|무기력|잠|수면|눈물|두려|긴장|공황|답답/.test(t)) tests.push({ name: "MMPI-2 또는 PAI", reason: "지금의 정서 상태와 마음의 부담 정도를 객관적으로 살펴보는 데 도움이 됩니다." });
+  if (!tests.length) tests.push({ name: "TCI", reason: "나의 기질과 성격 특성을 이해하고, 지금 힘든 마음이 어떤 방식으로 나타나는지 살펴보는 데 도움이 됩니다." });
+  return tests.slice(0, 2);
+};
+
+// [MOD] 마무리 요청에서 API가 실패해도 사용자가 검사 추천을 받을 수 있도록 로컬 마무리 문장을 보완했습니다.
+const makeLocalClosingReply = (messages) => {
+  const allText = getUserText(messages);
+  const tests = chooseRecommendedTests(allText);
+  const testText = tests.map((t) => `${t.name}: ${t.reason}`).join("\n");
+  return `오늘 들려주신 이야기를 하나씩 이어보면, 지금 마음은 혼자 오래 버티느라 지치고 답답했던 신호를 보내고 있는 것 같습니다.\n\n지금 당장 정답을 찾기보다, 먼저 내 마음이 무엇 때문에 힘들었는지 안전하게 알아차리는 시간이 필요해 보입니다.\n\n추천드릴 수 있는 심리검사는 다음과 같습니다.\n${testText}\n\n이 검사는 진단을 위한 것이 아니라, 지금의 마음과 나의 반응 방식을 조금 더 이해하기 위한 참고 도구로 활용하시면 좋겠습니다.`;
+};
+
+const fallbackConnectionReply = (messages = [], shouldClose = false) => {
+  if (shouldClose) return makeLocalClosingReply(messages);
+  return "현재 AI 사용량이 많아 응답이 지연되고 있습니다.\n\n잠시 후 다시 이용해 주세요.";
+};
 
 export const handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return jsonResponse({}, 200);
@@ -274,7 +331,7 @@ ${buildConversationText(messages)}
       }
     }
 
-    if (!finalText) finalText = fallbackConnectionReply();
+    if (!finalText) finalText = fallbackConnectionReply(messages, shouldClose); // [MOD] 빈 응답이면 대화/마무리 상태에 맞춰 안전 응답
 
     return jsonResponse({
       text: finalText,
@@ -291,7 +348,7 @@ ${buildConversationText(messages)}
   } catch (error) {
     console.error("[MODUMAM AI] handler error", error.detail || error);
     return jsonResponse({
-      text: fallbackConnectionReply(),
+      text: fallbackConnectionReply([], false),
       isComplete: false,
       promptVersion: PROMPT_VERSION,
       abuseWarningCount: 0,
