@@ -199,6 +199,27 @@ async function submitSignup(userData) {
 }
         
         function App() {
+            /* =====================================================
+               [MOD-20260710-023] 회원별 마음기록 저장 키
+               - 이메일 → 전화번호 → 이름 순으로 회원 식별값 사용
+               - 같은 브라우저에서 다른 회원이 로그인해도 기록이 섞이지 않도록 분리
+            ===================================================== */
+            const getRecordMemberKey = () => {
+                try {
+                    const user = JSON.parse(localStorage.getItem('modumamUser') || 'null');
+                    const rawKey = user?.email || user?.phone || user?.name || 'guest';
+                    return String(rawKey).toLowerCase().replace(/[^a-z0-9가-힣]/g, '_');
+                } catch (e) {
+                    return 'guest';
+                }
+            };
+
+            const getTodayMindStorageKey = () =>
+                `modumam_today_mind_notes_${getRecordMemberKey()}`;
+
+            const getMindReportStorageKey = () =>
+                `modumam_mind_records_${getRecordMemberKey()}`;
+
             const [activeTab, setActiveTab] = useState('home');
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
             const [selectedPunctuation, setSelectedPunctuation] = useState('all');
@@ -275,8 +296,17 @@ async function submitSignup(userData) {
             const [mindInputError, setMindInputError] = useState(false);
             const [mindRecords, setMindRecords] = useState(() => {
                 try {
-                    const saved = localStorage.getItem('modumam_mind_records');
-                    return saved ? JSON.parse(saved) : [];
+                    const memberKey = getMindReportStorageKey();
+                    const memberSaved = localStorage.getItem(memberKey);
+                    if (memberSaved) return JSON.parse(memberSaved);
+
+                    // 기존 공용 저장 기록이 있으면 현재 회원 기록으로 1회 이전
+                    const legacySaved = localStorage.getItem('modumam_mind_records');
+                    const legacyRecords = legacySaved ? JSON.parse(legacySaved) : [];
+                    if (legacyRecords.length) {
+                        localStorage.setItem(memberKey, JSON.stringify(legacyRecords));
+                    }
+                    return legacyRecords;
                 } catch (e) {
                     return [];
                 }
@@ -325,7 +355,7 @@ async function submitSignup(userData) {
             const [aiIntakeMessages, setAiIntakeMessages] = useState([
                 {
                     role: "ai",
-                    text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 상담 시간입니다. 편안한 마음으로 이야기해 주세요.\n오늘 어떤 마음으로 찾아오셨나요?",
+                    text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n\n오늘은 약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 상담 시간입니다. 정답을 찾기보다, 지금 마음이 보내는 신호를 천천히 살펴보겠습니다.\n\n편한 만큼만 이야기해 주세요. 오늘은 어떤 마음으로 찾아오셨나요?",
                     time: getChatTime()
                 }
             ]);
@@ -340,6 +370,181 @@ async function submitSignup(userData) {
 
             // 추천 검사 설명 팝업
             const [selectedTestPopup, setSelectedTestPopup] = useState(null);
+
+            /* =====================================================
+               [MOD-20260710-016] 나의 마음기록 패널 구조 변경
+               - today: 내담자가 직접 작성하는 오늘의 마음
+               - ai: AI 마음상담 기록(마음리포트 + 마음체크)
+            ===================================================== */
+            const [myRecordPanel, setMyRecordPanel] = useState('today');
+
+            /* =====================================================
+               [MOD-20260710-025] AI 마음상담 기록 탭 상태
+               - report: AI 마음리포트
+               - check: AI 마음체크
+            ===================================================== */
+            const [aiCounselingRecordTab, setAiCounselingRecordTab] = useState('report');
+
+            /* =====================================================
+               [MOD-20260710-028] AI 마음상담 기록 검색·정렬
+               - 기록 제목/내용 검색
+               - 최신순/오래된순 정렬
+            ===================================================== */
+            const [aiRecordSearch, setAiRecordSearch] = useState('');
+            const [aiRecordSort, setAiRecordSort] = useState('newest');
+
+            const [todayMindInput, setTodayMindInput] = useState('');
+
+            /* =====================================================
+               [MOD-20260710-030] 오늘의 마음 기록 검색·정렬
+               - 기록 내용 검색
+               - 최신순/오래된순 정렬
+            ===================================================== */
+            const [todayMindSearch, setTodayMindSearch] = useState('');
+            const [todayMindSort, setTodayMindSort] = useState('newest');
+
+            const [todayMindNotes, setTodayMindNotes] = useState(() => {
+                try {
+                    const memberKey = getTodayMindStorageKey();
+                    const memberSaved = localStorage.getItem(memberKey);
+                    if (memberSaved) return JSON.parse(memberSaved);
+
+                    // 기존 공용 저장 기록이 있으면 현재 회원 기록으로 1회 이전
+                    const legacySaved = localStorage.getItem('modumam_today_mind_notes');
+                    const legacyNotes = legacySaved ? JSON.parse(legacySaved) : [];
+                    if (legacyNotes.length) {
+                        localStorage.setItem(memberKey, JSON.stringify(legacyNotes));
+                    }
+                    return legacyNotes;
+                } catch (e) {
+                    return [];
+                }
+            });
+
+            /* =====================================================
+               [MOD-20260710-020] 오늘의 마음 기록 수정·삭제
+               - 기록별 수정, 저장, 취소, 삭제 기능 추가
+               - 수정·삭제 후 Local Storage와 화면을 동시에 갱신
+            ===================================================== */
+            const [editingTodayMindId, setEditingTodayMindId] = useState(null);
+            const [editingTodayMindText, setEditingTodayMindText] = useState('');
+
+            const startEditTodayMindNote = (note) => {
+                setEditingTodayMindId(note.id);
+                setEditingTodayMindText(note.text || '');
+            };
+
+            const cancelEditTodayMindNote = () => {
+                setEditingTodayMindId(null);
+                setEditingTodayMindText('');
+            };
+
+            const saveEditedTodayMindNote = () => {
+                const value = editingTodayMindText.trim();
+                if (!value) {
+                    alert('수정할 마음기록을 적어 주세요.');
+                    return;
+                }
+
+                const updated = todayMindNotes.map((note) =>
+                    note.id === editingTodayMindId
+                        ? {
+                            ...note,
+                            text: value,
+                            updatedAt: new Date().toLocaleString('ko-KR')
+                        }
+                        : note
+                );
+
+                setTodayMindNotes(updated);
+                localStorage.setItem(getTodayMindStorageKey(), JSON.stringify(updated));
+                cancelEditTodayMindNote();
+            };
+
+            const deleteTodayMindNote = (id) => {
+                if (!window.confirm('이 마음기록을 삭제하시겠습니까?')) return;
+
+                const updated = todayMindNotes.filter((note) => note.id !== id);
+                setTodayMindNotes(updated);
+                localStorage.setItem(getTodayMindStorageKey(), JSON.stringify(updated));
+
+                if (editingTodayMindId === id) {
+                    cancelEditTodayMindNote();
+                }
+            };
+
+            /* =====================================================
+               [MOD-20260710-021] 과거 AI 마음리포트 하단 안내 숨김
+               - 기존 Local Storage에 저장된 리포트는 원문을 유지합니다.
+               - 나의 마음기록 화면에서 볼 때만 하단 안내를 제거합니다.
+               - 새로 생성되는 리포트에는 gemini.js의 간소화 문구가 적용됩니다.
+            ===================================================== */
+            const getCleanMindReportText = (value) => {
+                const report = String(value || '');
+                const cutMarkers = [
+                    '\n────────────────',
+                    '\n※ 본 리포트는 심리적 자기이해를 돕기 위한 참고용입니다.',
+                    '\nAI 마음리포트 이용 중 오류가 발생할 경우,'
+                ];
+
+                let cutIndex = -1;
+                cutMarkers.forEach((marker) => {
+                    const index = report.indexOf(marker);
+                    if (index !== -1 && (cutIndex === -1 || index < cutIndex)) {
+                        cutIndex = index;
+                    }
+                });
+
+                return (cutIndex === -1 ? report : report.slice(0, cutIndex)).trim();
+            };
+
+            /* =====================================================
+               [MOD-20260710-024] 로그인 회원 변경 시 기록 다시 불러오기
+            ===================================================== */
+            useEffect(() => {
+                try {
+                    const todaySaved = localStorage.getItem(getTodayMindStorageKey());
+                    const reportSaved = localStorage.getItem(getMindReportStorageKey());
+                    setTodayMindNotes(todaySaved ? JSON.parse(todaySaved) : []);
+                    setMindRecords(reportSaved ? JSON.parse(reportSaved) : []);
+                    setEditingTodayMindId(null);
+                    setEditingTodayMindText('');
+                } catch (e) {
+                    setTodayMindNotes([]);
+                    setMindRecords([]);
+                }
+            }, [isLoggedIn]);
+
+            const todayMindKeyword = todayMindSearch.trim().toLowerCase();
+
+            const filteredTodayMindNotes = [...todayMindNotes]
+                .filter((note) => {
+                    if (!todayMindKeyword) return true;
+                    return String(note.text || '').toLowerCase().includes(todayMindKeyword);
+                })
+                .sort((a, b) => {
+                    const aDate = normalizeRecordDate(a.updatedAt || a.createdAt);
+                    const bDate = normalizeRecordDate(b.updatedAt || b.createdAt);
+                    return todayMindSort === 'oldest' ? aDate - bDate : bDate - aDate;
+                });
+
+            const saveTodayMindNote = () => {
+                const value = todayMindInput.trim();
+                if (!value) {
+                    alert('오늘의 마음을 적어 주세요.');
+                    return;
+                }
+
+                const note = {
+                    id: Date.now(),
+                    text: value,
+                    createdAt: new Date().toLocaleString('ko-KR')
+                };
+                const updated = [note, ...todayMindNotes];
+                setTodayMindNotes(updated);
+                localStorage.setItem(getTodayMindStorageKey(), JSON.stringify(updated));
+                setTodayMindInput('');
+            };
 
             const aiIntakeQuestions = [
                 { key: "opening", question: "오늘은 어떤 마음으로 찾아오셨나요? 가장 먼저 들려주고 싶은 이야기를 편하게 말씀해 주세요." },
@@ -445,7 +650,7 @@ setTimeout(() => {
                 setAiIntakeMessages([
                     {
                         role: "ai",
-                        text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 이야기를 나눌 수 있는 공간입니다.\n약 10~15분 동안 지금의 마음을 함께 이해해 보는 AI 마음 상담 시간입니다. 편안한 마음으로 이야기해 주세요\n오늘 어떤 마음으로 찾아오셨나요?",
+                        text: "안녕하세요. 저는 모두의 마음연구소 AI 마음지기입니다.\n\n이곳은 마음이 무거울 때 언제든 편하게 찾아와 10~15분 동안 함께 이야기를 나눌 수 있는 공간입니다.\n\n오늘 어떤 마음으로 찾아오셨나요?",
                         time: getChatTime()
                     }
                 ]);
@@ -772,6 +977,29 @@ setTimeout(() => {
                 setIntakeSummaries(updated);
             };
 
+            /* =====================================================
+               [MOD-20260710-027] AI 마음상담 기록 삭제
+               - AI 마음리포트 기록 삭제
+               - AI 마음체크 기록 삭제
+               - 삭제 전 확인창 표시
+               - Local Storage와 화면을 동시에 갱신
+            ===================================================== */
+            const deleteMindReportRecord = (id) => {
+                if (!window.confirm('이 AI 마음리포트 기록을 삭제하시겠습니까?')) return;
+
+                const updated = mindRecords.filter((record) => record.id !== id);
+                setMindRecords(updated);
+                localStorage.setItem(getMindReportStorageKey(), JSON.stringify(updated));
+            };
+
+            const deleteAiIntakeRecord = (id) => {
+                if (!window.confirm('이 AI 마음체크 기록을 삭제하시겠습니까?')) return;
+
+                const updated = intakeSummaries.filter((record) => record.id !== id);
+                setIntakeSummaries(updated);
+                localStorage.setItem('modumam_intake_summaries', JSON.stringify(updated));
+            };
+
             const buildSilenceFollowUp = (messages) => {
                 // v23 Stable: 자동 고정 질문은 사용하지 않습니다.
                 // 침묵 후 질문도 AI가 대화 맥락을 보고 생성해야 하므로 로컬 템플릿을 비활성화합니다.
@@ -989,7 +1217,7 @@ setTimeout(() => {
                 if (!matched.length) {
                     area.innerHTML = `
                         <div class="mt-6 bg-rose-50 border border-rose-100 text-rose-700 rounded-2xl p-5 text-sm font-bold">
-                            공개 승인된 결과보고서를 찾을 수 없습니다. 이름과 연락처를 다시 확인하거나, 관리자에게 결과 공개 여부를 문의해 주세요.
+                            승인된 결과보고서를 찾을 수 없습니다. 이름과 연락처를 다시 확인하거나, 관리자에게 결과 승인 여부를 문의해 주세요.
                         </div>
                     `;
                     return;
@@ -1011,7 +1239,7 @@ setTimeout(() => {
                                         </p>
                                     </div>
                                     <span class="bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full px-4 py-2 text-xs font-bold">
-                                        공개 승인
+                                        승인 완료
                                     </span>
                                 </div>
 
@@ -1568,7 +1796,7 @@ const psychTests = [
             };
             setMindRecords((prev) => {
                 const next = [newRecord, ...prev].slice(0, 20);
-                localStorage.setItem('modumam_mind_records', JSON.stringify(next));
+                localStorage.setItem(getMindReportStorageKey(), JSON.stringify(next));
                 return next;
             });
         } else {
@@ -1843,18 +2071,50 @@ if (userAge === 'parent') {
             const hasPaidAccess = userReservations.some((r) =>
                 ['예약확정', '검사진행', '결과작성', '상담완료'].includes(r.status)
             );
-            const hasMyIntake = intakeSummaries.some((i) => {
+            const userIntakeSummaries = intakeSummaries.filter((i) => {
                 const ip = String(i.phone || '').replace(/[^0-9]/g, '');
                 const iname = String(i.name || '').trim();
                 return (currentPhone && ip && currentPhone === ip) || (currentName && iname && currentName === iname);
             });
+            const hasMyIntake = userIntakeSummaries.length > 0;
+
+            const normalizeRecordDate = (value) => {
+                const parsed = new Date(value || 0).getTime();
+                return Number.isFinite(parsed) ? parsed : 0;
+            };
+
+            const aiRecordKeyword = aiRecordSearch.trim().toLowerCase();
+
+            const filteredMindRecords = [...mindRecords]
+                .filter((record) => {
+                    if (!aiRecordKeyword) return true;
+                    const target = `${record.input || ''} ${record.result || ''}`.toLowerCase();
+                    return target.includes(aiRecordKeyword);
+                })
+                .sort((a, b) => {
+                    const aDate = normalizeRecordDate(a.createdAt);
+                    const bDate = normalizeRecordDate(b.createdAt);
+                    return aiRecordSort === 'oldest' ? aDate - bDate : bDate - aDate;
+                });
+
+            const filteredAiIntakeRecords = [...userIntakeSummaries]
+                .filter((record) => {
+                    if (!aiRecordKeyword) return true;
+                    const target = `${record.mainConcern || ''} ${record.theme?.label || ''} ${record.mindReflection || ''} ${record.summary || ''}`.toLowerCase();
+                    return target.includes(aiRecordKeyword);
+                })
+                .sort((a, b) => {
+                    const aDate = normalizeRecordDate(a.date);
+                    const bDate = normalizeRecordDate(b.date);
+                    return aiRecordSort === 'oldest' ? aDate - bDate : bDate - aDate;
+                });
             const myPageSteps = [
                 { title: '회원가입', desc: isLoggedIn || currentUser ? '완료' : 'AI 마음 상담 전 필요', done: !!(isLoggedIn || currentUser), locked: false },
                 { title: 'AI 마음 상담', desc: hasMyIntake ? '완료' : '회원가입 후 이용', done: hasMyIntake, locked: !(isLoggedIn || currentUser) },
                 { title: '검사신청·결제', desc: hasPaidAccess ? '확인 완료' : 'AI 추천 후 진행', done: hasPaidAccess, locked: !(isLoggedIn || currentUser) },
                 { title: '상담신청서·동의서', desc: '예약 3일 전 안내', done: userReservations.some(r => r.bookingPrivacyConsent || r.bookingCounselingConsent), locked: !(isLoggedIn || currentUser) },
                 { title: '마음기록', desc: hasPaidAccess ? '이용 가능' : '신청/결제 후 열림', done: mindRecords.length > 0, locked: !hasPaidAccess },
-                { title: '결과확인', desc: hasPaidAccess ? '전문가 확인 후 공개' : '검사 신청 후 열림', done: false, locked: !hasPaidAccess }
+                { title: '결과확인', desc: hasPaidAccess ? '전문가 확인 후 승인' : '검사 신청 후 열림', done: false, locked: !hasPaidAccess }
             ];
                       
             const punctuationDetails = {
@@ -2023,7 +2283,8 @@ if (userAge === 'parent') {
             {/* [MOD-v1.1.4-001] 마이페이지 메뉴는 로그인한 회원에게만 표시 */}
             {(isLoggedIn || currentUser) && (
                 <button onClick={handleMyPageClick} className="bg-slate-900 text-white px-6 py-2.5 rounded-full hover:bg-slate-800 hover:scale-105 transition-all shadow-md shadow-slate-100 text-sm font-bold">
-                    마이페이지
+                    {/* [MOD-20260710-007] 메뉴명: 마이페이지 → 나의 마음기록 */}
+                    나의 마음기록
                 </button>
             )}
 
@@ -2088,10 +2349,13 @@ if (userAge === 'parent') {
                 <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('home'); }} className="rounded-2xl border border-slate-100 bg-slate-50 px-2 py-3 text-slate-700">마음연구</button>
                 <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('mind-care'); }} className="rounded-2xl border border-emerald-100 bg-emerald-50 px-2 py-3 text-emerald-700">AI 마음상담</button>
                 <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('tests'); }} className="rounded-2xl border border-indigo-100 bg-indigo-50 px-2 py-3 text-indigo-700">심리검사</button>
-                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reservations'); }} className="rounded-2xl border border-slate-200 bg-slate-900 px-2 py-3 text-white">검사예약</button>
+                <button onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reservations'); }} className="rounded-2xl border border-slate-200 bg-slate-900 px-2 py-3 text-white">심리검사 예약</button>
                 {/* [MOD-v1.1.4-002] 모바일 마이페이지도 로그인한 회원에게만 표시 */}
                 {(isLoggedIn || currentUser) && (
-                    <button onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }} className="rounded-2xl border border-emerald-200 bg-emerald-700 px-2 py-3 text-white">마이페이지</button>
+                    <button onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }} className="rounded-2xl border border-emerald-200 bg-emerald-700 px-2 py-3 text-white">
+                        {/* [MOD-20260710-007] 모바일 메뉴명: 마이페이지 → 나의 마음기록 */}
+                        나의 마음기록
+                    </button>
                 )}
             </div>
         </div>
@@ -2196,7 +2460,7 @@ if (userAge === 'parent') {
     <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
             <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
-                무료 AI 마음상담
+                AI 마음상담
             </span>
 
             <h2 className="text-3xl font-extrabold text-slate-900">
@@ -2385,40 +2649,426 @@ if (userAge === 'parent') {
                             <div className="max-w-6xl mx-auto">
                                 <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 mb-8">
                                     <div>
-                                        <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
-                                            My Page
-                                        </span>
-                                        <h2 className="text-3xl font-extrabold text-slate-900">마이페이지</h2>
+                                        {/* =====================================================
+                                           [MOD-20260710-007] 나의 마음기록 상단 문구
+                                           - My Page / 마이페이지 문구 삭제
+                                           - 요청한 제목과 안내 문구만 표시
+                                        ===================================================== */}
+                                        <h2 className="text-3xl font-extrabold text-slate-900">나의 마음기록</h2>
                                         <p className="mt-3 text-sm text-slate-500 leading-relaxed">
-                                            회원님의 마음체크, 예약 진행상황, 마음기록과 결과확인 단계를 한곳에서 확인합니다.
+                                            오늘까지 이어온 마음의 기록을 한곳에서 확인하세요.
                                         </p>
                                     </div>
-                                    <div className="rounded-3xl bg-slate-900 text-white px-6 py-5 min-w-[220px] shadow-lg">
-                                        <p className="text-xs text-slate-300 font-bold">내 마음 공간</p>
-                                        <p className="text-2xl font-extrabold mt-1">{isLoggedIn || currentUser ? '회원 공간' : '로그인 필요'}</p>
-                                        <p className="text-xs text-slate-400 mt-2">{currentUser?.name ? `${currentUser.name}님` : '로그인 확인'}</p>
-                                    </div>
+                                    {/* =====================================================
+                                       [MOD-20260710-010] '내 마음 공간' 카드 전체 삭제
+                                       - 중복 제목 제거
+                                       - 상단 소개 후 바로 기능 카드 표시
+                                    ===================================================== */}
                                 </div>
 
                                 {/* [MOD-20260710-006] 마이페이지는 회원이면 접근 가능하도록 안내 문구 수정 */}
                                 {isLoggedIn || currentUser ? (
                                     <div className="mb-6 rounded-3xl bg-emerald-50 border border-emerald-100 p-5 text-sm text-emerald-900 leading-relaxed">
-                                        마이페이지에 오신 것을 환영합니다. 마음기록과 결과확인은 심리검사 신청·결제 후 순차적으로 열립니다.
+                                        나의 마음기록에 오신 것을 환영합니다. 마음기록과 결과확인은 심리검사 신청·결제 후 순차적으로 열립니다.
                                     </div>
                                 ) : null}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {myPageSteps.map((step) => (
-                                        <div key={step.title} className={`rounded-3xl border p-5 ${step.locked ? 'bg-slate-50 border-slate-100' : step.done ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-slate-100'}`}>
-                                            <div className="flex items-center justify-between gap-3 mb-3">
-                                                <p className="text-sm font-extrabold text-slate-900">{step.title}</p>
-                                                <span className={`text-[11px] font-black rounded-full px-3 py-1 ${step.locked ? 'bg-slate-200 text-slate-500' : step.done ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-700'}`}>
-                                                    {step.locked ? '잠김' : step.done ? '완료' : '대기'}
-                                                </span>
+                                {/* =====================================================
+                                   [MOD-20260710-017] 나의 마음기록 구성 변경
+                                   - 오늘의 마음: 내담자가 직접 작성하는 마음기록
+                                   - AI 마음상담: 마음리포트와 마음체크 기록 통합
+                                   - 심리검사 결과 / 상담·예약 내역은 기존 연결 유지
+                                ===================================================== */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMyRecordPanel('today')}
+                                        className={`group text-left rounded-3xl border p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${myRecordPanel === 'today' ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-100 bg-white'}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                                <Icon name="pencil" className="w-6 h-6" />
                                             </div>
-                                            <p className="text-xs text-slate-500 leading-relaxed">{step.desc}</p>
+                                            <span className="text-xs font-extrabold text-emerald-700 bg-white border border-emerald-100 rounded-full px-3 py-1">
+                                                {todayMindNotes.length}건
+                                            </span>
                                         </div>
-                                    ))}
+                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">오늘의 마음</h3>
+                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                            오늘의 마음을 내 말로 직접 기록하고 다시 확인합니다.
+                                        </p>
+                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-emerald-700">
+                                            마음 기록하기 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setMyRecordPanel('ai')}
+                                        className={`group text-left rounded-3xl border p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${myRecordPanel === 'ai' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-100 bg-white'}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                                                <Icon name="message-square" className="w-6 h-6" />
+                                            </div>
+                                            <span className="text-xs font-extrabold text-amber-700 bg-white border border-amber-100 rounded-full px-3 py-1">
+                                                {mindRecords.length + userIntakeSummaries.length}건
+                                            </span>
+                                        </div>
+                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">AI 마음상담</h3>
+                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                            AI 마음리포트와 AI 마음체크 기록을 한곳에서 확인합니다.
+                                        </p>
+                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-amber-700">
+                                            상담 기록 보기 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => scrollToSection('results')}
+                                        className="group text-left rounded-3xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all"
+                                    >
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center mb-5">
+                                            <Icon name="layout-list" className="w-6 h-6" />
+                                        </div>
+                                        <h3 className="text-base font-extrabold text-slate-900">심리검사 결과</h3>
+                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                            승인된 심리검사 결과와 해석보고서를 확인합니다.
+                                        </p>
+                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-indigo-700">
+                                            결과 확인 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => scrollToSection('reservations')}
+                                        className="group text-left rounded-3xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
+                                                <Icon name="calendar" className="w-6 h-6" />
+                                            </div>
+                                            <span className="text-xs font-extrabold text-slate-600 bg-slate-50 border border-slate-100 rounded-full px-3 py-1">
+                                                {userReservations.length}건
+                                            </span>
+                                        </div>
+                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">상담·예약 내역</h3>
+                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                            상담 및 심리검사 예약 내역과 진행상황을 확인합니다.
+                                        </p>
+                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-slate-700">
+                                            내역 확인 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
+                                        </span>
+                                    </button>
+                                </div>
+
+                                {/* =====================================================
+                                   [MOD-20260710-018] 오늘의 마음 직접 기록 / AI 마음상담 통합 기록
+                                ===================================================== */}
+                                <div className="mt-6 rounded-[2rem] border border-slate-100 bg-slate-50/70 p-5 sm:p-7">
+                                    {myRecordPanel === 'today' ? (
+                                        <div>
+                                            <div className="mb-5">
+                                                <h3 className="text-lg font-extrabold text-slate-900">오늘의 마음</h3>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    지금 떠오르는 마음을 평가하지 말고 편한 말로 적어 보세요.
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-3xl border border-emerald-100 bg-white p-5">
+                                                <textarea
+                                                    value={todayMindInput}
+                                                    onChange={(e) => setTodayMindInput(e.target.value)}
+                                                    rows={5}
+                                                    placeholder="오늘 어떤 마음이 가장 오래 머물렀나요?"
+                                                    className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                                                />
+                                                <div className="mt-4 flex justify-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={saveTodayMindNote}
+                                                        className="rounded-full bg-emerald-700 px-6 py-2.5 text-xs font-extrabold text-white hover:bg-emerald-800"
+                                                    >
+                                                        마음 기록하기
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-6">
+                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                                                    <h4 className="text-sm font-extrabold text-slate-800">나의 기록</h4>
+                                                    <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
+                                                        <input
+                                                            type="search"
+                                                            value={todayMindSearch}
+                                                            onChange={(e) => setTodayMindSearch(e.target.value)}
+                                                            placeholder="마음기록 검색"
+                                                            className="w-full sm:w-56 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                                                        />
+                                                        <select
+                                                            value={todayMindSort}
+                                                            onChange={(e) => setTodayMindSort(e.target.value)}
+                                                            className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 outline-none focus:border-emerald-400"
+                                                        >
+                                                            <option value="newest">최신순</option>
+                                                            <option value="oldest">오래된순</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* =====================================================
+                                                   [MOD-20260710-031] 오늘의 마음 검색 결과 표시
+                                                ===================================================== */}
+                                                {filteredTodayMindNotes.length === 0 ? (
+                                                    <div className="rounded-3xl border border-dashed border-emerald-200 bg-white p-8 text-center">
+                                                        <p className="text-sm font-extrabold text-slate-700">
+                                                            {todayMindSearch ? '검색된 마음기록이 없습니다.' : '아직 기록이 없습니다.'}
+                                                        </p>
+                                                        <p className="mt-2 text-xs text-slate-400">
+                                                            {todayMindSearch ? '다른 검색어로 다시 찾아보세요.' : '오늘의 마음을 적으면 이곳에 차곡차곡 저장됩니다.'}
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        {filteredTodayMindNotes.map((note) => (
+                                                            <article key={note.id} className="rounded-3xl border border-slate-100 bg-white p-5">
+                                                                <div className="flex items-start justify-between gap-4">
+                                                                    <div>
+                                                                        <p className="text-xs font-bold text-emerald-700">{note.createdAt}</p>
+                                                                        {note.updatedAt && (
+                                                                            <p className="mt-1 text-[11px] text-slate-400">수정됨 · {note.updatedAt}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        {editingTodayMindId !== note.id && (
+                                                                            <>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => startEditTodayMindNote(note)}
+                                                                                    className="rounded-full border border-slate-200 px-3 py-1.5 text-[11px] font-extrabold text-slate-600 hover:bg-slate-50"
+                                                                                >
+                                                                                    수정
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => deleteTodayMindNote(note.id)}
+                                                                                    className="rounded-full border border-rose-200 px-3 py-1.5 text-[11px] font-extrabold text-rose-600 hover:bg-rose-50"
+                                                                                >
+                                                                                    삭제
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {editingTodayMindId === note.id ? (
+                                                                    <div className="mt-4">
+                                                                        <textarea
+                                                                            value={editingTodayMindText}
+                                                                            onChange={(e) => setEditingTodayMindText(e.target.value)}
+                                                                            rows={5}
+                                                                            className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                                                                        />
+                                                                        <div className="mt-3 flex justify-end gap-2">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={cancelEditTodayMindNote}
+                                                                                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50"
+                                                                            >
+                                                                                취소
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={saveEditedTodayMindNote}
+                                                                                className="rounded-full bg-emerald-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-emerald-800"
+                                                                            >
+                                                                                저장
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="mt-3 text-sm text-slate-700 leading-relaxed whitespace-pre-line">{note.text}</p>
+                                                                )}
+                                                            </article>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                                                <div>
+                                                    <h3 className="text-lg font-extrabold text-slate-900">AI 마음상담</h3>
+                                                    <p className="mt-1 text-xs text-slate-500">
+                                                        AI 마음리포트와 AI 마음체크 기록을 함께 확인합니다.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* =====================================================
+                                                   [MOD-20260710-022] 기록 화면 바로가기 버튼 삭제
+                                                   - AI 마음리포트 바로가기 삭제
+                                                   - AI 마음체크 바로가기 삭제
+                                                   - 기록 확인 기능만 유지
+                                                ===================================================== */}
+                                                {/* =====================================================
+                                                   [MOD-20260710-026] AI 마음상담 기록 탭 적용
+                                                   - AI 마음리포트 / AI 마음체크를 한 화면에서 탭으로 구분
+                                                   - 기존 기록 보기 기능은 그대로 유지
+                                                   - 바로가기 버튼은 추가하지 않음
+                                                ===================================================== */}
+                                                <div className="rounded-3xl border border-slate-100 bg-white p-4 sm:p-5">
+                                                    <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 mb-5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setAiCounselingRecordTab('report')}
+                                                            className={`rounded-xl px-4 py-3 text-xs font-extrabold transition-all ${
+                                                                aiCounselingRecordTab === 'report'
+                                                                    ? 'bg-white text-emerald-700 shadow-sm'
+                                                                    : 'text-slate-500 hover:text-slate-700'
+                                                            }`}
+                                                        >
+                                                            AI 마음리포트 · {mindRecords.length}건
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setAiCounselingRecordTab('check')}
+                                                            className={`rounded-xl px-4 py-3 text-xs font-extrabold transition-all ${
+                                                                aiCounselingRecordTab === 'check'
+                                                                    ? 'bg-white text-amber-700 shadow-sm'
+                                                                    : 'text-slate-500 hover:text-slate-700'
+                                                            }`}
+                                                        >
+                                                            AI 마음체크 · {userIntakeSummaries.length}건
+                                                        </button>
+                                                    </div>
+
+                                                    {/* =====================================================
+                                                       [MOD-20260710-029] AI 기록 검색창·정렬 선택
+                                                    ===================================================== */}
+                                                    <div className="mb-5 flex flex-col sm:flex-row gap-3">
+                                                        <input
+                                                            type="search"
+                                                            value={aiRecordSearch}
+                                                            onChange={(e) => setAiRecordSearch(e.target.value)}
+                                                            placeholder="기록 내용 검색"
+                                                            className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                                                        />
+                                                        <select
+                                                            value={aiRecordSort}
+                                                            onChange={(e) => setAiRecordSort(e.target.value)}
+                                                            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 outline-none focus:border-emerald-400"
+                                                        >
+                                                            <option value="newest">최신순</option>
+                                                            <option value="oldest">오래된순</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {aiCounselingRecordTab === 'report' ? (
+                                                        <section>
+                                                            <div className="mb-4">
+                                                                <h4 className="text-sm font-extrabold text-slate-900">AI 마음리포트</h4>
+                                                                <p className="mt-1 text-xs text-slate-400">짧게 작성한 마음을 AI가 정리한 기록</p>
+                                                            </div>
+
+                                                            {filteredMindRecords.length === 0 ? (
+                                                                <div className="rounded-2xl border border-dashed border-emerald-200 p-8 text-center">
+                                                                    <p className="text-xs font-bold text-slate-500">{aiRecordSearch ? '검색된 마음리포트가 없습니다.' : '아직 마음리포트가 없습니다.'}</p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-3">
+                                                                    {filteredMindRecords.map((record) => (
+                                                                        <details key={record.id} className="rounded-2xl border border-slate-100 p-4">
+                                                                            <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
+                                                                                <div className="min-w-0">
+                                                                                    <p className="text-xs font-bold text-emerald-700">
+                                                                                        {record.createdAt || '기록일 미확인'}
+                                                                                    </p>
+                                                                                    <p className="mt-1 truncate text-sm font-extrabold text-slate-900">
+                                                                                        {record.input || 'AI 마음리포트'}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                                    <span className="text-xs font-bold text-slate-400">보기</span>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={(e) => {
+                                                                                            e.preventDefault();
+                                                                                            e.stopPropagation();
+                                                                                            deleteMindReportRecord(record.id);
+                                                                                        }}
+                                                                                        className="rounded-full border border-rose-200 px-3 py-1.5 text-[11px] font-extrabold text-rose-600 hover:bg-rose-50"
+                                                                                    >
+                                                                                        삭제
+                                                                                    </button>
+                                                                                </div>
+                                                                            </summary>
+                                                                            <div className="mt-4 border-t border-slate-100 pt-4">
+                                                                                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                                                                                    {getCleanMindReportText(record.result)}
+                                                                                </p>
+                                                                            </div>
+                                                                        </details>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </section>
+                                                    ) : (
+                                                        <section>
+                                                            <div className="mb-4">
+                                                                <h4 className="text-sm font-extrabold text-slate-900">AI 마음체크</h4>
+                                                                <p className="mt-1 text-xs text-slate-400">AI 마음지기와 대화하고 마음을 정리한 기록</p>
+                                                            </div>
+
+                                                            {filteredAiIntakeRecords.length === 0 ? (
+                                                                <div className="rounded-2xl border border-dashed border-amber-200 p-8 text-center">
+                                                                    <p className="text-xs font-bold text-slate-500">{aiRecordSearch ? '검색된 마음체크 기록이 없습니다.' : '아직 마음체크 기록이 없습니다.'}</p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-3">
+                                                                    {filteredAiIntakeRecords.map((record) => (
+                                                                        <details key={record.id} className="rounded-2xl border border-slate-100 p-4">
+                                                                            <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
+                                                                                <div className="min-w-0">
+                                                                                    <p className="text-xs font-bold text-amber-700">
+                                                                                        {record.date || '기록일 미확인'}
+                                                                                    </p>
+                                                                                    <p className="mt-1 truncate text-sm font-extrabold text-slate-900">
+                                                                                        {record.mainConcern || record.theme?.label || 'AI 마음체크'}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                                    <span className="text-xs font-bold text-slate-400">보기</span>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={(e) => {
+                                                                                            e.preventDefault();
+                                                                                            e.stopPropagation();
+                                                                                            deleteAiIntakeRecord(record.id);
+                                                                                        }}
+                                                                                        className="rounded-full border border-rose-200 px-3 py-1.5 text-[11px] font-extrabold text-rose-600 hover:bg-rose-50"
+                                                                                    >
+                                                                                        삭제
+                                                                                    </button>
+                                                                                </div>
+                                                                            </summary>
+                                                                            <div className="mt-4 border-t border-slate-100 pt-4">
+                                                                                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                                                                                    {record.mindReflection || record.summary || '저장된 마음정리를 확인할 수 없습니다.'}
+                                                                                </p>
+                                                                            </div>
+                                                                        </details>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </section>
+                                                    )}
+                                                </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {!isLoggedIn && !currentUser && (
@@ -3377,7 +4027,8 @@ ${paymentInfo.detail}
          </div>
      </section>
 
-                        <section id="results" style={{display:'none'}} className="py-24 px-4 sm:px-6 lg:px-8 bg-white border-t border-slate-100">
+                        <section id="results"  
+                        className="py-24 px-4 sm:px-6 lg:px-8 bg-white border-t border-slate-100">
                             <div className="max-w-5xl mx-auto">
                                 <div className="text-center max-w-3xl mx-auto mb-12">
                                     <span className="inline-block text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-3">
@@ -3387,7 +4038,7 @@ ${paymentInfo.detail}
                                         심리검사 결과보고서 확인
                                     </h2>
                                     <p className="text-slate-500 leading-relaxed">
-                                        이름과 연락처를 입력하면 관리자가 공개 승인한 결과보고서를 확인할 수 있습니다.
+                                        이름과 연락처를 입력하면 관리자가 승인한 결과보고서를 확인할 수 있습니다.
                                     </p>
                                 </div>
 
@@ -3594,9 +4245,11 @@ ${paymentInfo.detail}
                                                       </h3>
                                                       <p className="text-sm text-slate-600 leading-relaxed mb-5 whitespace-pre-line">오늘 소중한 이야기를 들려주셔서 감사합니다.
 
-                                                          지금의 마음을 이해하는 첫걸음을 함께 내디뎠습니다.
-                                                          필요하실 때 언제든 다시 찾아와 주세요.
-                                                          조금 더 깊이 자신의 마음을 이해하고 싶다면, 심리검사와 전문가 상담을 통해 함께 이어갈 수 있습니다.</p>
+지금의 마음을 이해하는 첫걸음을 함께 내디뎠습니다.
+
+필요하실 때 언제든 다시 찾아와 주세요.
+
+조금 더 깊이 자신의 마음을 이해하고 싶다면, 심리검사와 전문가 상담을 통해 함께 이어갈 수 있습니다.</p>
 
                                                       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-4">
                                                           <h4 className="text-sm font-extrabold text-amber-800 mb-2">공감 피드백</h4>
