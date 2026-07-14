@@ -3226,7 +3226,7 @@ if (userAge === 'parent') {
                                 </span>
                                 <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-normal leading-relaxed mb-6 font-cozy">
                                     오늘 당신의 마음에 찍힌 <br className="hidden sm:inline"/>
-                                    <span className="bg-gradient-to-r from-mind-question via-mind-exclamation to-mind-comma bg-clip-text text-transparent font-extrabold">부호</span>는 무엇인가요?
+                                    <span className="font-extrabold text-indigo-600">부호</span>는 무엇인가요?
                                 </h2>
                                 <p className="max-w-2xl mx-auto text-sm sm:text-base text-slate-500 font-normal leading-relaxed mb-12 font-friendly">
                                     마음은 삶의 매 순간, 우리에게 끊임없이 신호를 보냅니다. 그 신호에 다정한 질문이 필요할 때는 물음표(?)를, 감정을 수용해야 할 때는 느낌표(!)를, 잠시 쉬어가야 할 때는 쉼표(,)를, 무너진 삶에 용기가 필요할 때는 마침표(.)를 붙여 보세요. 그리고 지금 당신의 마음에 찍힌 부호를 통해 자신을 이해하고, 자신을 돌보며, 삶의 다음 문장을 다시 써 내려가는 여정을 함께 해보아요.
@@ -3640,15 +3640,9 @@ if (userAge === 'parent') {
                                                             reservation.status !== '예약취소';
                                                         const availableTestLinks = Object.entries(reservation.testLinks || {})
                                                             .filter(([, url]) => /^https?:\/\//i.test(String(url || '').trim()));
-                                                        // [MOD-20260714-USER-PROGRAM-NAME]
-                                                        // 사용자 예약내역에서는 프로그램명을 세 가지로만 표시합니다.
-                                                        // 검사명은 아래 '검사명' 카드에서 별도로 표시합니다.
-                                                        const rawProgramName = String(reservation.program || '').trim();
-                                                        const programName = rawProgramName.includes('부모-자녀')
-                                                            ? '부모-자녀 마음이음'
-                                                            : rawProgramName.includes('부부')
-                                                                ? '부부 마음이음'
-                                                                : '개인 마음이음';
+                                                        const programName = String(reservation.program || '상담 예약')
+                                                            .replace(/\s*\([^)]*(?:검사|TCI|MMPI|PAI|SCT|HTP|PAT|STS|K-?CDI|PHQ|GAD)[^)]*\)\s*$/i, '')
+                                                            .trim() || String(reservation.program || '상담 예약');
                                                         const testCandidates = [];
                                                         if (String(reservation.program || '').includes('부모-자녀')) testCandidates.push('STS', 'K-CDI', 'PAT', 'TCI');
                                                         else if (String(reservation.program || '').includes('부부')) testCandidates.push('TCI');
@@ -5432,13 +5426,7 @@ if (userAge === 'parent') {
                                     <div>
                                         <p className="font-extrabold text-slate-900">{res.name}님</p>
                                         <p className="text-xs text-slate-500 mt-1">{res.phone}</p>
-                                        <p className="text-sm font-bold text-slate-700 mt-2">{
-                                            String(res.program || '').includes('부모-자녀')
-                                                ? '부모-자녀 마음이음'
-                                                : String(res.program || '').includes('부부')
-                                                    ? '부부 마음이음'
-                                                    : '개인 마음이음'
-                                        }</p>
+                                        <p className="text-sm font-bold text-slate-700 mt-2">{res.program}</p>
                                         <p className="text-xs text-slate-500 mt-1">{res.type} · {res.date} {res.time}</p>
                                         <p className="text-xs text-emerald-700 font-bold mt-2">{getPaymentInfo(res).total} / {getPaymentInfo(res).detail}</p>
                                     </div>
