@@ -3640,9 +3640,15 @@ if (userAge === 'parent') {
                                                             reservation.status !== '예약취소';
                                                         const availableTestLinks = Object.entries(reservation.testLinks || {})
                                                             .filter(([, url]) => /^https?:\/\//i.test(String(url || '').trim()));
-                                                        const programName = String(reservation.program || '상담 예약')
-                                                            .replace(/\s*\([^)]*(?:검사|TCI|MMPI|PAI|SCT|HTP|PAT|STS|K-?CDI|PHQ|GAD)[^)]*\)\s*$/i, '')
-                                                            .trim() || String(reservation.program || '상담 예약');
+                                                        // [MOD-20260714-USER-PROGRAM-NAME]
+                                                        // 사용자 예약내역에서는 프로그램명을 세 가지로만 표시합니다.
+                                                        // 검사명은 아래 '검사명' 카드에서 별도로 표시합니다.
+                                                        const rawProgramName = String(reservation.program || '').trim();
+                                                        const programName = rawProgramName.includes('부모-자녀')
+                                                            ? '부모-자녀 마음이음'
+                                                            : rawProgramName.includes('부부')
+                                                                ? '부부 마음이음'
+                                                                : '개인 마음이음';
                                                         const testCandidates = [];
                                                         if (String(reservation.program || '').includes('부모-자녀')) testCandidates.push('STS', 'K-CDI', 'PAT', 'TCI');
                                                         else if (String(reservation.program || '').includes('부부')) testCandidates.push('TCI');
@@ -5426,7 +5432,13 @@ if (userAge === 'parent') {
                                     <div>
                                         <p className="font-extrabold text-slate-900">{res.name}님</p>
                                         <p className="text-xs text-slate-500 mt-1">{res.phone}</p>
-                                        <p className="text-sm font-bold text-slate-700 mt-2">{res.program}</p>
+                                        <p className="text-sm font-bold text-slate-700 mt-2">{
+                                            String(res.program || '').includes('부모-자녀')
+                                                ? '부모-자녀 마음이음'
+                                                : String(res.program || '').includes('부부')
+                                                    ? '부부 마음이음'
+                                                    : '개인 마음이음'
+                                        }</p>
                                         <p className="text-xs text-slate-500 mt-1">{res.type} · {res.date} {res.time}</p>
                                         <p className="text-xs text-emerald-700 font-bold mt-2">{getPaymentInfo(res).total} / {getPaymentInfo(res).detail}</p>
                                     </div>
