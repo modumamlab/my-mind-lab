@@ -5,18 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="모두의 마음연구소" />
   <title>모두의 마음연구소</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+
+  <link rel="stylesheet" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+
   <style>
     html { scroll-behavior: smooth; }
-    body { margin: 0; font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; letter-spacing: -.02em; }
+    body {
+      margin: 0;
+      font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+      letter-spacing: -.02em;
+    }
+    #startup-error {
+      display: none;
+      margin: 24px;
+      padding: 18px;
+      border: 1px solid #fecaca;
+      border-radius: 16px;
+      background: #fff1f2;
+      color: #9f1239;
+      white-space: pre-wrap;
+      font: 13px/1.6 monospace;
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel" data-presets="react" src="/js/app.jsx"></script>
+  <pre id="startup-error"></pre>
+
+  <!--
+    [FIX-20260714-WHITE-SCREEN]
+    VS Code Live Preview와 Babel의 외부 script 자동변환 충돌을 피하기 위해
+    app.jsx를 직접 읽고 runtime: classic, sourceType: script로 명시 변환합니다.
+    홈페이지 기능 코드는 변경하지 않았습니다.
+  -->
+  <script>
+    (async function loadApp() {
+      const errorBox = document.getElementById('startup-error');
+
+      try {
+        const response = await fetch('./js/app.jsx', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('app.jsx를 불러오지 못했습니다. HTTP ' + response.status);
+        }
+
+        const source = await response.text();
+        const transformed = Babel.transform(source, {
+          presets: [['react', { runtime: 'classic' }]],
+          sourceType: 'script',
+          filename: 'app.jsx'
+        }).code;
+
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.text = transformed + '\n//# sourceURL=app.jsx';
+        document.body.appendChild(script);
+      } catch (error) {
+        console.error('[MODUMAM STARTUP ERROR]', error);
+        errorBox.style.display = 'block';
+        errorBox.textContent =
+          '홈페이지 실행 오류\n\n' +
+          (error && error.stack ? error.stack : String(error));
+      }
+    })();
+  </script>
 </body>
 </html>
