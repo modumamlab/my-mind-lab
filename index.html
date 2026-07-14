@@ -1,104 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <meta name="naver-site-verification" content="850ec8c728438d35a20e363e0f0b0d417957d622" />
-    <meta name="google-site-verification" content="sow-DDQ1ewg9DXIfULBYHJQjIqXs_96I21elhJM5-kQ" />
-    <meta name="google-site-verification" content="IqeHKnjbUvT74WvixAEkA0KcaGFID0w4zX0SYR_U1wM" />
-    <meta
-  name="description"
-  content="마음의 문장부호를 통해 지금 내 마음을 이해하고, 심리검사와 상담으로 회복과 변화를 함께하는 모두의 마음연구소입니다."
-/>
-
-<meta name="robots" content="index,follow" />
-
-    <title>모두의 마음연구소 | 심리검사 기반 심리상담</title>
-    <!-- merged: AI 마음지기 대화형 접수면접 + 승인형 결과확인 -->
-
-    <meta name="description" content="마음을 잇다, 사람을 잇다, 세상을 잇다. 모두의 마음연구소는 임상심리사 1급이 운영하는 심리검사 기반 심리상담 전문 공간. 개인상담, 부모코칭, 양육상담, 영유아 발달 및 기질 이해, TCI, MMPI, PAI 등 심리검사 해석상담을 제공합니다.">
-
-    <meta name="keywords" content="모두의마음연구소, 심리상담, 심리검사, TCI, MMPI, PAI, 부모상담, 부모코칭, 임상심리사, 상담, 천안심리상담">
-   
-    <meta name="author" content="모두의 마음연구소">
-
-    <meta property="og:title" content="모두의 마음연구소">
-    <meta property="og:description" content="마음을 잇다, 사람을 잇다, 세상을 잇다">
-    <meta property="og:url" content="https://modumam-lab.netlify.app">
-    <meta property="og:type" content="website">
-
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Pretendard Variable Webfont (한국 웹 표준 고해상도 최적화 서체) -->
-    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
-    <!-- React & Babel for high fidelity reactivity -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-    
-    <style>
-        body {
-            font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
-            scroll-behavior: smooth;
-            letter-spacing: -0.02em; /* 프리텐다드 최적의 자간 설정 */
-        }
-        /* 세련되면서도 편안한 가중치 배분 */
-        .font-cozy {
-            font-family: 'Pretendard Variable', Pretendard, sans-serif;
-            font-weight: 700;
-        }
-        .font-friendly {
-            font-family: 'Pretendard Variable', Pretendard, sans-serif;
-            font-weight: 400;
-        }
-        .fade-in {
-            animation: fadeIn 0.6s ease-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 9999px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-    </style>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        mind: {
-                            question: '#6366f1',  /* ? : indigo-500 */
-                            exclamation: '#f59e0b', /* ! : amber-500 */
-                            comma: '#10b981',       /* , : emerald-500 */
-                            period: '#475569',      /* . : slate-600 */
-                            bg: '#fbfbf9',
-                            card: '#ffffff',
-                            navy: '#1e293b'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="모두의 마음연구소" />
+  <title>모두의 마음연구소</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <style>
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; letter-spacing: -.02em; }
+  </style>
 </head>
-<body class="bg-mind-bg text-slate-800 antialiased">
-    <div id="root"></div>
-
-    <script type="text/babel" data-presets="react" src="./js/app.jsx"></script>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react" src="/js/app.jsx"></script>
 </body>
 </html>

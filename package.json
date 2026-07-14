@@ -1,12 +1,13 @@
 {
-  "name": "my-mind-lab",
-  "version": "16.0.0",
+  "name": "modumam-mind-lab-v2",
+  "version": "2.0.0-local-stable",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "echo no build needed",
-    "preview": "vite preview --host 0.0.0.0"
+    "dev": "vite --host 0.0.0.0 --port 5190 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5190 --strictPort",
+    "netlify": "netlify dev"
   },
   "devDependencies": {
     "vite": "^6.0.0"

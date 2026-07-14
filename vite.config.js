@@ -1,23 +1,27 @@
-import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
-export default defineConfig({
+export default {
   root: '.',
   publicDir: 'public',
   server: {
-    port: 5173,
     host: '0.0.0.0',
+    port: 5190,
+    strictPort: true,
     open: false
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 5190,
+    strictPort: true
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        intake: resolve(__dirname, 'ai-intake.html'),
-        admin: resolve(__dirname, 'admin/index.html')
+        main: resolve(process.cwd(), 'index.html'),
+        admin: resolve(process.cwd(), 'admin/index.html')
       }
     }
   }
-});
+};

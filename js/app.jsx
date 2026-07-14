@@ -14,6 +14,62 @@
 
         const { useState, useEffect, useRef } = React;
 
+        /* [MOD-20260714-RESERVATION-IDB-BRIDGE]
+           localStorage 용량과 무관하게 사용자 예약과 관리자 화면이 같은 예약을 읽도록
+           IndexedDB에 예약을 함께 저장합니다. */
+        const MODUMAM_DB_NAME = "modumam_operating_db";
+        const MODUMAM_DB_VERSION = 1;
+        const MODUMAM_RESERVATION_STORE = "reservations";
+
+        const openModumamDatabase = () => new Promise((resolve, reject) => {
+            if (!window.indexedDB) {
+                reject(new Error("이 브라우저는 IndexedDB를 지원하지 않습니다."));
+                return;
+            }
+            const request = indexedDB.open(MODUMAM_DB_NAME, MODUMAM_DB_VERSION);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(MODUMAM_RESERVATION_STORE)) {
+                    db.createObjectStore(MODUMAM_RESERVATION_STORE, { keyPath: "id" });
+                }
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error || new Error("예약 저장소를 열 수 없습니다."));
+        });
+
+        const saveReservationToIndexedDB = async (reservation) => {
+            const db = await openModumamDatabase();
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(MODUMAM_RESERVATION_STORE, "readwrite");
+                tx.objectStore(MODUMAM_RESERVATION_STORE).put(reservation);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error || new Error("예약 저장에 실패했습니다."));
+                tx.onabort = () => reject(tx.error || new Error("예약 저장이 중단되었습니다."));
+            });
+            db.close();
+        };
+
+        const getReservationsFromIndexedDB = async () => {
+            const db = await openModumamDatabase();
+            const rows = await new Promise((resolve, reject) => {
+                const tx = db.transaction(MODUMAM_RESERVATION_STORE, "readonly");
+                const request = tx.objectStore(MODUMAM_RESERVATION_STORE).getAll();
+                request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
+                request.onerror = () => reject(request.error || new Error("예약을 불러오지 못했습니다."));
+            });
+            db.close();
+            return rows;
+        };
+
+        const mergeReservationRows = (...lists) => {
+            const map = new Map();
+            lists.flat().filter(Boolean).forEach((item) => {
+                const key = String(item.id || `${item.name || ""}-${item.phone || ""}-${item.date || ""}-${item.time || ""}`);
+                map.set(key, { ...(map.get(key) || {}), ...item });
+            });
+            return [...map.values()].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+        };
+
         // React-Safe Inline SVG Icon Component to completely prevent DOM-manipulation bugs
         const Icon = ({ name, className = "w-5 h-5" }) => {
             const icons = {
@@ -239,23 +295,46 @@ async function submitSignup(userData) {
             
             // Reservation State
            const [reservations, setReservations] = useState(() => {
-           const saved = localStorage.getItem("modumam_reservations");
+               try {
+                   const saved = JSON.parse(localStorage.getItem("modumam_reservations") || "[]");
+                   return Array.isArray(saved) ? saved.filter(item => Number(item?.id) !== 1 || item?.phone !== '010-1234-5678') : [];
+               } catch (e) {
+                   return [];
+               }
+           });
 
-  return saved
-    ? JSON.parse(saved)
-    : [
-        {
-          id: 1,
-          name: '김민우',
-          phone: '010-1234-5678',
-          type: '비대면 화상',
-          date: '2026-06-25',
-          time: '14:00',
-          program: '개인 마음이음',
-          status: '예약확정'
-        }
-      ];
-});
+           useEffect(() => {
+               let active = true;
+               getReservationsFromIndexedDB()
+                   .then((indexedRows) => {
+                       if (!active || !indexedRows.length) return;
+                       setReservations((current) => mergeReservationRows(current, indexedRows));
+                   })
+                   .catch(() => {});
+               return () => { active = false; };
+           }, []);
+
+
+           // [MOD-20260714-RESERVATION-DIRECT-BRIDGE]
+           // 관리자 화면이 현재 예약목록을 요청하면 사용자 페이지가 직접 응답합니다.
+           useEffect(() => {
+               if (typeof BroadcastChannel === "undefined") return undefined;
+               const channel = new BroadcastChannel("modumam_operating_sync");
+               const handleMessage = (event) => {
+                   if (event.data?.type === "request-reservations") {
+                       channel.postMessage({
+                           type: "reservations-sync",
+                           reservations,
+                           at: Date.now()
+                       });
+                   }
+               };
+               channel.addEventListener("message", handleMessage);
+               return () => {
+                   channel.removeEventListener("message", handleMessage);
+                   channel.close();
+               };
+           }, [reservations]);
             
             // Booking form inputs
             const [bookingName, setBookingName] = useState('');
@@ -263,6 +342,32 @@ async function submitSignup(userData) {
             const [bookingType, setBookingType] = useState('장소 조율(대면)');
             const [bookingDate, setBookingDate] = useState('');
             const [bookingTime, setBookingTime] = useState('');
+            // [MOD-20260714-BOOKING-OPERATING-SETTINGS] 관리자 환경설정과 예약시간을 연결합니다.
+            const bookingOperatingSettings = (() => {
+                const defaults = {
+                    openTime: '09:00', closeTime: '18:00', intervalMinutes: 30,
+                    enabledMethods: ['장소 조율(대면)', '찾아가는(대면)', 'Zoom(비대면)', 'AI(비대면)']
+                };
+                try {
+                    return { ...defaults, ...(JSON.parse(localStorage.getItem('modumam_operating_settings') || '{}')) };
+                } catch (e) {
+                    return defaults;
+                }
+            })();
+            const bookingTimeOptions = (() => {
+                const toMinutes = (value) => {
+                    const [h, m] = String(value || '00:00').split(':').map(Number);
+                    return h * 60 + m;
+                };
+                const start = toMinutes(bookingOperatingSettings.openTime);
+                const end = toMinutes(bookingOperatingSettings.closeTime);
+                const step = Math.max(30, Number(bookingOperatingSettings.intervalMinutes) || 30);
+                const values = [];
+                for (let minutes = start; minutes <= end; minutes += step) {
+                    values.push(`${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`);
+                }
+                return values;
+            })();
             const [bookingProgram, setBookingProgram] = useState('개인 마음이음');
             const [selectedTests, setSelectedTests] = useState([]);
             const [bookingAlert, setBookingAlert] = useState(null);
@@ -423,6 +528,25 @@ async function submitSignup(userData) {
             useEffect(() => {
                 const timer = setInterval(() => setAiResultNow(Date.now()), 1000);
                 return () => clearInterval(timer);
+            }, []);
+
+            /* [MOD-20260713-AI-RESULT-ACTIVATION]
+               관리자 탭에서 AI 결과상담 활성 상태를 변경하면
+               회원 화면의 예약내역에 즉시 반영되도록 예약정보를 다시 불러옵니다.
+            */
+            useEffect(() => {
+                const reloadReservations = () => {
+                    try {
+                        const saved = JSON.parse(localStorage.getItem("modumam_reservations") || "[]");
+                        if (Array.isArray(saved)) setReservations(saved);
+                    } catch (e) {}
+                };
+                window.addEventListener("storage", reloadReservations);
+                window.addEventListener("focus", reloadReservations);
+                return () => {
+                    window.removeEventListener("storage", reloadReservations);
+                    window.removeEventListener("focus", reloadReservations);
+                };
             }, []);
 
             useEffect(() => {
@@ -665,8 +789,22 @@ setIsAuthModalOpen(false);
         });
         
     } else {
+    // [MOD-20260713-RESULT-IDENTITY-FIX]
+    // 검사결과는 회원 이름 또는 연락처로 연결되므로 빈 정보 로그인을 허용하지 않습니다.
+    const loginName = String(authForm.name || '').trim();
+    const loginPhone = String(authForm.phone || '').replace(/[^0-9]/g, '');
+    if (!loginName || loginPhone.length < 8) {
+        alert('검사결과와 예약내역을 안전하게 연결하려면 이름과 연락처를 모두 입력해 주세요.');
+        return;
+    }
+
     alert('로그인되었습니다.');
-    localStorage.setItem('modumamUser', JSON.stringify({ name: authForm.name, phone: authForm.phone, email: authForm.email, loginAt: new Date().toLocaleString() }));
+    localStorage.setItem('modumamUser', JSON.stringify({
+        name: loginName,
+        phone: loginPhone,
+        email: String(authForm.email || '').trim(),
+        loginAt: new Date().toLocaleString()
+    }));
     setIsLoggedIn(true);
     setIsAuthModalOpen(false);
 
@@ -1420,14 +1558,91 @@ AI 마음체크리포트를 확인하시려면 Y를 입력해 주세요.`,
                     reports = [];
                 }
 
-                return reports.filter((report) => {
-                    const reportName = String(report.clientName || "").trim();
-                    const reportPhone = String(report.phone || "").replace(/[^0-9]/g, "");
-                    const nameMatch = currentName && reportName === currentName;
-                    const phoneMatch = currentPhone && reportPhone &&
-                        (reportPhone.endsWith(currentPhone) || currentPhone.endsWith(reportPhone));
-                    return report.approvedForClient === true && (nameMatch || phoneMatch);
+                return reports
+                    .filter((report) => {
+                        const reportName = String(report.clientName || "").trim();
+                        const reportPhone = String(report.phone || "").replace(/[^0-9]/g, "");
+                        const nameMatch = currentName && reportName === currentName;
+                        const phoneMatch = currentPhone && reportPhone &&
+                            (reportPhone.endsWith(currentPhone) || currentPhone.endsWith(reportPhone));
+                        return report.approvedForClient === true && (nameMatch || phoneMatch);
+                    })
+                    .sort((a, b) => {
+                        const aIntegrated = a.assessmentReport === true || /종합\s*심리평가|종합보고서/.test(String(a.testType || a.title || ""));
+                        const bIntegrated = b.assessmentReport === true || /종합\s*심리평가|종합보고서/.test(String(b.testType || b.title || ""));
+                        if (aIntegrated !== bIntegrated) return aIntegrated ? -1 : 1;
+                        const aTime = Number(a.id || 0);
+                        const bTime = Number(b.id || 0);
+                        return bTime - aTime;
+                    });
+            };
+
+            /* [MOD-20260713-ADMIN-RESULT-LINK-V2]
+               관리자 공개 검사결과를 회원 마이페이지에 연결
+               - 이름/전화번호 표기 차이를 정규화
+               - 회원 예약 ID까지 함께 비교해 동일 회원 결과를 안정적으로 찾음
+            */
+            const getVisibleResultUploadsForCurrentUser = () => {
+                let uploads = [];
+                let savedReservations = [];
+                try {
+                    uploads = JSON.parse(localStorage.getItem("modumam_test_result_uploads") || "[]");
+                    savedReservations = JSON.parse(localStorage.getItem("modumam_reservations") || "[]");
+                } catch (e) {
+                    uploads = [];
+                    savedReservations = [];
+                }
+
+                const normalizeName = (value) =>
+                    String(value || "").replace(/\s+/g, "").toLowerCase();
+                const normalizePhone = (value) =>
+                    String(value || "").replace(/[^0-9]/g, "");
+
+                const loginName = normalizeName(currentName);
+                const loginPhone = normalizePhone(currentPhone);
+                const myReservationIds = new Set(
+                    savedReservations
+                        .filter((reservation) => {
+                            const reservationName = normalizeName(reservation.name);
+                            const reservationPhone = normalizePhone(reservation.phone);
+                            const nameMatch = !!loginName && reservationName === loginName;
+                            const phoneMatch = !!loginPhone && !!reservationPhone &&
+                                (reservationPhone === loginPhone ||
+                                 reservationPhone.endsWith(loginPhone) ||
+                                 loginPhone.endsWith(reservationPhone));
+                            return nameMatch || phoneMatch;
+                        })
+                        .map((reservation) => String(reservation.id))
+                );
+
+                return uploads.filter((item) => {
+                    if (item.visibleToClient !== true) return false;
+
+                    const itemName = normalizeName(item.clientName || item.name);
+                    const itemPhone = normalizePhone(item.phone);
+                    const nameMatch = !!loginName && itemName === loginName;
+                    const phoneMatch = !!loginPhone && !!itemPhone &&
+                        (itemPhone === loginPhone ||
+                         itemPhone.endsWith(loginPhone) ||
+                         loginPhone.endsWith(itemPhone));
+                    const reservationMatch = item.reservationId != null &&
+                        myReservationIds.has(String(item.reservationId));
+
+                    return nameMatch || phoneMatch || reservationMatch;
                 });
+            };
+
+            const openUploadedResult = (upload) => {
+                if (!upload?.dataUrl) {
+                    alert("검사결과 파일을 찾을 수 없습니다. 관리자에게 문의해 주세요.");
+                    return;
+                }
+                const win = window.open();
+                if (win) {
+                    win.location.href = upload.dataUrl;
+                } else {
+                    alert("팝업이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요.");
+                }
             };
 
             const getAiReservationWindow = (reservation) => {
@@ -1478,12 +1693,13 @@ AI 마음체크리포트를 확인하시려면 Y를 입력해 주세요.`,
                 if (!report) return "";
                 const fields = [
                     ["보고서 제목", report.title],
-                    ["검사 종류", report.testType],
+                    ["보고서 유형", report.assessmentReport ? "내담자 제공용 종합 심리평가 보고서" : report.testType],
+                    ["실시 검사", Array.isArray(report.tests) ? report.tests.join(", ") : ""],
                     ["종합 요약", report.summary],
-                    ["임상 소견", report.clinicalOpinion],
-                    ["상담 제안", report.recommendation],
-                    ["강점", report.strengths],
-                    ["주의 깊게 볼 부분", report.concerns],
+                    ["강점과 보호요인", report.strength || report.strengths],
+                    ["어려움을 느낄 수 있는 부분", report.caution || report.concerns],
+                    ["일상 및 상담 제안", report.plan || report.recommendation],
+                    ["전문가 소견", report.clinicalOpinion],
                     ["전체 결과", report.resultText || report.reportText || report.content]
                 ];
 
@@ -1515,6 +1731,14 @@ AI 마음체크리포트를 확인하시려면 Y를 입력해 주세요.`,
                 const state = getAiReservationState(reservation);
                 const approvedReports = getApprovedReportsForCurrentUser();
 
+                if (reservation?.aiResultCounselingEnabled !== true) {
+                    alert("관리자가 AI 결과상담을 활성화한 뒤 이용할 수 있습니다.");
+                    return;
+                }
+                if (reservation?.aiResultCounselingCompletedAt) {
+                    alert("이 예약의 AI 결과상담은 이미 완료되었습니다.");
+                    return;
+                }
                 if (state.status === "before") {
                     alert(`예약시간이 되면 AI 결과상담 버튼이 활성화됩니다.\n상담시간: ${reservation.date} ${reservation.time}부터 50분`);
                     return;
@@ -1528,7 +1752,12 @@ AI 마음체크리포트를 확인하시려면 Y를 입력해 주세요.`,
                     return;
                 }
 
-                const report = approvedReports[0];
+                const report = approvedReports.find((item) =>
+                    String(item.reservationId || "") === String(reservation?.id || "") &&
+                    (item.assessmentReport === true || /종합\s*심리평가|종합보고서/.test(String(item.testType || item.title || "")))
+                ) || approvedReports.find((item) =>
+                    String(item.reservationId || "") === String(reservation?.id || "")
+                ) || approvedReports[0];
                 setActiveAiReservation(reservation);
                 setActiveApprovedReport(report);
                 setAiResultCounselingOpen(true);
@@ -1629,15 +1858,39 @@ AI 마음체크리포트를 확인하시려면 Y를 입력해 주세요.`,
                     const record = {
                         id: Date.now(),
                         reservationId: activeAiReservation.id,
+                        clientName: currentName || activeAiReservation.name || "",
+                        phone: currentPhone || activeAiReservation.phone || "",
                         reportId: activeApprovedReport?.id || null,
+                        reportTitle: activeApprovedReport?.title || "종합 심리평가 보고서",
+                        reportType: activeApprovedReport?.assessmentReport ? "종합 심리평가" : (activeApprovedReport?.testType || "결과보고서"),
+                        startedAt: aiResultMessages?.[0]?.time || "",
+                        completedAt: new Date().toLocaleString("ko-KR"),
                         date: new Date().toLocaleString("ko-KR"),
                         summary,
-                        messages: aiResultMessages
+                        messages: aiResultMessages,
+                        messageCount: aiResultMessages.length,
+                        counselorReviewRequired: true
                     };
                     localStorage.setItem(
                         "modumam_ai_result_counseling_records",
                         JSON.stringify([record, ...saved])
                     );
+
+                    const currentReservations = JSON.parse(localStorage.getItem("modumam_reservations") || "[]");
+                    const completedAt = new Date().toLocaleString("ko-KR");
+                    const updatedReservations = currentReservations.map((item) =>
+                        String(item.id) === String(activeAiReservation.id)
+                            ? {
+                                ...item,
+                                aiResultCounselingCompletedAt: completedAt,
+                                aiResultCounselingSummary: summary,
+                                status: String(item.type || "").includes("AI") ? "상담완료" : item.status
+                            }
+                            : item
+                    );
+                    localStorage.setItem("modumam_reservations", JSON.stringify(updatedReservations));
+                    setReservations(updatedReservations);
+                    setActiveAiReservation((prev) => prev ? { ...prev, aiResultCounselingCompletedAt: completedAt } : prev);
                 } catch (e) {}
             };
 
@@ -2311,10 +2564,19 @@ const toggleTest = (test) => {
       : [...prev, test]
   );
 }; 
-            const handleAddBooking = (e) => {
+            const handleAddBooking = async (e) => {
                 e.preventDefault();
                 if (!bookingName || !bookingPhone || !bookingDate || !bookingTime) {
                     setBookingAlert({ type: 'error', message: '예약 정보를 빠짐없이 입력해 주세요.' });
+                    return;
+                }
+
+                /* [MOD-20260714-BOOKING-OPERATING-SETTINGS] 관리자 설정에 포함된 시간만 허용 */
+                if (!bookingTimeOptions.includes(String(bookingTime))) {
+                    setBookingAlert({
+                        type: 'error',
+                        message: `예약 가능 시간은 ${bookingOperatingSettings.openTime}부터 ${bookingOperatingSettings.closeTime}까지이며, ${bookingOperatingSettings.intervalMinutes}분 단위로 선택해 주세요.`
+                    });
                     return;
                 }
 
@@ -2396,9 +2658,35 @@ const toggleTest = (test) => {
   reportRequired: bookingType === 'AI(비대면)'
 };
 
-                const updatedReservations = [newBooking, ...reservations];
+                const updatedReservations = mergeReservationRows(newBooking, reservations);
                 setReservations(updatedReservations);
-                localStorage.setItem("modumam_reservations", JSON.stringify(updatedReservations));
+
+                // [MOD-20260714-RESERVATION-IDB-BRIDGE]
+                // IndexedDB 저장을 우선 완료한 뒤 localStorage에도 가능한 범위에서 보조 저장합니다.
+                try {
+                    await saveReservationToIndexedDB(newBooking);
+                } catch (error) {
+                    setBookingAlert({ type: 'error', message: '예약 저장소 연결에 실패했습니다. 브라우저를 새로고침한 뒤 다시 신청해 주세요.' });
+                    alert('예약 저장에 실패했습니다. 브라우저 저장소 사용이 허용되어 있는지 확인해 주세요.');
+                    return;
+                }
+
+                try {
+                    localStorage.setItem("modumam_reservations", JSON.stringify(updatedReservations));
+                    const inbox = JSON.parse(localStorage.getItem("modumam_reservation_inbox") || "[]");
+                    const mergedInbox = [newBooking, ...inbox.filter(item => String(item.id) !== String(newBooking.id))];
+                    localStorage.setItem("modumam_reservation_inbox", JSON.stringify(mergedInbox.slice(0, 500)));
+                    localStorage.setItem("modumam_last_reservation", JSON.stringify(newBooking));
+                } catch (error) {
+                    console.warn('localStorage 예약 보조 저장 실패:', error);
+                }
+
+                try {
+                    const channel = new BroadcastChannel("modumam_operating_sync");
+                    channel.postMessage({ type: "reservation-created", reservation: newBooking, at: Date.now() });
+                    channel.close();
+                } catch (error) {}
+
                 setBookingAlert({ type: 'success', message: `${bookingName}님의 소중한 마음 예약이 정상적으로 신청되었습니다. 담당 상담사가 곧 연락드리겠습니다!` });
                 alert('예약 신청이 완료되었습니다. 담당 상담사가 확인 후 연락드리겠습니다.');
                 
@@ -2471,11 +2759,28 @@ const getPaymentInfo = (res) => {
     detail: detailParts.join(" + ")
   };
 };
+            const normalizeReservationStatus = (status) => {
+              const aliases = {
+                '승인대기': '예약신청',
+                '예약확정': '예약승인',
+                '결제대기': '예약승인',
+                '검사링크발송': '검사발송',
+                '검사진행': '검사발송',
+                '결과작성': '결과업로드',
+                '상담예정': '상담준비'
+              };
+              return aliases[status] || status || '예약신청';
+            };
+
             const getStatusStyle = (status) => {
-              if (status === "상담완료") return "bg-emerald-100 text-emerald-700";
-              if (status === "검사진행") return "bg-indigo-100 text-indigo-700";
-              if (status === "예약확정") return "bg-blue-100 text-blue-700";
-              if (status === "예약취소") return "bg-rose-100 text-rose-700";
+              const current = normalizeReservationStatus(status);
+              if (["상담완료", "종결"].includes(current)) return "bg-emerald-100 text-emerald-700";
+              if (["상담준비", "상담진행"].includes(current)) return "bg-teal-100 text-teal-700";
+              if (current === "결과업로드") return "bg-purple-100 text-purple-700";
+              if (current === "검사완료") return "bg-violet-100 text-violet-700";
+              if (current === "검사발송") return "bg-indigo-100 text-indigo-700";
+              if (["예약승인", "결제완료"].includes(current)) return "bg-blue-100 text-blue-700";
+              if (current === "예약취소") return "bg-rose-100 text-rose-700";
               return "bg-amber-100 text-amber-700";
             };
             
@@ -2490,6 +2795,44 @@ const getPaymentInfo = (res) => {
 
 const cancelBooking = (id) => {
   updateReservationStatus(id, "예약취소");
+};
+
+// [MOD-20260713-MEMBER-SCHEDULE-NOTICE]
+// 관리자가 변경한 상담일정 안내를 회원이 확인하면 읽음 상태로 저장합니다.
+const confirmScheduleUpdate = (id) => {
+  const updated = reservations.map(res =>
+    res.id === id ? { ...res, scheduleUpdateUnread: false, scheduleUpdateConfirmedAt: new Date().toLocaleString('ko-KR') } : res
+  );
+  setReservations(updated);
+  localStorage.setItem("modumam_reservations", JSON.stringify(updated));
+};
+
+// [MOD-20260713-MEMBER-STATUS-NOTICE]
+// 관리자가 변경한 예약 진행상태를 회원이 확인하면 읽음 상태로 저장합니다.
+const confirmStatusUpdate = (id) => {
+  const updated = reservations.map(res =>
+    res.id === id ? { ...res, statusUpdateUnread: false, statusUpdateConfirmedAt: new Date().toLocaleString('ko-KR') } : res
+  );
+  setReservations(updated);
+  localStorage.setItem("modumam_reservations", JSON.stringify(updated));
+};
+
+const getMemberStatusMessage = (status) => {
+  const current = normalizeReservationStatus(status);
+  const messages = {
+    '예약신청': '예약 신청이 접수되어 확인을 기다리고 있습니다.',
+    '예약승인': '예약이 승인되었습니다. 결제 안내를 확인해 주세요.',
+    '결제완료': '결제가 확인되었습니다. 필요한 경우 검사 링크를 보내드립니다.',
+    '검사발송': '심리검사 링크가 발송되었습니다. 안내에 따라 검사를 진행해 주세요.',
+    '검사완료': '심리검사가 완료되어 결과를 확인하고 있습니다.',
+    '결과업로드': '검사결과가 등록되었습니다. 결과보고서와 상담 안내를 확인해 주세요.',
+    '상담준비': '검사결과 상담을 준비하고 있습니다. 예약 일정을 확인해 주세요.',
+    '상담진행': '상담이 진행 중입니다.',
+    '상담완료': '상담이 완료되었습니다.',
+    '종결': '모든 상담 과정이 종결되었습니다.',
+    '예약취소': '예약이 취소되었습니다.'
+  };
+  return messages[current] || '예약 진행상태가 변경되었습니다.';
 };
 
 const findBestTest = () => {
@@ -2546,7 +2889,7 @@ if (userAge === 'parent') {
                 return (currentPhone && rp && currentPhone === rp) || (currentName && rn && currentName === rn);
             });
             const hasPaidAccess = userReservations.some((r) =>
-                ['예약확정', '검사진행', '결과작성', '상담완료'].includes(r.status)
+                ['예약승인', '결제완료', '검사발송', '검사완료', '결과업로드', '상담준비', '상담진행', '상담완료', '종결'].includes(normalizeReservationStatus(r.status))
             );
             const userIntakeSummaries = intakeSummaries.filter((i) => {
                 const ip = String(i.phone || '').replace(/[^0-9]/g, '');
@@ -3219,7 +3562,7 @@ if (userAge === 'parent') {
                                                 <Icon name="layout-list" className="w-6 h-6" />
                                             </div>
                                             <span className="text-xs font-extrabold text-indigo-700 bg-white border border-indigo-100 rounded-full px-3 py-1">
-                                                {getApprovedReportsForCurrentUser().length}건
+                                                {getVisibleResultUploadsForCurrentUser().length + getApprovedReportsForCurrentUser().length}건
                                             </span>
                                         </div>
                                         <h3 className="mt-5 text-base font-extrabold text-slate-900">심리검사 결과</h3>
@@ -3272,6 +3615,9 @@ if (userAge === 'parent') {
                                                     {userReservations.map((reservation) => {
                                                         const isAiReservation =
                                                             reservation.type === 'AI(비대면)' ||
+                                                            reservation.type === 'AI 비대면' ||
+                                                            reservation.type === 'AI상담(비대면)' ||
+                                                            reservation.type === 'AI 상담(비대면)' ||
                                                             reservation.aiCounseling === true ||
                                                             reservation.type === '비대면 전화/문자' ||
                                                             reservation.type === '전화 또는 문자(비대면)';
@@ -3283,11 +3629,43 @@ if (userAge === 'parent') {
                                                             ? getApprovedReportsForCurrentUser()
                                                             : [];
                                                         const hasApprovedReport = approvedReports.length > 0;
+                                                        const isAiEnabled = reservation.aiResultCounselingEnabled === true;
+                                                        const isAiCompleted = !!reservation.aiResultCounselingCompletedAt;
                                                         const canStartAi =
                                                             isAiReservation &&
+                                                            isAiEnabled &&
+                                                            !isAiCompleted &&
                                                             aiState?.status === 'available' &&
                                                             hasApprovedReport &&
                                                             reservation.status !== '예약취소';
+                                                        const availableTestLinks = Object.entries(reservation.testLinks || {})
+                                                            .filter(([, url]) => /^https?:\/\//i.test(String(url || '').trim()));
+                                                        const programName = String(reservation.program || '상담 예약')
+                                                            .replace(/\s*\([^)]*(?:검사|TCI|MMPI|PAI|SCT|HTP|PAT|STS|K-?CDI|PHQ|GAD)[^)]*\)\s*$/i, '')
+                                                            .trim() || String(reservation.program || '상담 예약');
+                                                        const testCandidates = [];
+                                                        if (String(reservation.program || '').includes('부모-자녀')) testCandidates.push('STS', 'K-CDI', 'PAT', 'TCI');
+                                                        else if (String(reservation.program || '').includes('부부')) testCandidates.push('TCI');
+                                                        else if (String(reservation.program || '').includes('개인')) testCandidates.push('TCI');
+                                                        const rawExtraTests = reservation.extraTests || reservation.selectedTests || reservation.additionalTests || [];
+                                                        if (Array.isArray(rawExtraTests)) {
+                                                            rawExtraTests.forEach((test) => {
+                                                                const raw = String(test || '').toUpperCase();
+                                                                if (raw.includes('MMPI')) testCandidates.push('MMPI-2');
+                                                                else if (raw.includes('TCI')) testCandidates.push('TCI');
+                                                                else if (raw.includes('PAI')) testCandidates.push('PAI');
+                                                                else if (raw.includes('PAT')) testCandidates.push('PAT');
+                                                                else if (raw.includes('STS')) testCandidates.push('STS');
+                                                                else if (raw.includes('KCDI') || raw.includes('K-CDI')) testCandidates.push('K-CDI');
+                                                                else if (raw.includes('SCT')) testCandidates.push('SCT');
+                                                                else if (raw.includes('HTP')) testCandidates.push('HTP');
+                                                                else if (raw.includes('PHQ')) testCandidates.push('PHQ-9');
+                                                                else if (raw.includes('GAD')) testCandidates.push('GAD-7');
+                                                                else if (raw.includes('회복탄력')) testCandidates.push('회복탄력성');
+                                                                else if (String(test || '').trim()) testCandidates.push(String(test).replace(/\s*검사.*$/, '').trim());
+                                                            });
+                                                        }
+                                                        const displayTests = [...new Set(testCandidates.filter(Boolean))];
 
                                                         return (
                                                             <article
@@ -3305,27 +3683,100 @@ if (userAge === 'parent') {
                                                                                 {isAiReservation ? 'AI(비대면)' : reservation.type}
                                                                             </span>
                                                                             <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-extrabold text-emerald-700">
-                                                                                {reservation.status || '승인대기'}
+                                                                                {normalizeReservationStatus(reservation.status)}
                                                                             </span>
                                                                         </div>
 
-                                                                        <h4 className="text-base font-extrabold text-slate-900">
-                                                                            {reservation.program || '상담 예약'}
-                                                                        </h4>
-                                                                        <p className="mt-2 text-sm text-slate-600">
-                                                                            {reservation.date} {reservation.time}
-                                                                            {isAiReservation && getAiReservationWindow(reservation)?.end
-                                                                                ? ` ~ ${getAiReservationWindow(reservation).end.toLocaleTimeString('ko-KR', {
-                                                                                    hour: '2-digit',
-                                                                                    minute: '2-digit'
-                                                                                })}`
-                                                                                : ''}
-                                                                        </p>
+                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                                                                            <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
+                                                                                <p className="text-[10px] font-extrabold text-slate-400">예약일정</p>
+                                                                                <p className="mt-1 text-sm font-extrabold text-slate-900">
+                                                                                    {reservation.date} {reservation.time}
+                                                                                    {isAiReservation && getAiReservationWindow(reservation)?.end
+                                                                                        ? ` ~ ${getAiReservationWindow(reservation).end.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
+                                                                                        : ''}
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
+                                                                                <p className="text-[10px] font-extrabold text-slate-400">프로그램명</p>
+                                                                                <p className="mt-1 text-sm font-extrabold text-slate-900">{programName}</p>
+                                                                            </div>
+                                                                            <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
+                                                                                <p className="text-[10px] font-extrabold text-slate-400">검사명</p>
+                                                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                                                    {displayTests.length ? displayTests.map((test) => (
+                                                                                        <span key={test} className="rounded-full bg-indigo-50 border border-indigo-100 px-2 py-1 text-[10px] font-extrabold text-indigo-700">{test}</span>
+                                                                                    )) : <span className="text-xs font-bold text-slate-400">없음</span>}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
+                                                                                <p className="text-[10px] font-extrabold text-slate-400">상담방식</p>
+                                                                                <p className="mt-1 text-sm font-extrabold text-slate-900">{reservation.type || '미정'}</p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {reservation.statusUpdateUnread && reservation.statusUpdatedAt && (
+                                                                            <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                                                                <p className="text-xs font-extrabold text-blue-900">예약 진행상태가 변경되었습니다.</p>
+                                                                                <p className="mt-1 text-xs leading-relaxed text-blue-800">
+                                                                                    현재 상태: <strong>{normalizeReservationStatus(reservation.status)}</strong>
+                                                                                </p>
+                                                                                <p className="mt-1 text-xs leading-relaxed text-blue-700">
+                                                                                    {getMemberStatusMessage(reservation.status)}
+                                                                                </p>
+                                                                                <p className="mt-1 text-[11px] text-blue-600">변경일: {reservation.statusUpdatedAt}</p>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => confirmStatusUpdate(reservation.id)}
+                                                                                    className="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-[11px] font-extrabold text-white hover:bg-blue-800"
+                                                                                >
+                                                                                    진행상태 확인
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {reservation.scheduleUpdateUnread && reservation.scheduleUpdatedAt && (
+                                                                            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                                                <p className="text-xs font-extrabold text-amber-800">상담 일정이 변경되었습니다.</p>
+                                                                                <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                                                                                    변경된 일정: {reservation.date} {reservation.time} · {reservation.type}
+                                                                                </p>
+                                                                                <p className="mt-1 text-[11px] text-amber-600">변경일: {reservation.scheduleUpdatedAt}</p>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => confirmScheduleUpdate(reservation.id)}
+                                                                                    className="mt-3 rounded-xl bg-amber-700 px-4 py-2 text-[11px] font-extrabold text-white hover:bg-amber-800"
+                                                                                >
+                                                                                    변경 일정 확인
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {availableTestLinks.length > 0 && reservation.status !== '예약취소' && (
+                                                                            <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">
+                                                                                <p className="text-xs font-extrabold text-indigo-900">온라인 심리검사 링크</p>
+                                                                                <p className="mt-1 text-[11px] leading-relaxed text-indigo-700">아래 검사명을 눌러 검사를 진행해 주세요. 검사 완료 후 담당자에게 알려주세요.</p>
+                                                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                                                    {availableTestLinks.map(([testName, url]) => (
+                                                                                        <a
+                                                                                            key={testName}
+                                                                                            href={String(url)}
+                                                                                            target="_blank"
+                                                                                            rel="noreferrer"
+                                                                                            className="rounded-xl bg-indigo-700 px-4 py-2 text-[11px] font-extrabold text-white hover:bg-indigo-800"
+                                                                                        >
+                                                                                            {testName} 시작
+                                                                                        </a>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
 
                                                                         {isAiReservation && (
-                                                                            <p className="mt-2 text-xs text-slate-500">
-                                                                                결과보고서: {hasApprovedReport ? '검토·승인 완료' : '승인 대기'}
-                                                                            </p>
+                                                                            <div className="mt-2 space-y-1 text-xs text-slate-500">
+                                                                                <p>결과보고서: {hasApprovedReport ? '검토·승인 완료' : '승인 대기'}</p>
+                                                                                <p>AI 결과상담: {isAiCompleted ? '상담 완료' : isAiEnabled ? '관리자 활성화 완료' : '관리자 활성화 대기'}</p>
+                                                                            </div>
                                                                         )}
                                                                     </div>
 
@@ -3337,17 +3788,21 @@ if (userAge === 'parent') {
                                                                                 onClick={() => startAiResultCounseling(reservation)}
                                                                                 className={`rounded-2xl px-5 py-3 text-xs font-extrabold transition ${
                                                                                     canStartAi
-                                                                                        ? 'bg-violet-700 text-white hover:bg-violet-800 shadow-md'
+                                                                                        ? 'bg-violet-700 text-white hover:bg-violet-800 shadow-md ring-2 ring-violet-100'
                                                                                         : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                                                                                 }`}
                                                                             >
-                                                                                {aiState?.status === 'before'
-                                                                                    ? '예약시간에 이용할 수 있습니다'
-                                                                                    : aiState?.status === 'ended'
-                                                                                        ? 'AI 상담이 종료되었습니다'
-                                                                                        : !hasApprovedReport
-                                                                                            ? '결과보고서 승인 대기'
-                                                                                            : `AI 결과상담 시작 · ${formatRemainingTime(aiState.remainingMs)}`}
+                                                                                {isAiCompleted
+                                                                                    ? 'AI 상담 완료'
+                                                                                    : !isAiEnabled
+                                                                                        ? '관리자 활성화 대기'
+                                                                                        : aiState?.status === 'before'
+                                                                                            ? '예약시간에 이용할 수 있습니다'
+                                                                                            : aiState?.status === 'ended'
+                                                                                                ? 'AI 상담이 종료되었습니다'
+                                                                                                : !hasApprovedReport
+                                                                                                    ? '결과보고서 승인 대기'
+                                                                                                    : `AI 상담 시작 · ${formatRemainingTime(aiState.remainingMs)}`}
                                                                             </button>
                                                                         ) : (
                                                                             <button
@@ -3382,8 +3837,72 @@ if (userAge === 'parent') {
                                                 </p>
                                             </div>
 
-                                            {getApprovedReportsForCurrentUser().length ? (
-                                                <div className="space-y-4">
+                                            {(!currentName && !currentPhone) ? (
+                                                <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                                                    <p className="text-sm font-extrabold text-amber-900">회원정보 확인이 필요합니다.</p>
+                                                    <p className="mt-2 text-xs leading-relaxed text-amber-800">
+                                                        현재 로그인 정보에 이름과 연락처가 없어 검사결과를 연결할 수 없습니다. 로그아웃한 뒤 예약 시 사용한 이름과 연락처로 다시 로그인해 주세요.
+                                                    </p>
+                                                </div>
+                                            ) : null}
+
+                                            {(getVisibleResultUploadsForCurrentUser().length || getApprovedReportsForCurrentUser().length) ? (
+                                                <div className="space-y-6">
+                                                    {getVisibleResultUploadsForCurrentUser().length ? (
+                                                        <div>
+                                                            <div className="mb-3 flex items-center justify-between gap-3">
+                                                                <h4 className="text-sm font-extrabold text-slate-800">검사결과 파일</h4>
+                                                                <span className="text-[11px] font-bold text-indigo-600">관리자 공개 승인</span>
+                                                            </div>
+                                                            <div className="space-y-4">
+                                                                {getVisibleResultUploadsForCurrentUser().map((upload) => (
+                                                                    <article
+                                                                        key={upload.id || `${upload.clientName}-${upload.createdAt}`}
+                                                                        className="rounded-3xl border border-emerald-100 bg-white p-5 sm:p-6 shadow-sm"
+                                                                    >
+                                                                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                                                                            <div>
+                                                                                <div className="flex flex-wrap items-center gap-2 mb-3">
+                                                                                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-extrabold text-emerald-700">
+                                                                                        {upload.testType || '심리검사'}
+                                                                                    </span>
+                                                                                    <span className="rounded-full bg-indigo-100 px-3 py-1 text-[11px] font-extrabold text-indigo-700">
+                                                                                        검사결과 공개
+                                                                                    </span>
+                                                                                </div>
+                                                                                <h4 className="text-base font-extrabold text-slate-900">
+                                                                                    {upload.fileName || '심리검사 결과 파일'}
+                                                                                </h4>
+                                                                                <p className="mt-2 text-xs text-slate-500">
+                                                                                    등록일: {upload.createdAt || '확인 필요'}
+                                                                                </p>
+                                                                                {upload.summary ? (
+                                                                                    <p className="mt-3 max-w-3xl whitespace-pre-line text-xs leading-relaxed text-slate-600">
+                                                                                        {upload.summary}
+                                                                                    </p>
+                                                                                ) : null}
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => openUploadedResult(upload)}
+                                                                                className="rounded-2xl bg-emerald-700 px-5 py-3 text-xs font-extrabold text-white hover:bg-emerald-800"
+                                                                            >
+                                                                                검사결과 파일 보기
+                                                                            </button>
+                                                                        </div>
+                                                                    </article>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+
+                                                    {getApprovedReportsForCurrentUser().length ? (
+                                                        <div>
+                                                            <div className="mb-3 flex items-center justify-between gap-3">
+                                                                <h4 className="text-sm font-extrabold text-slate-800">결과보고서</h4>
+                                                                <span className="text-[11px] font-bold text-emerald-600">임상심리사 검토·승인</span>
+                                                            </div>
+                                                            <div className="space-y-4">
                                                     {getApprovedReportsForCurrentUser().map((report) => (
                                                         <article
                                                             key={report.id || `${report.clientName}-${report.createdAt}`}
@@ -3432,6 +3951,9 @@ if (userAge === 'parent') {
                                                             </div>
                                                         </article>
                                                     ))}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
                                                 </div>
                                             ) : (
                                                 <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center">
@@ -4053,6 +4575,7 @@ if (userAge === 'parent') {
                             </div>
                         </section>
 
+{/* [MOD-20260714] 공개 예약페이지의 개인 예약현황 삭제: 예약내역은 로그인 후 나의 마음기록에서만 표시 */}
 <section id="reservations" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
 <div className="max-w-7xl mx-auto">
 <div className="text-center max-w-3xl mx-auto mb-16">
@@ -4066,9 +4589,9 @@ if (userAge === 'parent') {
     </p>
 </div>
 
-<div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
-    {/* Left Form Column: Book counseling */}
-    <div className="lg:col-span-1 bg-slate-50 p-8 rounded-3xl border border-slate-100">
+<div className="max-w-3xl mx-auto">
+    {/* 예약 신청서 */}
+    <div className="bg-slate-50 p-6 sm:p-8 rounded-3xl border border-slate-100">
         <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
             <Icon name="calendar" className="w-5 h-5 mr-2 text-slate-800" />
             간편 예약 신청
@@ -4415,13 +4938,19 @@ if (userAge === 'parent') {
                 </div>
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">희망 시간</label>
-                    <input 
-                        type="time" 
+                    <select
                         required
                         value={bookingTime}
                         onChange={(e) => setBookingTime(e.target.value)}
                         className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                    />
+                    >
+                        <option value="">시간 선택</option>
+                        {/* [MOD-20260714-BOOKING-OPERATING-SETTINGS] 관리자 설정 기반 시간목록 */}
+                        {bookingTimeOptions.map((value) => (
+                            <option key={value} value={value}>{value}</option>
+                        ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-slate-400">예약 가능 시간은 {bookingOperatingSettings.openTime}부터 {bookingOperatingSettings.closeTime}까지이며, {bookingOperatingSettings.intervalMinutes}분 단위로 선택해 주세요.</p>
                 </div>
             </div>
 
@@ -4516,225 +5045,6 @@ if (userAge === 'parent') {
         </form> 
     </div>
 
-                                    {/* Right Column: Live booking status and records */}
-                                    <div className="lg:col-span-2 space-y-6">
-                                        {/* Dynamic Reservation Tracker */}
-                                        <div className="bg-slate-50 p-6 sm:p-8 rounded-3xl border border-slate-100">
-                                            <div className="flex justify-between items-center mb-6">
-                                                <h4 className="font-bold text-slate-900 flex items-center text-base">
-                                                    <Icon name="layout-list" className="w-5 h-5 mr-2 shrink-0" />
-                                                    실시간 예약 현황 및 관리
-                                                </h4>
-                                                
-                                                <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-3 py-1 rounded-full">
-                                                    신청 완료 {reservations.length}건
-                                                </span>
-
-                                   </div>
-
-                                            {reservations.length === 0 ? (
-                                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-                                                    <Icon name="inbox" className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                                                    <p className="text-sm text-slate-400">현재 보류 중인 예약 신청 내역이 없습니다.</p>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-4">
-                                                    {reservations.map((res) => (
-                                                        <div key={res.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 fade-in">
-                                                            <div>
-                                                                <div className="flex items-center space-x-2">
-                                                                    <span className="font-bold text-slate-800 text-sm">
-  {isAdmin
-    ? `${res.name}님`
-    : `${res.name?.charAt(0)}○${res.name?.slice(-1)}님`
-  }
-</span>
-                                                                    <span className="text-[11px] text-slate-400">
-  {isAdmin
-  ? res.phone
-  : res.phone?.replace(
-      /(\d{3})-?(\d{4})-?(\d{4})/,
-      "$1-****-$3"
-    )
-}
-</span>
-                                                                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${getStatusStyle(res.status)}`}>
-                                                                     {res.status || "승인대기"}
-                                                                  </span>
-                                                                </div>
-                                                               <p className="text-xs font-semibold text-slate-700 mt-2">
-    {res.program}
-</p>
-
-<p className="text-xs text-slate-500 mt-1">
-    {res.type}
-</p>
-
-<p className="text-sm font-bold text-emerald-600 mt-2">
-    {getPaymentInfo(res).total}
-</p>
-
-<p className="text-[11px] text-slate-400">
-    {getPaymentInfo(res).detail}
-</p>
-                                                                <div className="flex items-center space-x-4 mt-3 text-[11px] text-slate-400">
-                                                                    <span className="flex items-center">
-                                                                        <Icon name="tag" className="w-3.5 h-3.5 mr-1 text-slate-400" />
-                                                                        {res.type}
-                                                                    </span>
-                                                                    <span className="flex items-center">
-                                                                        <Icon name="clock" className="w-3.5 h-3.5 mr-1 text-slate-400" />
-                                                                        {res.date} ({res.time})
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        <div className="flex justify-end items-center shrink-0 ml-auto">
-                                                        <div className="flex flex-col sm:flex-row gap-2 justify-end items-center shrink-0">
-
-                                                         {isAdmin && (res.status === "승인대기" || !res.status) && (
-                                                          <>
-                                                            <button
-  onClick={() => {
-
-    updateReservationStatus(res.id, "예약확정");
-
-    const paymentInfo = 
-    getPaymentInfo(res);
-      
-    const payMessage = `${res.name}님, 안녕하세요.
-모두의 마음연구소입니다.
-
-예약 신청이 확인되었습니다.
-
-■ 신청 프로그램
-${res.program}
-
-■ 상담 방식
-${res.type}
-
-■ 희망 일정
-${res.date} ${res.time}
-
-■ 결제 금액
-${paymentInfo.total}
-${paymentInfo.detail}
-
-■ 입금 계좌
-카카오뱅크 3333-21-2787124
-예금주 : 백인영
-
-입금 확인 후 검사 링크를 발송해 드리겠습니다.
-
-감사합니다.
-모두의 마음연구소`;
-
-    navigator.clipboard.writeText(payMessage);
-
-    alert("예약이 확정되었습니다.\n결제 안내문이 자동으로 복사되었습니다.");
-
-  }}
-
-  className="text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-50 px-3 py-2 rounded-xl"
->
-  예약확정
-</button>
-
-                                                           <button
-                                                             onClick={() => cancelBooking(res.id)}
-                                                             className="text-xs font-semibold text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 px-3 py-2 rounded-xl"
-                                                           >
-                                                              신청취소
-                                                           </button>
-                                                         </>
-                                                       )}
-
-                                                       {isAdmin && res.status === "예약확정" && (
-                                                         <>
-                                                           <button
-                                                            onClick={() => updateReservationStatus(res.id, "검사진행")}
-                                                            className="text-xs font-semibold text-indigo-700 border border-indigo-200 hover:bg-indigo-50 px-3 py-2 rounded-xl"
-                                                         >
-                                                            검사발송
-                                                         </button>
-
-                                                      </>
-                                                     )}
-  
-                                                    {isAdmin && res.status === "검사진행" && (
-                                                     <button
-                                                        onClick={() => updateReservationStatus(res.id, "상담완료")}
-                                                        className="text-xs font-semibold text-green-700 border border-green-200 hover:bg-green-50 px-3 py-2 rounded-xl"
-                                                        >
-                                                        상담완료
-                                                       </button>
-                                                    )}
-
-                                                   {res.status === "상담완료" && (
-                                                     <span className="text-xs font-bold text-green-600">
-                                                      완료
-                                                     </span>
-                                                   )}
-              
-                                                   {res.status === "예약취소" && (
-                                                    <span className="text-xs font-bold text-rose-500">
-                                                      취소됨
-                                                    </span>
-                                                  )}    
-                                                            
-                                             
-                                                  {!isAdmin && res.type === 'AI(비대면)' &&
-                                                    userReservations.some((item) => item.id === res.id) && (() => {
-                                                      const aiState = getAiReservationState(res);
-                                                      const hasApprovedReport = getApprovedReportsForCurrentUser().length > 0;
-                                                      const canStart =
-                                                        aiState.status === 'available' &&
-                                                        hasApprovedReport &&
-                                                        res.status !== '예약취소';
-
-                                                      return (
-                                                        <button
-                                                          type="button"
-                                                          disabled={!canStart}
-                                                          onClick={() => startAiResultCounseling(res)}
-                                                          className={`text-xs font-extrabold px-4 py-2.5 rounded-xl transition ${
-                                                            canStart
-                                                              ? 'bg-violet-700 text-white hover:bg-violet-800 shadow-sm'
-                                                              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                          }`}
-                                                        >
-                                                          {aiState.status === 'before'
-                                                            ? '예약시간에 이용할 수 있습니다'
-                                                            : aiState.status === 'ended'
-                                                              ? 'AI 상담 종료'
-                                                              : !hasApprovedReport
-                                                                ? '결과보고서 승인 대기'
-                                                                : `AI 결과상담 시작 · ${formatRemainingTime(aiState.remainingMs)}`}
-                                                        </button>
-                                                      );
-                                                    })()}
-{isAdmin && (
-  <button
-    onClick={() => {
-      if (window.confirm(`${res.name}님의 예약 기록을 완전히 삭제하시겠습니까?\n\n삭제 후 복구할 수 없습니다.`)) {
-        const updatedReservations = reservations.filter(item => item.id !== res.id);
-        setReservations(updatedReservations);
-        localStorage.setItem("modumam_reservations", JSON.stringify(updatedReservations));
-        alert("예약 기록이 삭제되었습니다.");
-      }
-    }}
-    className="text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-xl"
-  >
-    기록삭제
-  </button>
-)}
-                                                        </div>
-                                         </div>
-                                     </div>
-                                  ))}
-                             </div>
-                           )}
-                      </div>
-                   </div>
               </div>
          </div>
      </section>
@@ -5268,33 +5578,33 @@ ${paymentInfo.detail}
             )}
 
             <form onSubmit={handleAuthSubmit} className="space-y-4">
-                {authMode === 'signup' && (
-                    <>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-600 mb-1.5">이름</label>
-                            <input
-                                type="text"
-                                required
-                                placeholder="홍길동"
-                                value={authForm.name}
-                                onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
-                            />
-                        </div>
+                {/* [MOD-20260713-RESULT-LOGIN-FIELDS-FIX]
+                    검사결과는 이름·연락처로 연결되므로 회원가입과 로그인 모두 입력받습니다. */}
+                <>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">이름</label>
+                        <input
+                            type="text"
+                            required
+                            placeholder="예약 시 입력한 이름"
+                            value={authForm.name}
+                            onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
+                        />
+                    </div>
 
-                        <div>
-                            <label className="block text-xs font-bold text-slate-600 mb-1.5">전화번호</label>
-                            <input
-                                type="tel"
-                                required
-                                placeholder="010-1234-5678"
-                                value={authForm.phone}
-                                onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
-                            />
-                        </div>
-                    </>
-                )}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">전화번호</label>
+                        <input
+                            type="tel"
+                            required
+                            placeholder="예약 시 입력한 연락처"
+                            value={authForm.phone}
+                            onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-slate-900 transition-colors"
+                        />
+                    </div>
+                </>
 
                 <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1.5">이메일 주소</label>
