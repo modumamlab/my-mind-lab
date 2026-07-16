@@ -50,7 +50,7 @@ ${clean(JSON.stringify(body.currentNote||{}),8000)||'입력 없음'}
 }
 
 async function callGemini(apiKey,prompt){
-  const models=[process.env.GEMINI_PRIMARY_MODEL||'gemini-2.5-flash',process.env.GEMINI_FALLBACK_MODEL||'gemini-2.5-flash-lite'];
+  const models=[process.env.GEMINI_PRIMARY_MODEL||'gemini-2.5-flash',process.env.GEMINI_FALLBACK_MODEL||'gemini-2.5-flash'];
   let lastError;
   for(const model of [...new Set(models)]){
     try{

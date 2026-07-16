@@ -9,7 +9,7 @@ function extractionPrompt(body){
   return `당신은 심리검사 결과표에서 구조화된 수치만 추출하는 보조 AI입니다.\n검사 종류: ${body.testType}\n파일명: ${clean(body.fileName,200)}\n대상자: ${clean(body.clientName,100)}\n\n추출할 척도:\n${defs}\n\n중요 규칙:\n- 이미지나 PDF에 실제로 보이는 값만 추출합니다.\n- 점수, 백분위, T점수, 표준점수 등 표기된 수치는 원문 그대로 score에 기록합니다.\n- 결과표에 낮음/보통/높음 또는 이에 준하는 구간이 명시되어 있으면 level을 낮음, 보통, 높음 중 하나로 변환합니다.\n- 수준이 명시되지 않았거나 기준을 확실히 알 수 없으면 level은 반드시 확인필요로 합니다.\n- 검사 규준이나 절단점을 임의로 추정하지 않습니다.\n- 읽기 어려운 값은 빈 문자열과 확인필요로 반환합니다.\n- evidence에는 결과표에서 어떤 문구나 위치를 보고 판단했는지 짧게 씁니다.\n- confidence는 높음, 보통, 낮음 중 하나입니다.\n- 대상자의 개인정보는 요약에 불필요하게 반복하지 않습니다.\n\n아래 JSON만 반환하세요.\n{\n  "documentSummary":"결과표에서 확인된 검사명, 점수 체계, 전반적 구조를 2~4문장으로 요약",\n  "warnings":["판독이 불명확하거나 상담자가 반드시 확인할 항목"],\n  "scales":{\n    ${defs.split('\n').map(line=>{const key=line.match(/- ([^:]+)/)?.[1];return `"${key}":{"score":"","level":"확인필요","evidence":"","confidence":"낮음"}`}).join(',\n    ')}\n  }\n}`;
 }
 async function callGemini(apiKey,body){
-  const models=[process.env.GEMINI_PRIMARY_MODEL||'gemini-2.5-flash',process.env.GEMINI_FALLBACK_MODEL||'gemini-2.5-flash-lite'];
+  const models=[process.env.GEMINI_PRIMARY_MODEL||'gemini-2.5-flash',process.env.GEMINI_FALLBACK_MODEL||'gemini-2.5-flash'];
   let lastError;
   for(const model of [...new Set(models)]){
     try{

@@ -182,7 +182,7 @@ ${lastUser}
 async function callGemini({ apiKey, prompt, closing = false }) {
   const configuredModels = [
     process.env.GEMINI_PRIMARY_MODEL || "gemini-2.5-flash",
-    process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash-lite"
+    process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash"
   ];
 
   // 동일 모델 중복 제거

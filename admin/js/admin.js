@@ -1,3 +1,7 @@
+/* [FIX-20260715-SESSION-ORGANIZER-15] 회기기록 정리 UI 및 저장 목록 개편 */
+/* [FIX-20260715-ELECTRONIC-CHART-20] 이름·연락처 검색형 통합 전자차트 */
+/* [FIX-20260715-CASE-AID-REMOVE-11] AI 사례개념화 화면의 AI 상담보조 영역 삭제 */
+/* [FIX-20260715-JOURNAL-UI-ACTIVE] 상담일지 화면 개선 실제 적용본 */
 /* =========================================================
    모두의 마음연구소 상담운영센터 2.0 · 상담운영센터 2.0 · Sprint 18 AI 결과상담 연결
    파일 역할: 예약관리, 검사 진행관리, AI 접수기록, 보고서, 회원관리
@@ -89,7 +93,7 @@ async function replaceIndexedReservations(rows){
   db.close();
 }
 
-let state={authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),intakes:load('modumam_intake_summaries',[]),reports:load('modumam_reports',[]),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationSyncError:''};
+let state={counselingJournalTab:'sessions',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),intakes:load('modumam_intake_summaries',[]),reports:load('modumam_reports',[]),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:load('modumam_assessment_report_drafts',[]),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationSyncError:''};
 function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',program:'',testType:'TCI',title:'',summary:'',strength:'',caution:'',plan:'',status:'작성중',approvedForClient:false}}
 function load(k,f){try{const s=localStorage.getItem(k);return s?JSON.parse(s):f}catch(e){return f}}
 function appendAuditLog(action,key,detail=''){
@@ -120,10 +124,16 @@ function mergeReservationsById(...lists){
   return [...map.values()].sort((a,b)=>Number(b.id||0)-Number(a.id||0));
 }
 function syncSharedOperatingData(){
+  // [FIX-20260715-RESERVATION-MASTER]
+  // 관리자에서 저장한 modumam_reservations를 유일한 기준값으로 사용합니다.
+  // inbox/lastReservation의 오래된 복사본은 기존 예약을 덮어쓰지 않고,
+  // 기준 저장소에 없는 신규 예약만 보충합니다.
   const primaryReservations=load('modumam_reservations',[]);
   const inboxReservations=load('modumam_reservation_inbox',[]);
   const lastReservation=load('modumam_last_reservation',null);
-  const nextReservations=mergeReservationsById(primaryReservations,inboxReservations,lastReservation?[lastReservation]:[]);
+  const primaryIds=new Set(primaryReservations.map(item=>String(item?.id||'')));
+  const missing=[...inboxReservations,lastReservation].filter(item=>item&& !primaryIds.has(String(item.id||'')));
+  const nextReservations=mergeReservationsById(missing,primaryReservations);
   if(nextReservations.length) localStorage.setItem('modumam_reservations',JSON.stringify(nextReservations));
   const nextIntakes=load('modumam_intake_summaries',[]);
   const nextReports=load('modumam_reports',[]);
@@ -188,21 +198,36 @@ async function refreshSharedOperatingData(showMessage=false){
 function esc(v){return String(v||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')}
 function statusClass(s){const n=normalizeStatus(s);if(['상담완료','종결'].includes(n))return'bg-emerald-100 text-emerald-700';if(['상담준비','상담진행'].includes(n))return'bg-teal-100 text-teal-700';if(n==='결과업로드')return'bg-purple-100 text-purple-700';if(n==='검사완료')return'bg-violet-100 text-violet-700';if(n==='검사발송')return'bg-indigo-100 text-indigo-700';if(n==='결제완료')return'bg-emerald-100 text-emerald-700';if(n==='예약승인')return'bg-blue-100 text-blue-700';if(n==='예약취소')return'bg-rose-100 text-rose-700';return'bg-amber-100 text-amber-700'}
 function getPaymentInfo(r){
-  const type=String(r.type||'');
-  const program=String(r.program||'');
-  const face=['장소 조율(대면)','찾아가는(대면)','대면'].some(t=>type.includes(t));
-  const base=face?80000:50000;
-  const baseLabel=face?'상담비(기본검사 + 대면상담) 80,000원':'상담비(기본검사 + 비대면상담) 50,000원';
-  const needsBasicExtra=program.includes('부부')||program.includes('부모-자녀');
-  const basicExtra=needsBasicExtra?30000:0;
+  const type=String(r.type||'').trim();
+  const program=programBaseName(r.program||'');
+
+  // 'AI(비대면)'에도 '대면' 글자가 포함되므로 includes('대면')만으로 판단하면 안 됩니다.
+  const isNonFace=/AI|Zoom|화상|전화|비대면/i.test(type);
+  const counselingFee=isNonFace?20000:50000;
+  const counselingLabel=isNonFace?'비대면상담비 20,000원':'대면상담비 50,000원';
+
+  const basicTestCount=(program.includes('부부')||program.includes('부모-자녀'))?2:1;
+  const basicTestFee=basicTestCount*30000;
+
   const extras=r.extraTests||r.selectedTests||r.additionalTests||[];
   const freeKeywords=['무료','기본','문장완성검사','집-나무-사람','그림검사','우울검사','불안검사','스트레스검사'];
-  let paid=Array.isArray(extras)?extras.filter(t=>!freeKeywords.some(k=>String(t).includes(k))).length:0;
-  const extra=paid*30000;
-  const parts=[baseLabel];
-  if(needsBasicExtra) parts.push('기본검사 추가 30,000원');
-  if(paid) parts.push('추가검사 '+paid+'건 '+extra.toLocaleString()+'원');
-  return{total:(base+basicExtra+extra).toLocaleString()+'원',detail:parts.join(' + ')}
+  const paidExtraCount=Array.isArray(extras)
+    ? extras.filter(test=>!freeKeywords.some(keyword=>String(test).includes(keyword))).length
+    : 0;
+  const extraTestFee=paidExtraCount*30000;
+
+  const parts=[
+    counselingLabel,
+    `기본검사 ${basicTestCount}건 ${basicTestFee.toLocaleString()}원`
+  ];
+  if(paidExtraCount){
+    parts.push(`추가검사 ${paidExtraCount}건 ${extraTestFee.toLocaleString()}원`);
+  }
+
+  return{
+    total:(counselingFee+basicTestFee+extraTestFee).toLocaleString()+'원',
+    detail:parts.join(' + ')
+  };
 }
 function normTest(value){
   const raw=String(value||'').trim();
@@ -227,10 +252,28 @@ function normTest(value){
   return found?found[1]:clean;
 }
 
+function reportTestGroups(r){
+  const program=programBaseName(r?.program||'');
+  const defaults=getOperatingSettings().programDefaultTests||{};
+  const basicRaw=Array.isArray(defaults[program])?defaults[program]:[];
+  const extraRaw=r?.extraTests||r?.selectedTests||r?.additionalTests||[];
+  const normalizeList=(list,markFree=false)=>{
+    const seen=new Set();
+    return (Array.isArray(list)?list:[]).map(t=>{
+      const n=normTest(t);if(!n)return '';
+      return markFree&&String(t).includes('무료')?n+' (무료)':n;
+    }).filter(Boolean).filter(t=>{const k=shortTestName(t);if(seen.has(k))return false;seen.add(k);return true;});
+  };
+  const basicTests=normalizeList(basicRaw);
+  const basicKeys=new Set(basicTests.map(shortTestName));
+  const additionalTests=normalizeList(extraRaw,true).filter(t=>!basicKeys.has(shortTestName(t)));
+  return{program,basicTests,additionalTests,allTests:[...basicTests,...additionalTests]};
+}
+
 function requestedTests(r){
   let tests=[];const p=String(r.program||'');
   const defaults=getOperatingSettings().programDefaultTests||{};
-  const programKey=p.includes('부모-자녀')?'부모-자녀 마음이음':p.includes('부부')?'부부 마음이음':p.includes('개인')?'개인 마음이음':'';
+  const programKey=p.includes('개별 심리검사')?'':p.includes('부모-자녀')?'부모-자녀 마음이음':p.includes('부부')?'부부 마음이음':p.includes('개인')?'개인 마음이음':'';
   if(programKey&&Array.isArray(defaults[programKey])) tests.push(...defaults[programKey]);
   const extras=r.extraTests||r.selectedTests||r.additionalTests||[];
   if(Array.isArray(extras)) extras.forEach(t=>{const n=normTest(t);if(n)tests.push(String(t).includes('무료')?n+' (무료)':n)});
@@ -243,6 +286,7 @@ function programBaseName(program){
   // [MOD-20260714-ADMIN-PROGRAM-NAME]
   // 관리자 화면의 프로그램명은 아래 3개만 사용합니다.
   // 검사명·패키지명·과거 표기는 신청검사 영역에서 별도로 표시합니다.
+  if(/개별\s*심리검사|개별검사/i.test(raw)) return '개별 심리검사';
   if(/부모\s*[-·]?\s*자녀|부모자녀|양육|영유아/i.test(raw)) return '부모-자녀 마음이음';
   if(/부부|커플|배우자/i.test(raw)) return '부부 마음이음';
   return '개인 마음이음';
@@ -288,12 +332,83 @@ function electronicChartTestChips(client, latest, tests){
     return `<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-extrabold border ${cls}"><span>${esc(short)}</span><span class="text-[10px] opacity-75">${label}</span></span>`;
   }).join(''):'<span class="text-xs text-slate-400">신청 검사 없음</span>'}</div>`;
 }
+
 function clientKey(n,p){const phone=String(p||'').replace(/[^0-9]/g,'');return phone||String(n||'').trim()||'unknown'}
-function buildClients(){const m={};state.reservations.forEach(r=>{const k=clientKey(r.name,r.phone);if(!m[k])m[k]={key:k,name:r.name||'이름 미입력',phone:r.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].reservations.push(r)});state.intakes.forEach(i=>{const k=clientKey(i.name,i.phone);if(!m[k])m[k]={key:k,name:i.name||'이름 미입력',phone:i.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].intakes.push(i)});state.reports.forEach(r=>{const same=Object.keys(m).find(k=>String(m[k].name).trim()===String(r.clientName).trim());const k=same||clientKey(r.clientName,r.phone);if(!m[k])m[k]={key:k,name:r.clientName||'이름 미입력',phone:r.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].reports.push(r)});state.resultUploads.forEach(u=>{const same=Object.keys(m).find(k=>(u.phone&&clientKey('',u.phone)===k)||String(m[k].name).trim()===String(u.clientName||'').trim());const k=same||clientKey(u.clientName,u.phone);if(!m[k])m[k]={key:k,name:u.clientName||'이름 미입력',phone:u.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].uploads.push(u)});(state.aiResultCounselingRecords||[]).forEach(record=>{const same=Object.keys(m).find(k=>String(m[k].name).trim()===String(record.clientName||'').trim()||(record.phone&&clientKey('',record.phone)===k));const reservation=state.reservations.find(r=>String(r.id)===String(record.reservationId));const k=same||clientKey(record.clientName||reservation?.name,record.phone||reservation?.phone);if(!m[k])m[k]={key:k,name:record.clientName||reservation?.name||'이름 미입력',phone:record.phone||reservation?.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].aiResultRecords.push(record)});return Object.values(m).map(c=>({...c,profileMemo:load('modumam_client_profile_'+c.key,{memo:'',updatedAt:''})}))}
+
+/* [BUILD-20260715-CASE-NUMBER-22] 예약번호·사례번호 */
+function caseProgramCode(program){
+  const name=programBaseName(program);
+  if(name.includes('부부'))return 'C';
+  if(name.includes('부모-자녀'))return 'F';
+  return 'P';
+}
+function reservationDateKey(r){
+  const raw=String(r.createdAt||r.date||'').replace(/[^0-9]/g,'');
+  if(raw.length>=8)return raw.slice(2,8);
+  const d=new Date(Number(r.id)||Date.now());
+  return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+}
+function nextReservationNumber(r,rows){
+  const dateKey=reservationDateKey(r);
+  const used=(rows||[]).map(x=>String(x.reservationNumber||'')).filter(x=>x.startsWith(`R${dateKey}-`)).map(x=>Number(x.split('-').pop())||0);
+  return `R${dateKey}-${String(Math.max(0,...used)+1).padStart(3,'0')}`;
+}
+function nextCaseNumber(r,rows){
+  const year=String(new Date().getFullYear()).slice(-2);
+  const code=caseProgramCode(r.program);
+  const prefix=`ML-${code}-${year}`;
+  const used=(rows||[]).map(x=>String(x.caseNumber||'')).filter(x=>x.startsWith(prefix)).map(x=>Number(x.slice(prefix.length))||0);
+  return `${prefix}${String(Math.max(0,...used)+1).padStart(4,'0')}`;
+}
+function findExistingCaseNumber(r,rows){
+  const key=clientKey(r.name,r.phone);
+  const same=(rows||[]).find(x=>String(x.caseNumber||'')&&clientKey(x.name,x.phone)===key);
+  return same?.caseNumber||'';
+}
+function ensureReservationIdentifiers(){
+  let changed=false;
+  const rows=state.reservations||[];
+  rows.forEach(r=>{
+    if(!r.reservationNumber){r.reservationNumber=nextReservationNumber(r,rows);changed=true;}
+    const eligible=statusReached(r.status,'예약승인')&&normalizeStatus(r.status)!=='예약취소';
+    if(eligible&&!r.caseNumber){r.caseNumber=findExistingCaseNumber(r,rows)||nextCaseNumber(r,rows);changed=true;}
+  });
+  if(changed){
+    try{localStorage.setItem('modumam_reservations',JSON.stringify(rows));}catch(e){}
+    replaceIndexedReservations(rows).catch(()=>{});
+  }
+  return changed;
+}
+function caseStatusLabel(r){
+  const st=normalizeStatus(r?.status);
+  if(st==='종결')return '종결';
+  if(['상담준비','상담진행','상담완료'].includes(st))return '상담중';
+  return '예약';
+}
+function caseStatusClass(r){
+  const label=caseStatusLabel(r);
+  return label==='종결'?'bg-emerald-100 text-emerald-700':label==='상담중'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700';
+}
+
+function buildClients(){const m={};state.reservations.forEach(r=>{const k=clientKey(r.name,r.phone);if(!m[k])m[k]={key:k,name:r.name||'이름 미입력',phone:r.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].reservations.push(r)});state.intakes.forEach(i=>{const k=clientKey(i.name,i.phone);if(!m[k])m[k]={key:k,name:i.name||'이름 미입력',phone:i.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].intakes.push(i)});state.reports.forEach(r=>{const same=Object.keys(m).find(k=>String(m[k].name).trim()===String(r.clientName).trim());const k=same||clientKey(r.clientName,r.phone);if(!m[k])m[k]={key:k,name:r.clientName||'이름 미입력',phone:r.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].reports.push(r)});state.resultUploads.forEach(u=>{const same=Object.keys(m).find(k=>(u.phone&&clientKey('',u.phone)===k)||String(m[k].name).trim()===String(u.clientName||'').trim());const k=same||clientKey(u.clientName,u.phone);if(!m[k])m[k]={key:k,name:u.clientName||'이름 미입력',phone:u.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].uploads.push(u)});(state.aiResultCounselingRecords||[]).forEach(record=>{const same=Object.keys(m).find(k=>String(m[k].name).trim()===String(record.clientName||'').trim()||(record.phone&&clientKey('',record.phone)===k));const reservation=state.reservations.find(r=>String(r.id)===String(record.reservationId));const k=same||clientKey(record.clientName||reservation?.name,record.phone||reservation?.phone);if(!m[k])m[k]={key:k,name:record.clientName||reservation?.name||'이름 미입력',phone:record.phone||reservation?.phone||'',reservations:[],intakes:[],reports:[],uploads:[],aiResultRecords:[],notes:load('modumam_counseling_notes_'+k,[])};m[k].aiResultRecords.push(record)});return Object.values(m).map(c=>{const latest=[...(c.reservations||[])].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))[0]||{};return {...c,caseNumber:(c.reservations||[]).find(r=>r.caseNumber)?.caseNumber||'',reservationNumber:latest.reservationNumber||'',profileMemo:load('modumam_client_profile_'+c.key,{memo:'',updatedAt:''})}})}
 function findIntake(r){const p=String(r.phone||'').replace(/[^0-9]/g,'');const n=String(r.name||'').trim();return state.intakes.find(i=>{const ip=String(i.phone||'').replace(/[^0-9]/g,'');const iname=String(i.name||'').trim();return(p&&ip&&p===ip)||(n&&iname&&n===iname)})}
 function hasReport(r){return state.reports.some(x=>String(x.clientName||'').trim()===String(r.name||'').trim())}
 function progress(r){const current=normalizeStatus(r.status);const steps=STATUS.filter(x=>x!=='예약취소').map(step=>[step,statusReached(current,step)]);return{steps,pct:Math.round(steps.filter(x=>x[1]).length/steps.length*100),ai:!!findIntake(r)}}
 function setMenu(m){syncSharedOperatingData();state.menu=m;render()}
+// 오늘 해야 할 일의 버튼은 업무를 즉시 처리하지 않고 관련 페이지로 이동합니다.
+function openTodayTaskPage(menu,reservationId=''){
+  syncSharedOperatingData();
+  state.menu=menu;
+  render();
+  if(reservationId){
+    setTimeout(()=>{
+      const target=document.getElementById(`reservation-task-${reservationId}`);
+      if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+    },80);
+  }
+}
+window.openTodayTaskPage=openTodayTaskPage;
+
 /* =========================================================
    관리자 로그인 보안
    - 비밀번호: ADMIN_PASSWORD 값 수정
@@ -348,7 +463,7 @@ function logout(){sessionStorage.removeItem('modumam_admin_auth');state.authed=f
 function updateReservation(id,patch){
   const changedAt=new Date().toLocaleString('ko-KR');
   state.reservations=state.reservations.map(r=>{
-    if(r.id!==id)return r;
+    if(String(r.id)!==String(id))return r;
     const next={...r,...patch};
     if(Object.prototype.hasOwnProperty.call(patch,'status') && String(patch.status||'')!==String(r.status||'')){
       const history=[...(Array.isArray(r.statusHistory)?r.statusHistory:[])];
@@ -360,6 +475,27 @@ function updateReservation(id,patch){
     return next;
   });
   save('modumam_reservations',state.reservations);
+
+  try{
+    const updated=state.reservations.find(
+      r=>String(r.id)===String(id)
+    );
+    if(updated){
+      const inbox=load('modumam_reservation_inbox',[]);
+      const nextInbox=[
+        updated,
+        ...inbox.filter(item=>String(item.id)!==String(id))
+      ];
+      save('modumam_reservation_inbox',nextInbox);
+      save('modumam_last_reservation',updated);
+      putIndexedReservation(updated).catch(error=>{
+        console.error('[예약 진행상태 IndexedDB 저장]',error);
+      });
+    }
+  }catch(error){
+    console.error('[예약 진행상태 동기화]',error);
+  }
+
   render();
 }
 
@@ -367,15 +503,51 @@ function updateReservation(id,patch){
 // 상담일정·방식 변경 시 회원 화면에 안내할 수 있도록 변경 이력을 저장합니다.
 function updateScheduleWithHistory(id,patch,changeType){
   const changedAt=new Date().toLocaleString('ko-KR');
+  let updatedReservation=null;
+
   state.reservations=state.reservations.map(r=>{
-    if(r.id!==id)return r;
+    // [FIX-20260715-SCHEDULE-SAVE]
+    // 예약 ID가 숫자/문자열로 섞여 있어도 일정 수정이 사라지지 않도록 문자열로 비교합니다.
+    if(String(r.id)!==String(id))return r;
+
     const before={date:r.date||'',time:r.time||'',type:r.type||''};
     const after={...before,...patch};
     const history=[...(Array.isArray(r.scheduleHistory)?r.scheduleHistory:[])];
     history.unshift({id:Date.now(),changeType,before,after,changedAt});
-    return {...r,...patch,scheduleHistory:history.slice(0,20),scheduleUpdatedAt:changedAt,scheduleUpdateUnread:true};
+
+    updatedReservation={
+      ...r,
+      ...patch,
+      scheduleHistory:history.slice(0,20),
+      scheduleUpdatedAt:changedAt,
+      scheduleUpdateUnread:true
+    };
+    return updatedReservation;
   });
+
+  if(!updatedReservation){
+    alert('수정할 예약을 찾지 못했습니다. 예약 새로 불러오기를 누른 뒤 다시 시도해 주세요.');
+    render();
+    return;
+  }
+
+  // localStorage, 예약 inbox, IndexedDB에 모두 저장하여 새로고침 후에도 일정이 유지되도록 합니다.
   save('modumam_reservations',state.reservations);
+  try{
+    const inbox=load('modumam_reservation_inbox',[]);
+    const nextInbox=[
+      updatedReservation,
+      ...inbox.filter(item=>String(item.id)!==String(id))
+    ];
+    save('modumam_reservation_inbox',nextInbox);
+    save('modumam_last_reservation',updatedReservation);
+    putIndexedReservation(updatedReservation).catch(error=>{
+      console.error('[예약 일정 IndexedDB 저장]',error);
+    });
+  }catch(error){
+    console.error('[예약 일정 동기화]',error);
+  }
+
   render();
 }
 function updateCounselingMethod(id,value){
@@ -403,13 +575,74 @@ function updateCounselingDate(id,value){
    - 검사 링크 발송 → 검사링크발송 / 검사 상태 발송완료
    - 상담 예정 → 상담예정
 ========================================================= */
-function approveReservation(id){updateReservation(id,{status:'예약승인',approvedAt:new Date().toLocaleString()});}
+
+// [MOD-20260715-CURRENT-STAGE-SAVE]
+// 예약 단계 선택창은 제거하고, 현재 단계 안내에서 예약일정·상담방식 변경사항만 저장합니다.
+function saveCurrentReservationChanges(id){
+  const reservation=state.reservations.find(r=>String(r.id)===String(id));
+  if(!reservation){alert('예약 정보를 찾지 못했습니다.');return;}
+
+  const date=document.getElementById(`reservation-date-${id}`)?.value?.trim()||'';
+  const time=document.getElementById(`reservation-time-${id}`)?.value?.trim()||'';
+  const type=document.getElementById(`reservation-method-${id}`)?.value?.trim()||'';
+
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('상담일자를 올바르게 선택해 주세요.');return;}
+  if(!COUNSELING_TIMES.includes(time)){alert('상담시간을 올바르게 선택해 주세요.');return;}
+  if(!type){alert('상담방식을 선택해 주세요.');return;}
+
+  const changed=date!==String(reservation.date||'') || time!==String(reservation.time||'') || type!==String(reservation.type||'');
+  if(!changed){alert('변경된 사항이 없습니다.');return;}
+
+  const isAi=type==='AI(비대면)';
+  updateScheduleWithHistory(id,{
+    date,time,type,
+    aiCounseling:isAi,
+    counselingDurationMinutes:isAi?50:null,
+    reportRequired:isAi,
+    reservationUpdatedAt:new Date().toISOString()
+  },'예약정보 변경');
+  alert('변경사항을 저장했습니다. 오늘 업무에도 바로 반영됩니다.');
+}
+window.saveCurrentReservationChanges=saveCurrentReservationChanges;
+
+function approveReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));const caseNumber=r?.caseNumber||findExistingCaseNumber(r||{},state.reservations)||nextCaseNumber(r||{},state.reservations);updateReservation(id,{status:'예약승인',caseNumber,approvedAt:new Date().toLocaleString()});}
 function markPaymentComplete(id){updateReservation(id,{status:'결제완료',paidAt:new Date().toLocaleString()});}
-function sendTestLinks(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]=ts[t]&&ts[t]!=='미발송'?ts[t]:'발송완료');updateReservation(id,{status:'검사발송',testStatuses:ts,testLinksSentAt:new Date().toLocaleString()});}
-function markTestComplete(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]='검사완료');updateReservation(id,{status:'검사완료',testStatuses:ts,testCompletedAt:new Date().toLocaleString()});}
+function sendTestLinks(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]=ts[t]&&ts[t]!=='미발송'?ts[t]:'발송완료');updateReservation(id,{status:'검사발송',testStatuses:ts,testLinksSentAt:new Date().toLocaleString()});}
+function markTestComplete(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]='검사완료');updateReservation(id,{status:'검사완료',testStatuses:ts,testCompletedAt:new Date().toLocaleString()});}
 function markCounselingReady(id){updateReservation(id,{status:'상담준비',counselingReadyAt:new Date().toLocaleString()});}
 function nextActionLabel(r){const st=normalizeStatus(r.status);if(st==='예약신청')return '예약 승인';if(st==='예약승인')return '결제 확인';if(st==='결제완료')return '검사 링크 발송';if(st==='검사발송')return '검사 완료 확인';if(st==='검사완료')return '결과 업로드';if(st==='결과업로드')return '상담 준비';if(st==='상담준비')return '상담 시작';if(st==='상담진행')return '상담 완료';if(st==='상담완료')return '종결';return '완료';}
-function runNextAction(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const st=normalizeStatus(r.status);if(st==='예약신청')return approveReservation(id);if(st==='예약승인')return markPaymentComplete(id);if(st==='결제완료')return sendTestLinks(id);if(st==='검사발송')return markTestComplete(id);if(st==='검사완료')return updateReservation(id,{status:'결과업로드'});if(st==='결과업로드')return markCounselingReady(id);if(st==='상담준비')return updateReservation(id,{status:'상담진행'});if(st==='상담진행')return updateReservation(id,{status:'상담완료',completedAt:new Date().toLocaleString()});if(st==='상담완료')return updateReservation(id,{status:'종결',closedAt:new Date().toLocaleString()});}
+function runNextAction(id){
+  const r=state.reservations.find(
+    x=>String(x.id)===String(id)
+  );
+
+  if(!r){
+    alert('예약 정보를 찾지 못했습니다. 예약 새로 불러오기를 눌러 다시 확인해 주세요.');
+    return;
+  }
+
+  const reservationId=r.id;
+  const st=normalizeStatus(r.status);
+
+  if(st==='예약신청')return approveReservation(reservationId);
+  if(st==='예약승인')return markPaymentComplete(reservationId);
+  if(st==='결제완료')return sendTestLinks(reservationId);
+  if(st==='검사발송')return markTestComplete(reservationId);
+  if(st==='검사완료')return updateReservation(reservationId,{status:'결과업로드'});
+  if(st==='결과업로드')return markCounselingReady(reservationId);
+  if(st==='상담준비')return updateReservation(reservationId,{status:'상담진행'});
+  if(st==='상담진행')return updateReservation(reservationId,{
+    status:'상담완료',
+    completedAt:new Date().toLocaleString('ko-KR')
+  });
+  if(st==='상담완료')return updateReservation(reservationId,{
+    status:'종결',
+    closedAt:new Date().toLocaleString('ko-KR')
+  });
+
+  alert(st==='종결'?'이미 종결된 예약입니다.':'현재 단계에서는 다음 단계로 이동할 수 없습니다.');
+}
+window.runNextAction=runNextAction;
 
 // [MOD-20260713-STATUS-ROLLBACK]
 // 통합 진행상태를 한 단계 이전으로 되돌리고 변경 이력을 예약별로 확인합니다.
@@ -418,8 +651,50 @@ function previousWorkflowStatus(status){
   const idx=steps.indexOf(normalizeStatus(status));
   return idx>0?steps[idx-1]:'';
 }
+
+function moveReservationToPreviousStage(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));
+  if(!r){
+    alert('예약 정보를 찾지 못했습니다.');
+    return;
+  }
+
+  const current=normalizeStatus(r.status);
+  const previousMap={
+    '예약승인':'예약신청',
+    '결제완료':'예약승인',
+    '검사발송':'결제완료',
+    '검사완료':'검사발송',
+    '결과업로드':'검사완료',
+    '상담준비':'결과업로드',
+    '상담진행':'상담준비',
+    '상담완료':'상담진행',
+    '종결':'상담완료'
+  };
+
+  const previous=previousMap[current];
+
+  if(!previous){
+    alert('예약신청 단계에서는 더 이전으로 이동할 수 없습니다.');
+    return;
+  }
+
+  if(!confirm(`${current}에서 ${previous}(으)로 되돌리시겠습니까?\n예약일정과 상담방식은 위에서 수정할 수 있습니다.`)){
+    return;
+  }
+
+  updateReservation(r.id,{
+    status:previous,
+    workflowUpdatedAt:new Date().toLocaleString('ko-KR')
+  });
+
+  alert(`${previous} 단계로 이동했습니다.`);
+}
+
+window.moveReservationToPreviousStage=moveReservationToPreviousStage;
+
 function rollbackReservationStatus(id){
-  const r=state.reservations.find(x=>x.id===id);
+  const r=state.reservations.find(x=>String(x.id)===String(id));
   if(!r)return;
   const prev=previousWorkflowStatus(r.status);
   if(!prev){alert('예약신청 이전 단계로는 되돌릴 수 없습니다.');return;}
@@ -434,7 +709,7 @@ function statusHistoryPanel(r,limit=8){
 function workflowRank(status){const i=STATUS.indexOf(normalizeStatus(status));return i<0?0:i}
 function autoStatusDescription(r){const st=normalizeStatus(r.status);const map={예약신청:'예약 내용을 확인하고 승인하면 다음 단계로 이동합니다.',예약승인:'결제 확인 시 결제완료로 자동 이동합니다.',결제완료:'검사 링크 저장·발송 시 검사발송으로 자동 이동합니다.',검사발송:'신청 검사가 모두 완료되면 검사완료로 자동 이동합니다.',검사완료:'검사결과 파일을 업로드하면 결과업로드로 자동 이동합니다.',결과업로드:'결과보고서를 검토·공개하면 상담준비로 자동 이동합니다.',상담준비:'상담 시작 버튼을 누르면 상담진행으로 자동 이동합니다.',상담진행:'회기 저장 후 상담 완료 처리 시 상담완료로 이동합니다.',상담완료:'종결기록을 저장하면 종결로 이동합니다.',종결:'모든 운영 단계가 완료되었습니다.',예약취소:'취소된 예약입니다.'};return map[st]||''}
 function updateTestStatus(id,t,s){
-  const r=state.reservations.find(x=>x.id===id);if(!r)return;
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
   const statuses={...(r.testStatuses||{}),[t]:s};
   const tests=requestedTests(r);
   const allComplete=tests.length>0&&tests.every(name=>['검사완료','결과확인'].includes(statuses[name]));
@@ -449,29 +724,171 @@ function updateTestStatus(id,t,s){
 function saveTestLink(id,testName,url){
   const clean=String(url||'').trim();
   if(clean && !/^https?:\/\//i.test(clean)){alert('검사 링크는 http:// 또는 https://로 시작해야 합니다.');render();return;}
-  const r=state.reservations.find(x=>x.id===id);if(!r)return;
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
   const links={...(r.testLinks||{}),[testName]:clean};
   const statuses={...(r.testStatuses||{})};
   if(clean && (!statuses[testName]||statuses[testName]==='미발송')) statuses[testName]='발송완료';
   updateReservation(id,{testLinks:links,testStatuses:statuses,status:clean?'검사발송':r.status,testLinksUpdatedAt:new Date().toLocaleString('ko-KR')});
 }
-function openTestLink(id,testName){const r=state.reservations.find(x=>x.id===id);const url=r?.testLinks?.[testName];if(!url)return alert('저장된 검사 링크가 없습니다.');window.open(url,'_blank','noopener,noreferrer')}
+function openTestLink(id,testName){const r=state.reservations.find(x=>String(x.id)===String(id));const url=r?.testLinks?.[testName];if(!url)return alert('저장된 검사 링크가 없습니다.');window.open(url,'_blank','noopener,noreferrer')}
 function copyMemberTestLinks(id){
-  const r=state.reservations.find(x=>x.id===id);if(!r)return;
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
   const links=Object.entries(r.testLinks||{}).filter(([,url])=>String(url||'').trim());
   if(!links.length)return alert('저장된 검사 링크가 없습니다.');
   const lines=links.map(([name,url])=>`■ ${name}\n${url}`).join('\n\n');
   copyText(`${r.name}님, 안녕하세요.\n모두의 마음연구소입니다.\n\n신청하신 심리검사 링크를 안내드립니다.\n\n${lines}\n\n검사를 완료하신 뒤 회신해 주세요.\n감사합니다.`);
 }
-function markAllTestsSent(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const ts={};requestedTests(r).forEach(t=>ts[t]='발송완료');updateReservation(id,{testStatuses:ts,status:'검사발송',testLinksSentAt:new Date().toLocaleString()})}
+function markAllTestsSent(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={};requestedTests(r).forEach(t=>ts[t]='발송완료');updateReservation(id,{testStatuses:ts,status:'검사발송',testLinksSentAt:new Date().toLocaleString()})}
 function saveMemo(id){const el=document.getElementById('memo-'+id);if(!el)return;updateReservation(id,{adminMemo:el.value});alert('관리자 메모가 저장되었습니다.')}
-function deleteReservation(id){if(!confirm('예약 기록을 삭제하시겠습니까?'))return;state.reservations=state.reservations.filter(r=>r.id!==id);save('modumam_reservations',state.reservations);render()}
+async function deleteIndexedReservation(id){
+  try{
+    const db=await openModumamDatabase();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(MODUMAM_RESERVATION_STORE,'readwrite');
+      tx.objectStore(MODUMAM_RESERVATION_STORE).delete(id);
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error||new Error('예약 삭제 실패'));
+      tx.onabort=()=>reject(tx.error||new Error('예약 삭제 중단'));
+    });
+    db.close();
+  }catch(error){
+    console.error('[예약 IndexedDB 삭제]',error);
+  }
+}
+
+// 해당 예약 1건만 삭제합니다. 내담자의 다른 예약·상담·검사·보고서 기록은 유지합니다.
+async function deleteReservation(id){
+  const target=state.reservations.find(r=>String(r.id)===String(id));
+  if(!target){alert('삭제할 예약을 찾지 못했습니다.');return;}
+  if(!confirm(`${target.name||'내담자'}님의 이 예약만 삭제하시겠습니까?\n\n다른 예약과 상담·검사·보고서 기록은 유지됩니다.`))return;
+
+  state.reservations=state.reservations.filter(r=>String(r.id)!==String(id));
+  localStorage.setItem('modumam_reservations',JSON.stringify(state.reservations));
+
+  const inbox=load('modumam_reservation_inbox',[]).filter(r=>String(r.id)!==String(id));
+  localStorage.setItem('modumam_reservation_inbox',JSON.stringify(inbox));
+
+  const last=load('modumam_last_reservation',null);
+  if(last&&String(last.id)===String(id)) localStorage.removeItem('modumam_last_reservation');
+
+  await deleteIndexedReservation(target.id);
+  appendAuditLog('예약만 삭제',String(id),`${target.name||''} ${target.date||''} ${target.time||''}`);
+  alert('해당 예약만 삭제되었습니다.');
+  render();
+}
+
+// 동일 내담자의 예약과 연결된 상담·검사·보고서·사례자료를 모두 삭제합니다.
+async function deleteClientCompletelyByReservation(id){
+  const target=state.reservations.find(r=>String(r.id)===String(id));
+  if(!target){alert('삭제할 내담자를 찾지 못했습니다.');return;}
+  const key=clientKey(target.name,target.phone);
+  const clientReservations=state.reservations.filter(r=>clientKey(r.name,r.phone)===key);
+  const reservationIds=new Set(clientReservations.map(r=>String(r.id)));
+  const caseIds=new Set(clientReservations.map(caseIdFromReservation));
+
+  const first=confirm(`${target.name||'내담자'}님의 전체 자료를 삭제하시겠습니까?\n\n삭제 대상:\n- 모든 예약\n- 상담일지·회기기록\n- 검사결과·보고서\n- AI 결과상담·사례개념화·상담계획\n\n이 작업은 되돌릴 수 없습니다.`);
+  if(!first)return;
+  const typed=prompt('실수 방지를 위해 "전체삭제"를 입력해 주세요.','');
+  if(typed!=='전체삭제'){alert('전체삭제가 취소되었습니다.');return;}
+
+  state.reservations=state.reservations.filter(r=>clientKey(r.name,r.phone)!==key);
+  state.intakes=state.intakes.filter(x=>clientKey(x.name,x.phone)!==key);
+  state.reports=state.reports.filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
+  state.resultUploads=state.resultUploads.filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
+  state.aiResultCounselingRecords=(state.aiResultCounselingRecords||[]).filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
+  state.assessmentAnalyses=(state.assessmentAnalyses||[]).filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
+  state.assessmentCrossAnalyses=(state.assessmentCrossAnalyses||[]).filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
+  state.testInterpretations=(state.testInterpretations||[]).filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
+
+  localStorage.setItem('modumam_reservations',JSON.stringify(state.reservations));
+  localStorage.setItem('modumam_intake_summaries',JSON.stringify(state.intakes));
+  localStorage.setItem('modumam_reports',JSON.stringify(state.reports));
+  localStorage.setItem('modumam_test_result_uploads',JSON.stringify(state.resultUploads));
+  localStorage.setItem('modumam_ai_result_counseling_records',JSON.stringify(state.aiResultCounselingRecords));
+  localStorage.setItem('modumam_assessment_analyses',JSON.stringify(state.assessmentAnalyses));
+  localStorage.setItem('modumam_assessment_cross_analyses',JSON.stringify(state.assessmentCrossAnalyses));
+  localStorage.setItem('modumam_test_interpretations',JSON.stringify(state.testInterpretations));
+
+  const inbox=load('modumam_reservation_inbox',[]).filter(r=>clientKey(r.name,r.phone)!==key);
+  localStorage.setItem('modumam_reservation_inbox',JSON.stringify(inbox));
+  const last=load('modumam_last_reservation',null);
+  if(last&&clientKey(last.name,last.phone)===key) localStorage.removeItem('modumam_last_reservation');
+
+  localStorage.removeItem('modumam_counseling_notes_'+key);
+  localStorage.removeItem('modumam_client_profile_'+key);
+  for(const caseId of caseIds){
+    localStorage.removeItem('modumam_case_formulation_'+caseId);
+    localStorage.removeItem('modumam_case_sessions_'+caseId);
+    localStorage.removeItem('modumam_counseling_plan_'+caseId);
+    localStorage.removeItem('modumam_counseling_aid_'+caseId);
+  }
+  for(const reservation of clientReservations) await deleteIndexedReservation(reservation.id);
+
+  appendAuditLog('내담자 전체 삭제',key,`${target.name||''} 예약 ${clientReservations.length}건 및 연결자료`);
+  alert('내담자의 예약과 연결된 전체 자료가 삭제되었습니다.');
+  render();
+}
+window.deleteReservation=deleteReservation;
+window.deleteClientCompletelyByReservation=deleteClientCompletelyByReservation;
 function copyText(t){navigator.clipboard.writeText(t).then(()=>alert('복사되었습니다.'))}
-function copyPaymentMessage(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;const p=getPaymentInfo(r);copyText(`${r.name}님, 안녕하세요.\n모두의 마음연구소입니다.\n\n예약 신청이 확인되었습니다.\n\n■ 신청 프로그램\n${programBaseName(r.program)}\n\n■ 상담 방식\n${r.type}\n\n■ 희망 일정\n${r.date} ${r.time}\n\n■ 결제 금액\n${p.total}\n${p.detail}\n\n■ 입금 계좌\n카카오뱅크 3333-21-2787124\n예금주 : 백인영\n\n입금 확인 후 검사 링크를 발송해 드리겠습니다.\n\n감사합니다.\n모두의 마음연구소`)}
-function copyTestGuide(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;copyText(`${r.name}님, 안녕하세요.\n모두의 마음연구소입니다.\n\n신청하신 심리검사 안내드립니다.\n\n■ 신청 프로그램\n${programBaseName(r.program)}\n\n■ 진행 검사\n${requestedTests(r).map(t=>'- '+t).join('\n')}\n\n검사 링크는 순차적으로 발송드릴 예정입니다.\n검사 완료 후 해석상담 일정에 맞춰 결과를 함께 안내드리겠습니다.\n\n감사합니다.\n모두의 마음연구소`)}
+function copyPaymentMessage(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const p=getPaymentInfo(r);copyText(`${r.name}님, 안녕하세요.\n모두의 마음연구소입니다.\n\n예약 신청이 확인되었습니다.\n\n■ 신청 프로그램\n${programBaseName(r.program)}\n\n■ 상담 방식\n${r.type}\n\n■ 희망 일정\n${r.date} ${r.time}\n\n■ 결제 금액\n${p.total}\n${p.detail}\n\n■ 입금 계좌\n카카오뱅크 3333-21-2787124\n예금주 : 백인영\n\n입금 확인 후 검사 링크를 발송해 드리겠습니다.\n\n감사합니다.\n모두의 마음연구소`)}
+window.copyPaymentMessage=copyPaymentMessage;
+const TEST_PROVIDER_PORTALS={
+  insight:{name:'인싸이트검사',defaultUrl:'https://inpsyt.co.kr/mypage/dashboard/list'},
+  maumsarang:{name:'마음사랑검사',defaultUrl:'https://mscore.kr/'}
+};
+function getTestProviderUrl(provider){
+  const info=TEST_PROVIDER_PORTALS[provider];
+  if(!info)return'';
+  return localStorage.getItem(`modumam_test_provider_${provider}_url`)||info.defaultUrl;
+}
+function saveTestProviderUrl(provider){
+  const info=TEST_PROVIDER_PORTALS[provider];
+  const input=document.getElementById(`test-provider-url-${provider}`);
+  const url=String(input?.value||'').trim();
+  if(!info||!url){alert('검사기관 링크를 입력해 주세요.');return;}
+  try{new URL(url);}catch{alert('올바른 링크를 입력해 주세요.');return;}
+  localStorage.setItem(`modumam_test_provider_${provider}_url`,url);
+  alert(`${info.name} 링크가 저장되었습니다.`);
+}
+function openTestProviderUrl(provider){
+  const url=getTestProviderUrl(provider);
+  if(!url){alert('저장된 링크가 없습니다.');return;}
+  window.open(url,'_blank','noopener,noreferrer');
+}
+window.saveTestProviderUrl=saveTestProviderUrl;
+window.openTestProviderUrl=openTestProviderUrl;
+
+function copyTestGuide(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));
+  if(!r)return;
+  copyText(`${r.name}님, 안녕하세요.
+모두의 마음연구소입니다.
+
+입금이 정상적으로 확인되었습니다. 감사합니다.
+
+이제 신청하신 심리검사를 진행하실 수 있도록 안내드립니다.
+
+■ 신청 프로그램
+${programBaseName(r.program)}
+
+■ 진행 검사
+${requestedTests(r).map(t=>'- '+t).join('\n')}
+
+검사 링크를 순차적으로 발송해 드리겠습니다.
+안내에 따라 검사를 진행해 주세요.
+
+검사를 모두 완료하시면 결과를 분석한 후, 예약된 상담 일정에 맞춰 해석상담을 진행해 드리겠습니다.
+
+검사 진행 중 궁금한 사항이 있으시면 편하게 문의해 주세요.
+
+감사합니다.
+모두의 마음연구소`)
+}
+window.copyTestGuide=copyTestGuide;
 
 function copyDocumentReminder(id){
-  const r=state.reservations.find(x=>x.id===id);if(!r)return;
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
   const target=['장소 조율(대면)','찾아가는(대면)','대면','찾아오는 대면','비대면 화상'].some(t=>String(r.type||'').includes(t));
   copyText(`${r.name}님, 안녕하세요.
 모두의 마음연구소입니다.
@@ -492,9 +909,10 @@ ${target?'예약일 3일 전 안내입니다. 상담 준비를 위해 상담 전
 감사합니다.
 모두의 마음연구소`)
 }
-function openIntake(id){const r=state.reservations.find(x=>x.id===id);const i=r?findIntake(r):null;alert(i?(i.summary||'요약 없음'):'연결된 AI 마음 체크인 요약이 없습니다.')}
+function openIntake(id){const r=state.reservations.find(x=>String(x.id)===String(id));const i=r?findIntake(r):null;alert(i?(i.summary||'요약 없음'):'연결된 AI 마음 체크인 요약이 없습니다.')}
 function reportCode(r){return r.code||('MR-'+String(r.id).slice(-6))}
-function setReportFromReservation(id){const r=state.reservations.find(x=>x.id===id);if(!r)return;let tt=String(r.program).includes('부모-자녀')?'PAT · KCDI':'TCI';state.reportForm={...emptyReportForm(),reservationId:id,clientName:r.name||'',phone:r.phone||'',program:programBaseName(r.program),testType:tt,title:`${r.name||'내담자'}님 ${tt} 결과보고서`};state.menu='report';render()}
+function setReportFromReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;let tt=String(r.program).includes('부모-자녀')?'PAT · KCDI':'TCI';state.reportForm={...emptyReportForm(),reservationId:id,clientName:r.name||'',phone:r.phone||'',program:programBaseName(r.program),testType:tt,title:`${r.name||'내담자'}님 ${tt} 결과보고서`};state.menu='report';render()}
+window.setReportFromReservation=setReportFromReservation;
 function templateReport(){applyDetailedTemplate()}
 function createReport(e){
   e.preventDefault();
@@ -517,9 +935,9 @@ function createReport(e){
   state.reportForm=emptyReportForm();state.reportEditingId=null;
   alert('보고서가 저장되었습니다. 수정 저장 시 기존 공개 승인은 해제되며, 검토 후 다시 승인해 주세요.');render();
 }
-function editReport(id){const r=state.reports.find(x=>x.id===id);if(!r)return;state.reportEditingId=id;state.reportForm={...emptyReportForm(),reservationId:r.reservationId||'',clientName:r.clientName||'',phone:r.phone||'',program:programBaseName(r.program),testType:r.testType||'TCI',title:r.title||'',summary:r.summary||'',strength:r.strength||'',caution:r.caution||'',plan:r.plan||''};state.menu='report';render();window.scrollTo({top:0,behavior:'smooth'})}
+function editReport(id){const r=state.reports.find(x=>String(x.id)===String(id));if(!r)return;state.reportEditingId=id;state.reportForm={...emptyReportForm(),reservationId:r.reservationId||'',clientName:r.clientName||'',phone:r.phone||'',program:programBaseName(r.program),testType:r.testType||'TCI',title:r.title||'',summary:r.summary||'',strength:r.strength||'',caution:r.caution||'',plan:r.plan||''};state.menu='report';render();window.scrollTo({top:0,behavior:'smooth'})}
 function cancelReportEdit(){state.reportEditingId=null;state.reportForm=emptyReportForm();render()}
-function restoreReportVersion(id,index){const r=state.reports.find(x=>x.id===id);const h=(r&&r.versionHistory||[])[index];if(!r||!h)return;if(!confirm('선택한 이전 버전을 새 버전으로 복원하시겠습니까?'))return;const now=new Date().toLocaleString();const current={version:Number(r.version||1),savedAt:r.updatedAt||r.createdAt||now,summary:r.summary||'',strength:r.strength||'',caution:r.caution||'',plan:r.plan||'',title:r.title||''};state.reports=state.reports.map(x=>x.id===id?{...x,title:h.title||x.title,summary:h.summary||'',strength:h.strength||'',caution:h.caution||'',plan:h.plan||'',version:Number(x.version||1)+1,updatedAt:now,approvedForClient:false,versionHistory:[current,...(x.versionHistory||[])].slice(0,10)}:x);save('modumam_reports',state.reports);render()}
+function restoreReportVersion(id,index){const r=state.reports.find(x=>String(x.id)===String(id));const h=(r&&r.versionHistory||[])[index];if(!r||!h)return;if(!confirm('선택한 이전 버전을 새 버전으로 복원하시겠습니까?'))return;const now=new Date().toLocaleString();const current={version:Number(r.version||1),savedAt:r.updatedAt||r.createdAt||now,summary:r.summary||'',strength:r.strength||'',caution:r.caution||'',plan:r.plan||'',title:r.title||''};state.reports=state.reports.map(x=>x.id===id?{...x,title:h.title||x.title,summary:h.summary||'',strength:h.strength||'',caution:h.caution||'',plan:h.plan||'',version:Number(x.version||1)+1,updatedAt:now,approvedForClient:false,versionHistory:[current,...(x.versionHistory||[])].slice(0,10)}:x);save('modumam_reports',state.reports);render()}
 async function generateReportDraft(){
   if(!state.reportForm.clientName||!state.reportForm.testType){alert('예약자와 검사 종류를 먼저 선택해 주세요.');return}
   const uploads=state.resultUploads.filter(u=>String(u.clientName||'').trim()===String(state.reportForm.clientName||'').trim() || (u.phone&&String(u.phone).replace(/\D/g,'')===String(state.reportForm.phone||'').replace(/\D/g,'')));
@@ -535,7 +953,7 @@ async function generateReportDraft(){
   }catch(error){alert(error.message||'AI 초안 생성 중 오류가 발생했습니다.');}
   finally{state.reportDraftLoading=false;render()}
 }
-function deleteReport(id){if(!confirm('보고서를 삭제하시겠습니까?'))return;state.reports=state.reports.filter(r=>r.id!==id);save('modumam_reports',state.reports);render()}
+function deleteReport(id){if(!confirm('보고서를 삭제하시겠습니까?'))return;state.reports=state.reports.filter(r=>String(r.id)!==String(id));save('modumam_reports',state.reports);render()}
 
 function toggleReportApproval(id){
   let approvedReport=null;
@@ -556,7 +974,7 @@ function openReportPreview(id){
   printReport(id);
 }
 
-function copyReportGuide(id){const r=state.reports.find(x=>x.id===id);if(!r)return;copyText(`${r.clientName}님, 안녕하세요.
+function copyReportGuide(id){const r=state.reports.find(x=>String(x.id)===String(id));if(!r)return;copyText(`${r.clientName}님, 안녕하세요.
 모두의 마음연구소입니다.
 
 심리검사 결과보고서 확인이 가능하도록 등록되었습니다.
@@ -568,7 +986,20 @@ ${r.title}
 
 감사합니다.
 모두의 마음연구소`)}
-function printReport(id){const r=state.reports.find(x=>x.id===id);if(!r)return;const w=window.open('','_blank');w.document.write(`<html><head><title>${esc(r.title)}</title><style>body{font-family:Arial,sans-serif;padding:40px;line-height:1.7;color:#1e293b}h1{font-size:28px}h2{margin-top:28px;font-size:18px;border-bottom:1px solid #ddd;padding-bottom:8px}.meta{background:#f8fafc;padding:16px;border-radius:12px;margin:20px 0}.box{white-space:pre-wrap;border:1px solid #e2e8f0;padding:16px;border-radius:12px}</style></head><body><p style="font-size:12px;color:#047857;font-weight:bold;">MODUMAM LAB PSYCHOLOGICAL REPORT</p><h1>${esc(r.title)}</h1><div class="meta"><p><b>성명:</b> ${esc(r.clientName)}</p><p><b>프로그램:</b> ${esc(programBaseName(r.program))}</p><p><b>검사:</b> ${esc(r.testType)}</p><p><b>작성일:</b> ${esc(r.createdAt)}</p><p><b>결과확인 코드:</b> ${esc(reportCode(r))}</p></div><h2>종합 소견</h2><div class="box">${esc(r.summary)}</div><h2>강점 및 자원</h2><div class="box">${esc(r.strength)}</div><h2>주의점 및 어려움</h2><div class="box">${esc(r.caution)}</div><h2>상담 계획 및 제안</h2><div class="box">${esc(r.plan)}</div><script>window.print();<\/script></body></html>`);w.document.close()}
+function printReport(id){
+  const r=state.reports.find(x=>String(x.id)===String(id));if(!r)return;
+  const w=window.open('','_blank');
+  if(r.assessmentReport&&r.sections){
+    const sec=r.sections||{};
+    const row=(title,text)=>text?`<section><h2>${esc(title)}</h2><div class="content">${esc(text)}</div></section>`:'';
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(r.title)}</title><style>
+      @page{size:A4;margin:18mm}*{box-sizing:border-box}body{font-family:Arial,'Noto Sans KR',sans-serif;color:#1f2937;line-height:1.75;margin:0;background:#fff}header{padding:8px 0 28px;border-bottom:3px solid #047857}.brand{font-size:11px;letter-spacing:.14em;color:#047857;font-weight:800}.subtitle{font-size:14px;color:#64748b;margin-top:8px}.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;background:#f0fdf4;border:1px solid #d1fae5;border-radius:16px;padding:18px;margin:24px 0}.meta p{margin:0;font-size:13px}.notice{background:#f8fafc;border-left:4px solid #10b981;padding:16px 18px;border-radius:10px;font-size:13px;color:#475569;margin:0 0 24px}section{break-inside:avoid;margin:0 0 26px}h1{font-size:29px;margin:6px 0 0}h2{font-size:17px;color:#065f46;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #d1fae5}.content{white-space:pre-wrap;font-size:14px}.test-guide{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px}.footer{margin-top:34px;padding-top:14px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10px}@media print{button{display:none}}
+    </style></head><body><header><div class="brand">MODUMAM LAB PSYCHOLOGICAL REPORT</div><h1>${esc(r.title||'모두의 마음연구소 심리보고서')}</h1>${sec.subtitle?`<div class="subtitle">${esc(sec.subtitle)}</div>`:''}</header><div class="meta"><p><b>성명</b><br>${esc(r.clientName)}</p><p><b>프로그램</b><br>${esc(programBaseName(r.program))}</p><p><b>반영 검사</b><br>${esc((r.tests||[]).join(', ')||r.testType)}</p><p><b>작성일</b><br>${esc(r.updatedAt||r.createdAt)}</p></div><div class="notice">이 보고서는 심리검사 결과를 바탕으로 현재의 마음과 심리적 특성을 이해할 수 있도록 작성된 자료입니다. 개인을 평가하거나 단정하기 위한 목적이 아니라 자기이해를 돕기 위한 참고자료입니다.</div>${row('심리평가 개요',sec.evaluationOverview)}${sec.testGuide?`<section><h2>이번 심리평가에 사용된 검사</h2><div class="content test-guide">${esc(sec.testGuide)}</div></section>`:''}${row('한눈에 보는 핵심 심리요약',sec.keyMessage)}${row('정서적 특성',sec.emotionalProfile)}${row('사고와 의사결정 특성',sec.thinkingStyle)}${row('대인관계와 의사소통 특성',sec.relationshipStyle)}${row('스트레스 반응과 회복',sec.stressRecovery)}${row('강점과 심리적 자원',sec.strengthsResources)}${row('검사 간 통합적 이해',sec.integratedUnderstanding)}${row('현재 주의 깊게 살펴볼 신호',sec.currentSignals)}${row('심리검사 기반 제안',sec.psychologicalSuggestions)}${row('전문가 종합 소견',sec.professionalSummary)}${row('검사 해석의 범위와 한계',sec.disclaimer)}<div class="footer">모두의 마음연구소 · 상담자 검토 및 승인 완료</div><script>window.onload=()=>window.print()<\/script></body></html>`);
+  }else{
+    w.document.write(`<html><head><title>${esc(r.title)}</title><style>body{font-family:Arial,sans-serif;padding:40px;line-height:1.7;color:#1e293b}h1{font-size:28px}h2{margin-top:28px;font-size:18px;border-bottom:1px solid #ddd;padding-bottom:8px}.meta{background:#f8fafc;padding:16px;border-radius:12px;margin:20px 0}.box{white-space:pre-wrap;border:1px solid #e2e8f0;padding:16px;border-radius:12px}</style></head><body><p style="font-size:12px;color:#047857;font-weight:bold;">MODUMAM LAB PSYCHOLOGICAL REPORT</p><h1>${esc(r.title)}</h1><div class="meta"><p><b>성명:</b> ${esc(r.clientName)}</p><p><b>프로그램:</b> ${esc(programBaseName(r.program))}</p><p><b>검사:</b> ${esc(r.testType)}</p><p><b>작성일:</b> ${esc(r.createdAt)}</p><p><b>결과확인 코드:</b> ${esc(reportCode(r))}</p></div><h2>종합 소견</h2><div class="box">${esc(r.summary)}</div><h2>강점 및 자원</h2><div class="box">${esc(r.strength)}</div><h2>주의점 및 어려움</h2><div class="box">${esc(r.caution)}</div><h2>상담 계획 및 제안</h2><div class="box">${esc(r.plan)}</div><script>window.print();<\/script></body></html>`);
+  }
+  w.document.close();
+}
 function saveCounselingNote(k){const m=document.getElementById('note-'+k),d=document.getElementById('date-'+k);if(!m||!m.value.trim()){alert('상담 메모를 입력해 주세요.');return}const sk='modumam_counseling_notes_'+k;const notes=load(sk,[]);notes.unshift({id:Date.now(),date:d.value||new Date().toISOString().slice(0,10),memo:m.value.trim(),createdAt:new Date().toLocaleString()});save(sk,notes);alert('상담 메모가 저장되었습니다.');render()}
 function deleteCounselingNote(k,id){if(!confirm('상담 메모를 삭제하시겠습니까?'))return;const sk='modumam_counseling_notes_'+k;save(sk,load(sk,[]).filter(n=>n.id!==id));render()}
 function todayReservations(){const t=new Date().toISOString().slice(0,10);return state.reservations.filter(r=>r.date===t&&normalizeStatus(r.status)!=='예약취소').sort((a,b)=>String(a.time||'').localeCompare(String(b.time||'')))}
@@ -581,24 +1012,57 @@ function openMemberChartByReservation(id,section){
   render();
   if(section){setTimeout(()=>{const key=clientKey(r.name,r.phone);document.getElementById(`${section}-${key}`)?.scrollIntoView({behavior:'smooth',block:'start'});},80)}
 }
+function isAiResultCounselingReservation(r){
+  const type=String(r?.type||'').replace(/\s+/g,'');
+  return type.includes('AI(비대면)') || type.includes('AI비대면') || r?.aiCounseling===true;
+}
 function startCounseling(id){
   const r=state.reservations.find(x=>String(x.id)===String(id));
-  if(!r)return;
-  if(normalizeStatus(r.status)!=='상담진행'&&!confirm(`${r.name}님의 상담을 시작하고 진행상태를 '상담진행'으로 변경하시겠습니까?`))return;
-  state.counselingModeId=String(id);
+  if(!r){alert('예약 정보를 찾지 못했습니다.');return;}
+
+  const now=new Date().toISOString();
   if(normalizeStatus(r.status)!=='상담진행'){
-    updateReservation(id,{status:'상담진행',counselingStartedAt:new Date().toISOString()});
-  }else{
-    render();
+    r.status='상담진행';
+    r.counselingStartedAt=r.counselingStartedAt||now;
+    r.updatedAt=new Date().toLocaleString('ko-KR');
+    save('modumam_reservations',state.reservations);
   }
+
+  if(isAiResultCounselingReservation(r)){
+    state.counselingModeId='';
+    state.aiMonitoringSelectedId=String(r.id);
+    state.menu='intake';
+    render();
+    return;
+  }
+
+  state.counselingModeId=String(r.id);
+  state.menu='journal';
+  render();
 }
-function closeCounselingMode(){state.counselingModeId='';state.menu='today';render()}
+function closeCounselingMode(){state.counselingModeId='';state.menu='journal';render()}
 function completeCounseling(id){
   const r=state.reservations.find(x=>String(x.id)===String(id));
   if(!r)return;
   if(!confirm(`${r.name}님의 상담을 완료 처리하시겠습니까?`))return;
   updateReservation(id,{status:'상담완료',counselingCompletedAt:new Date().toISOString()});
 }
+
+function openCounselingRecordByReservation(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
+  state.selectedClientKey=clientKey(r.name,r.phone);
+  state.menu='counseling';render();
+}
+function completeCounselingAndOpenChart(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
+  if(!confirm(`${r.name}님의 상담을 완료 처리하고 전자차트를 열까요?`))return;
+  updateReservation(id,{status:'상담완료',counselingCompletedAt:new Date().toISOString()});
+  state.memberSearch=r.caseNumber||r.phone||r.name||'';
+  state.menu='members';render();
+}
+window.openCounselingRecordByReservation=openCounselingRecordByReservation;
+window.completeCounselingAndOpenChart=completeCounselingAndOpenChart;
+
 function scheduleNextCounseling(id){
   const r=state.reservations.find(x=>String(x.id)===String(id));
   if(!r)return;
@@ -617,7 +1081,7 @@ function sideNavButton(k,icon,label,sub=''){
   const active=state.menu===k;
   return `<button onclick="setMenu('${k}')" class="w-full flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${active?'bg-slate-900 text-white shadow-lg shadow-slate-900/10':'text-slate-600 hover:bg-slate-100'}"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${active?'bg-white/15':'bg-slate-100'} text-lg">${icon}</span><span class="min-w-0"><span class="block text-sm font-extrabold">${label}</span>${sub?`<span class="block truncate text-[10px] mt-0.5 ${active?'text-slate-300':'text-slate-400'}">${sub}</span>`:''}</span></button>`;
 }
-function titleForMenu(){return({dashboard:'오늘 업무',today:'오늘 상담',reservation:'예약관리',results:'심리검사 관리',interpretation:'심리평가센터',cases:'AI 사례개념화',termination:'종결관리',intake:'AI 마음체크 기록',report:'결과보고서',members:'회원관리 · 전자차트',statistics:'운영 통계',documents:'신청서·동의서',settings:'환경설정'})[state.menu]||'오늘 업무'}
+function titleForMenu(){return({dashboard:'오늘 업무',today:'오늘 상담',reservation:'예약관리',results:'심리검사 관리',interpretation:'심리평가센터',intake:'AI 모니터링',cases:'AI 사례개념화',journal:'상담일지',counseling:'상담기록',termination:'종결기록',report:'결과보고서',members:'전자차트',statistics:'운영 통계',documents:'신청서·동의서',settings:'환경설정'})[state.menu]||'오늘 업무'}
 function todayDisplayLabel(){try{return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date())}catch(e){return new Date().toLocaleDateString('ko-KR')}}
 function layout(content){return`<main class="min-h-screen bg-slate-100">
   <div class="lg:flex lg:min-h-screen">
@@ -631,16 +1095,17 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
         <p class="px-3 pb-1 text-[10px] font-extrabold tracking-wider text-slate-300">TODAY</p>
         ${sideNavButton('dashboard','⌂','오늘 업무','상담 일정과 우선 업무')}
         ${sideNavButton('today','◷','오늘 상담','상담 시작·회기기록')}
+        ${sideNavButton('members','📋','전자차트','회원별 통합 기록')}
         <p class="px-3 pt-4 pb-1 text-[10px] font-extrabold tracking-wider text-slate-300">CLIENT</p>
-        ${sideNavButton('members','👥','회원관리','회원 선택 후 전자차트')}
+        
         ${sideNavButton('reservation','📅','예약관리','일정·검사·진행상태')}
-        ${sideNavButton('results','🧠','심리검사','결과 업로드·공개')}
+        ${sideNavButton('results','📝','심리검사 관리','예약확인·AI 상담 활성')}
         ${sideNavButton('interpretation','🧠','심리평가센터','검사별 분석·종합보고서')}
-        <p class="px-3 pt-4 pb-1 text-[10px] font-extrabold tracking-wider text-slate-300">CLINICAL</p>
-        ${sideNavButton('report','📄','결과보고서','AI 초안·PDF·회원 공개')}
-        ${sideNavButton('cases','🤖','AI 사례개념화','상담 목표와 계획')}
-        ${sideNavButton('intake','💬','AI 마음체크','접수·마음체크 기록')}
-        ${sideNavButton('documents','🗂','신청서·동의서','운영 서식 관리')}
+        <p class="px-3 pt-4 pb-1 text-[10px] font-extrabold tracking-wider text-slate-300">COUNSELING</p>
+        ${sideNavButton('journal','📝','상담일지','상담 진행·회기 작성')}
+        ${sideNavButton('intake','👁','AI 모니터링','AI 결과상담 실시간 확인')}
+        ${sideNavButton('cases','🤖','AI 사례개념화','회기기록 불러오기·상담계획')}
+        ${sideNavButton('counseling','📂','상담기록','저장 기록·축어록 관리')}
         <p class="px-3 pt-4 pb-1 text-[10px] font-extrabold tracking-wider text-slate-300">CENTER</p>
         ${sideNavButton('statistics','📊','통계','운영 현황')}
         ${sideNavButton('settings','⚙','설정','백업·사용자 페이지')}
@@ -651,10 +1116,10 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
       <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
-            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · SPRINT 17</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
+            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260715-PAYMENT-TEST-GUIDE-31</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2"><button onclick="setMenu('today')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600">오늘 상담</button><button onclick="location.href='/'" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 페이지</button></div>
           </div>
-          <nav class="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">${navButton('dashboard','오늘 업무')}${navButton('today','오늘 상담')}${navButton('members','회원')}${navButton('reservation','예약')}${navButton('results','검사')}${navButton('interpretation','해석')}${navButton('report','보고서')}${navButton('cases','사례')}${navButton('termination','종결')}${navButton('intake','AI')}${navButton('statistics','통계')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 rounded-xl bg-rose-50 px-4 py-2 text-xs font-extrabold text-rose-600">로그아웃</button></nav>
+          <nav class="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">${navButton('dashboard','오늘 업무')}${navButton('today','오늘 상담')}${navButton('members','전자차트')}${navButton('reservation','예약')}${navButton('results','검사')}${navButton('interpretation','해석')}${navButton('report','보고서')}${navButton('journal','상담일지')}${navButton('intake','AI모니터링')}${navButton('cases','사례')}${navButton('counseling','상담기록')}${navButton('statistics','통계')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 rounded-xl bg-rose-50 px-4 py-2 text-xs font-extrabold text-rose-600">로그아웃</button></nav>
         </div>
       </header>
       <section class="p-4 sm:p-6 lg:p-8">${content}</section>
@@ -718,24 +1183,24 @@ function automatedTasks(){
     const caseData=reservationCaseData(r);
     const add=(priority,title,detail,actionLabel,action)=>tasks.push({id:`${r.id}-${title}`,priority,title,detail,actionLabel,action,reservation:r});
 
-    if(status==='예약신청') add(1,'예약 승인 필요','신청 내용을 확인하고 예약을 승인해 주세요.','예약 승인',`approveReservation(${r.id})`);
-    else if(status==='예약승인') add(2,'결제 확인 필요','입금 여부를 확인한 뒤 결제완료로 변경해 주세요.','결제 확인',`markPaymentComplete(${r.id})`);
-    else if(status==='결제완료') add(3,'검사 링크 발송','신청한 검사 링크를 등록하고 회원에게 발송해 주세요.','검사관리',`setMenu('reservation')`);
-    else if(status==='검사발송') add(4,'검사 완료 확인','검사 실시 여부와 결과 수신 여부를 확인해 주세요.','검사 완료',`markTestComplete(${r.id})`);
-    else if(status==='검사완료' && uploads.length===0) add(5,'검사결과 업로드','검사결과 파일과 요약을 등록해 주세요.','결과 업로드',`setMenu('results')`);
-    else if(['검사완료','결과업로드'].includes(status) && uploads.length>0 && reports.length===0) add(6,'결과보고서 작성','업로드된 검사결과를 바탕으로 보고서를 작성해 주세요.','보고서 작성',`setReportFromReservation(${r.id})`);
-    else if(reports.length>0 && !approvedReport) add(7,'보고서 검토·공개','전문가 검토 후 회원 공개 여부를 결정해 주세요.','보고서 열기',`setMenu('report')`);
+    if(status==='예약신청') add(1,'예약 승인 필요','신청 내용을 확인하고 예약을 승인해 주세요.','예약 승인',`openTodayTaskPage('reservation','${r.id}')`);
+    else if(status==='예약승인') add(2,'결제 확인 필요','입금 여부를 확인한 뒤 결제완료로 변경해 주세요.','결제 확인',`openTodayTaskPage('reservation','${r.id}')`);
+    else if(status==='결제완료') add(3,'검사 링크 발송','신청한 검사 링크를 등록하고 회원에게 발송해 주세요.','검사관리',`openTodayTaskPage('reservation','${r.id}')`);
+    else if(status==='검사발송') add(4,'검사 완료 확인','검사 실시 여부와 결과 수신 여부를 확인해 주세요.','검사 완료',`openTodayTaskPage('reservation','${r.id}')`);
+    else if(status==='검사완료' && uploads.length===0) add(5,'검사결과 업로드','심리평가센터에서 검사결과 파일과 요약을 등록해 주세요.','심리평가센터',`openTodayTaskPage('interpretation','${r.id}')`);
+    else if(['검사완료','결과업로드'].includes(status) && uploads.length>0 && reports.length===0) add(6,'결과보고서 작성','업로드된 검사결과를 바탕으로 보고서를 작성해 주세요.','보고서 작성',`openTodayTaskPage('report','${r.id}')`);
+    else if(reports.length>0 && !approvedReport) add(7,'보고서 검토·공개','전문가 검토 후 회원 공개 여부를 결정해 주세요.','보고서 열기',`openTodayTaskPage('report','${r.id}')`);
 
     if(uploads.length>0 && !Object.values(caseData.formulation||{}).some(Boolean))
-      add(8,'사례개념화 초안','검사결과와 상담기록을 통합한 사례개념화 초안을 준비할 수 있습니다.','사례 열기',`setMenu('cases')`);
+      add(8,'사례개념화 초안','검사결과와 상담기록을 통합한 사례개념화 초안을 준비할 수 있습니다.','사례 열기',`openTodayTaskPage('cases','${r.id}')`);
 
     if(approvedReport && !r.aiResultCounselingEnabled)
-      add(9,'AI 결과상담 승인 검토','공개 승인된 결과보고서가 있습니다. AI 결과상담 사용 여부를 결정해 주세요.','회원 전자차트',`openMemberChartByReservation(${r.id},'profile')`);
+      add(9,'AI 결과상담 승인 검토','공개 승인된 결과보고서가 있습니다. AI 결과상담 사용 여부를 결정해 주세요.','회원 전자차트',`openTodayTaskPage('members','${r.id}')`);
 
-    if(status==='상담준비') add(10,'상담 시작 준비','전자차트와 참고자료를 확인한 뒤 상담을 시작해 주세요.','상담 시작',`startCounseling(${r.id})`);
-    if(status==='상담진행') add(11,'상담기록 마무리','회기기록을 저장하고 상담완료 처리를 해 주세요.','상담모드',`startCounseling(${r.id})`);
-    if(status==='상담완료') add(12,'다음 회기 또는 종결 결정',`${caseData.sessions.length}건의 회기기록이 있습니다. 다음 예약 또는 종결 여부를 결정해 주세요.`,`전자차트`,`openMemberChartByReservation(${r.id},'session')`);
-    if(status==='종결' && !r.closureReviewedAt) add(13,'종결기록 확인','상담목표 달성도와 추후 계획을 확인해 주세요.','종결 확인',`openMemberChartByReservation(${r.id},'session')`);
+    if(status==='상담준비') add(10,'상담 시작 준비','전자차트와 참고자료를 확인한 뒤 상담을 시작해 주세요.','상담 시작',`openTodayTaskPage('journal','${r.id}')`);
+    if(status==='상담진행') add(11,'상담기록 마무리','회기기록을 저장하고 상담완료 처리를 해 주세요.','상담모드',`openTodayTaskPage('journal','${r.id}')`);
+    if(status==='상담완료') add(12,'다음 회기 또는 종결 결정',`${caseData.sessions.length}건의 회기기록이 있습니다. 다음 예약 또는 종결 여부를 결정해 주세요.`,`전자차트`,`openTodayTaskPage('members','${r.id}')`);
+    if(status==='종결' && !r.closureReviewedAt) add(13,'종결기록 확인','상담목표 달성도와 추후 계획을 확인해 주세요.','종결 확인',`openTodayTaskPage('members','${r.id}')`);
   });
   return tasks.sort((a,b)=>a.priority-b.priority||String(a.reservation.date||'').localeCompare(String(b.reservation.date||'')));
 }
@@ -749,11 +1214,115 @@ function nextTaskForReservation(r){
   return automatedTasks().find(t=>String(t.reservation.id)===String(r.id))||null;
 }
 function focusedNextTaskBlock(r){
-  const task=nextTaskForReservation(r);
-  if(!task){
-    return `<div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p class="text-[11px] font-extrabold text-emerald-700">다음 해야 할 일</p><p class="mt-1 text-sm font-extrabold text-emerald-900">현재 처리할 자동 업무가 없습니다.</p></div>`;
+  const status=normalizeStatus(r.status);
+  const id=JSON.stringify(String(r.id));
+
+  const previousButton=status!=='예약신청'&&status!=='예약취소'
+    ? `<button type="button" onclick='moveReservationToPreviousStage(${id})' class="rounded-xl border border-slate-300 bg-white px-4 py-3 text-xs font-extrabold text-slate-700">이전 단계·수정</button>`
+    : '';
+
+  const wrap=(title,detail,buttons)=>`
+    <div class="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+      <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <p class="text-[11px] font-extrabold text-amber-700">현재 단계 안내</p>
+          <p class="mt-1 text-sm font-extrabold text-slate-900">${title}</p>
+          <p class="mt-1 text-[11px] leading-relaxed text-slate-600">${detail}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">${buttons}${previousButton}</div>
+      </div>
+    </div>`;
+
+  if(status==='예약신청'){
+    return wrap(
+      '예약 신청내용 확인',
+      '신청 프로그램, 검사, 상담방식과 예약일정을 확인한 뒤 예약을 승인해 주세요.',
+      `<button type="button" onclick='window.runNextAction(${id})' class="rounded-xl bg-slate-900 px-4 py-3 text-xs font-extrabold text-white">예약 승인</button>
+       <button type="button" onclick='window.deleteReservation(${id})' class="rounded-xl border border-rose-200 bg-white px-4 py-3 text-xs font-extrabold text-rose-700">예약만 삭제</button>
+       <button type="button" onclick='window.deleteClientCompletelyByReservation(${id})' class="rounded-xl bg-rose-600 px-4 py-3 text-xs font-extrabold text-white">내담자 전체 삭제</button>`
+    );
   }
-  return `<div class="rounded-2xl border border-amber-100 bg-amber-50 p-4"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-[11px] font-extrabold text-amber-700">다음 해야 할 일</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(task.title)}</p><p class="mt-1 text-[11px] leading-relaxed text-slate-600">${esc(task.detail)}</p></div><button onclick="${task.action}" class="shrink-0 rounded-xl bg-slate-900 px-4 py-3 text-xs font-extrabold text-white">${esc(task.actionLabel)}</button></div></div>`;
+
+  if(status==='예약승인'){
+    return wrap(
+      '결제 안내 및 확인',
+      '결제안내 메시지를 복사해 발송한 뒤 입금이 확인되면 결제확인을 눌러 주세요.',
+      `<button type="button" onclick='copyPaymentMessage(${id})' class="rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-700">결제안내 복사</button>
+       <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-slate-900 px-4 py-3 text-xs font-extrabold text-white">결제 확인</button>`
+    );
+  }
+
+  if(status==='결제완료'){
+    return wrap(
+      '검사 안내 및 발송',
+      '신청한 검사기관 사이트에서 검사를 등록하고 검사안내 메시지를 발송해 주세요.',
+      `<button type="button" onclick='copyTestGuide(${id})' class="rounded-xl border border-indigo-200 bg-white px-4 py-3 text-xs font-extrabold text-indigo-700">검사안내 복사</button>
+       <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-indigo-600 px-4 py-3 text-xs font-extrabold text-white">검사발송 완료</button>`
+    );
+  }
+
+  if(status==='검사발송'){
+    return wrap(
+      '검사 완료 확인',
+      '신청한 검사가 모두 완료되었는지 확인한 뒤 다음 단계로 이동해 주세요.',
+      `<button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-indigo-600 px-4 py-3 text-xs font-extrabold text-white">검사 완료 확인</button>`
+    );
+  }
+
+  if(status==='검사완료'){
+    return wrap(
+      '심리평가 준비',
+      '검사결과 파일을 심리평가센터에서 확인하고 결과보고서 작성을 시작해 주세요.',
+      `<button type="button" onclick="setMenu('interpretation')" class="rounded-xl border border-purple-200 bg-white px-4 py-3 text-xs font-extrabold text-purple-700">심리평가센터</button>
+       <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-purple-600 px-4 py-3 text-xs font-extrabold text-white">결과업로드 단계</button>`
+    );
+  }
+
+  if(status==='결과업로드'){
+    return wrap(
+      '결과보고서 확인',
+      '결과보고서를 검토하고 상담 준비가 완료되면 다음 단계로 이동해 주세요.',
+      `<button type="button" onclick='setReportFromReservation(${id})' class="rounded-xl border border-purple-200 bg-white px-4 py-3 text-xs font-extrabold text-purple-700">보고서 확인</button>
+       <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-purple-600 px-4 py-3 text-xs font-extrabold text-white">상담 준비</button>`
+    );
+  }
+
+  if(status==='상담준비'){
+    return wrap(
+      '상담 시작 준비',
+      '예약일정과 상담자료를 확인한 뒤 상담을 시작해 주세요.',
+      `<button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">상담 시작</button>`
+    );
+  }
+
+  if(status==='상담진행'){
+    return wrap(
+      '상담 진행',
+      '상담기록과 필요한 기록을 작성한 뒤 상담완료로 이동해 주세요.',
+      `<button type="button" onclick='saveCurrentReservationChanges(${id})' class="rounded-xl border border-blue-200 bg-white px-4 py-3 text-xs font-extrabold text-blue-700">변경사항 저장</button>
+       <button type="button" onclick="setMenu('counseling')" class="rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-700">상담기록</button>
+       <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">상담 완료</button>`
+    );
+  }
+
+  if(status==='상담완료'){
+    return wrap(
+      '종결 확인',
+      '종결기록과 추후 계획을 확인한 뒤 종결해 주세요.',
+      `<button type="button" onclick="setMenu('counseling')" class="rounded-xl border border-slate-300 bg-white px-4 py-3 text-xs font-extrabold text-slate-700">종결기록 확인</button>
+       <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-slate-900 px-4 py-3 text-xs font-extrabold text-white">종결</button>`
+    );
+  }
+
+  if(status==='종결'){
+    return wrap(
+      '종결 완료',
+      '모든 운영 단계가 완료되었습니다.',
+      ''
+    );
+  }
+
+  return `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">현재 단계에서 표시할 안내가 없습니다.</div>`;
 }
 
 function operationPipeline(r){const current=normalizeStatus(r.status);const steps=STATUS.filter(x=>x!=='예약취소');return `<div class="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2">${steps.map(step=>{const done=statusReached(current,step),active=current===step;return `<div class="rounded-xl px-2 py-2 text-center text-[11px] font-bold ${active?'bg-slate-900 text-white border border-slate-900':done?'bg-emerald-50 text-emerald-700 border border-emerald-100':'bg-slate-50 text-slate-400 border border-slate-100'}">${done?'✓':'□'} ${step}</div>`}).join('')}</div>`;}
@@ -1130,7 +1699,7 @@ function saveTestInterpretation(){
   alert('검사 해석 초안이 저장되었습니다. 전문가 검토 후 결과보고서에 반영해 주세요.');
   state.interpretationDraft=null;render();
 }
-function deleteTestInterpretation(id){if(!confirm('저장된 검사 해석을 삭제할까요?'))return;state.testInterpretations=state.testInterpretations.filter(x=>x.id!==id);save('modumam_test_interpretations',state.testInterpretations);render()}
+function deleteTestInterpretation(id){if(!confirm('저장된 검사 해석을 삭제할까요?'))return;state.testInterpretations=state.testInterpretations.filter(x=>String(x.id)!==String(id));save('modumam_test_interpretations',state.testInterpretations);render()}
 function copyInterpretation(id){const x=state.testInterpretations.find(v=>v.id===id);if(!x)return;copyText(`[${interpretationTestLabel(x.testType)}]\n${x.oneLine}\n\n[종합 이해]\n${x.overall}\n\n[강점]\n${x.strength}\n\n[주의할 점]\n${x.caution}\n\n[상담·코칭 제안]\n${x.coaching}\n\n[척도별 해석]\n${x.scaleInterpretations}`)}
 function legacyTestInterpretationView(){
   const type=state.interpretationForm.testType||'STS';
@@ -1157,263 +1726,143 @@ function legacyTestInterpretationView(){
 // [MOD-20260716-SPRINT16-CROSS-ASSESSMENT]
 // 회원 중심으로 모든 심리검사를 업로드·분석하고, 상담자용 검사별 분석과 내담자용 종합보고서를 분리합니다.
 const ASSESSMENT_TEST_OPTIONS=['TCI','MMPI-2','PAI','STS','PAT','K-CDI','SCT','HTP','PHQ-9','GAD-7','회복탄력성','직무스트레스','직업흥미검사','기타'];
-function assessmentTestLabel(v){return String(v||'검사 미지정').replace('KCDI','K-CDI')}
-function setAssessmentReservation(id){state.assessmentReservationId=String(id||'');state.integratedReportDraft=null;state.assessmentCrossDraft=null;const saved=state.assessmentCrossAnalyses.find(x=>String(x.reservationId)===String(id));if(saved)state.assessmentCrossDraft={...saved};render()}
-function assessmentReservation(){return state.reservations.find(r=>String(r.id)===String(state.assessmentReservationId))||null}
-function assessmentRequestedTests(r){
-  if(!r)return[];
-  const items=typeof requestedTests==='function'?requestedTests(r):[];
-  return [...new Set(items.map(x=>assessmentTestLabel(x)).filter(Boolean))];
-}
-function analysesForReservation(id){return state.assessmentAnalyses.filter(x=>String(x.reservationId)===String(id))}
-function analysisForTest(id,testType){return analysesForReservation(id).find(x=>String(x.testType)===String(testType))}
-function inferAssessmentTestType(fileName,remaining=[]){
-  const n=String(fileName||'').toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'');
-  const rules=[['MMPI-2',/MMPI/],['K-CDI',/K-?CDI|KCDI/],['GAD-7',/GAD/],['PHQ-9',/PHQ/],['TCI',/TCI/],['PAI',/PAI/],['STS',/STS/],['PAT',/PAT/],['SCT',/SCT|문장완성/],['HTP',/HTP|집나무사람/],['회복탄력성',/회복탄력/],['직무스트레스',/직무스트레스/],['직업흥미검사',/HOLLAND|직업흥미/]];
-  const found=rules.find(([,re])=>re.test(n));
-  if(found)return found[0];
-  return remaining[0]||'기타';
-}
-async function analyzeAssessmentFiles(files){
-  const r=assessmentReservation();if(!r){alert('먼저 회원·예약을 선택해 주세요.');return;}
-  const list=Array.from(files||[]);if(!list.length)return;
-  const requested=assessmentRequestedTests(r);const existing=analysesForReservation(r.id).map(x=>x.testType);
-  const remaining=requested.filter(x=>!existing.includes(x));
-  for(const file of list){
-    const testType=inferAssessmentTestType(file.name,remaining);
-    const idx=remaining.indexOf(testType);if(idx>=0)remaining.splice(idx,1);
-    await analyzeAssessmentFile(r.id,testType,file,true);
-  }
-  alert(`${list.length}개 검사파일 분석 요청을 완료했습니다. 검사명과 신뢰도를 확인해 주세요.`);
-}
-async function analyzeAssessmentFile(reservationId,testType,file,silent=false){
-  if(!file)return;
-  const r=state.reservations.find(x=>String(x.id)===String(reservationId));
-  if(!r){alert('대상 회원을 찾지 못했습니다.');return;}
-  const allowed=['application/pdf','image/png','image/jpeg','image/webp'];
-  if(!allowed.includes(file.type)){alert('PDF, PNG, JPG, WEBP 파일만 업로드할 수 있습니다.');return;}
-  if(file.size>5*1024*1024){alert('파일은 5MB 이하로 올려 주세요. 큰 PDF는 결과표 페이지만 따로 저장해 주세요.');return;}
-  const key=`${reservationId}_${testType}`;state.assessmentLoading[key]=true;render();
-  try{
-    const base64=await fileToBase64(file);
-    const response=await fetch('/.netlify/functions/assessment-file-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:r.name,program:programBaseName(r.program),testType,fileName:file.name,mimeType:file.type,base64})});
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'검사결과를 분석하지 못했습니다.');
-    const confidenceScore=Number(data.analysis?.confidenceScore||0);const needsReview=Boolean(data.analysis?.needsReview)||confidenceScore<80;
-    const item={id:Date.now()+Math.random(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),testType,fileName:file.name,mimeType:file.type,status:needsReview?'원자료 확인 필요':'AI 초안 · 상담자 검토 필요',reviewed:false,visibleToClient:false,createdAt:new Date().toLocaleString('ko-KR'),model:data.model||'',...data.analysis,confidenceScore,needsReview};
-    state.assessmentAnalyses=[item,...state.assessmentAnalyses.filter(x=>!(String(x.reservationId)===String(r.id)&&String(x.testType)===String(testType)))];
-    save('modumam_assessment_analyses',state.assessmentAnalyses);
-    if(!silent)alert(`${testType} 상담자용 분석 초안을 생성했습니다. 원본 결과와 신뢰도를 대조해 검토해 주세요.`);
-  }catch(error){alert(error.message||'검사결과 분석 중 오류가 발생했습니다.');}
-  finally{delete state.assessmentLoading[key];render();}
-}
-function saveAssessmentAnalysis(id){
-  const index=state.assessmentAnalyses.findIndex(x=>String(x.id)===String(id));if(index<0)return;
-  const value=k=>document.getElementById(`assessment-${id}-${k}`)?.value?.trim()||'';
-  state.assessmentAnalyses[index]={...state.assessmentAnalyses[index],sourceSummary:value('sourceSummary'),validity:value('validity'),coreFindings:value('coreFindings'),strengths:value('strengths'),vulnerabilities:value('vulnerabilities'),counselingQuestions:value('counselingQuestions'),crossChecks:value('crossChecks'),caseHypotheses:value('caseHypotheses'),cautions:value('cautions'),reviewed:true,needsReview:false,status:'상담자 검토 완료',reviewedAt:new Date().toLocaleString('ko-KR')};
-  save('modumam_assessment_analyses',state.assessmentAnalyses);alert('상담자용 검사별 분석을 검토 완료로 저장했습니다.');render();
-}
-function deleteAssessmentAnalysis(id){if(!confirm('이 검사 분석을 삭제할까요?'))return;state.assessmentAnalyses=state.assessmentAnalyses.filter(x=>String(x.id)!==String(id));save('modumam_assessment_analyses',state.assessmentAnalyses);render()}
-
-async function generateAssessmentCrossAnalysis(){
-  const r=assessmentReservation();if(!r){alert('대상 회원을 선택해 주세요.');return;}
-  const analyses=analysesForReservation(r.id);
-  if(analyses.length<2){alert('검사 간 교차분석은 두 개 이상의 검사별 분석이 필요합니다.');return;}
-  const unreviewed=analyses.filter(x=>!x.reviewed);
-  if(unreviewed.length&&!confirm(`상담자 검토가 완료되지 않은 분석이 ${unreviewed.length}건 있습니다. 교차분석 초안을 생성할까요?`))return;
-  state.assessmentCrossLoading=true;render();
-  try{
-    const response=await fetch('/.netlify/functions/assessment-cross-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:r.name,program:programBaseName(r.program),tests:analyses.map(x=>({testType:x.testType,sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview})),crossAnalysis:state.assessmentCrossDraft||state.assessmentCrossAnalyses.find(x=>String(x.reservationId)===String(r.id))||null})});
-    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'검사 간 교차분석을 생성하지 못했습니다.');
-    state.assessmentCrossDraft={...data.analysis,model:data.model||'',generatedAt:new Date().toLocaleString('ko-KR'),reservationId:r.id,clientName:r.name,tests:analyses.map(x=>x.testType)};
-  }catch(error){alert(error.message||'검사 간 교차분석 중 오류가 발생했습니다.');}
-  finally{state.assessmentCrossLoading=false;render();}
-}
-function saveAssessmentCrossAnalysis(){
-  const r=assessmentReservation();const d=state.assessmentCrossDraft;if(!r||!d){alert('먼저 교차분석 초안을 생성해 주세요.');return;}
-  const value=k=>document.getElementById(`cross-${k}`)?.value?.trim()||'';
-  const item={id:d.id||Date.now(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),tests:analysesForReservation(r.id).map(x=>x.testType),commonPatterns:value('commonPatterns'),differences:value('differences'),stateTrait:value('stateTrait'),responseContext:value('responseContext'),riskProtection:value('riskProtection'),followUpQuestions:value('followUpQuestions'),counselingImplications:value('counselingImplications'),caseIntegration:value('caseIntegration'),limitations:value('limitations'),reviewed:true,status:'상담자 검토 완료',model:d.model||'',createdAt:d.createdAt||new Date().toLocaleString('ko-KR'),updatedAt:new Date().toLocaleString('ko-KR')};
-  state.assessmentCrossAnalyses=[item,...state.assessmentCrossAnalyses.filter(x=>String(x.reservationId)!==String(r.id))];
-  state.assessmentCrossDraft={...item};save('modumam_assessment_cross_analyses',state.assessmentCrossAnalyses);alert('상담자용 검사 간 교차분석을 저장했습니다.');render();
-}
-function deleteAssessmentCrossAnalysis(){
-  const r=assessmentReservation();if(!r)return;if(!confirm('이 회원의 검사 간 교차분석을 삭제할까요?'))return;
-  state.assessmentCrossAnalyses=state.assessmentCrossAnalyses.filter(x=>String(x.reservationId)!==String(r.id));state.assessmentCrossDraft=null;save('modumam_assessment_cross_analyses',state.assessmentCrossAnalyses);render();
-}
-async function generateIntegratedAssessmentReport(){
-  const r=assessmentReservation();if(!r){alert('대상 회원을 선택해 주세요.');return;}
-  const analyses=analysesForReservation(r.id);
-  if(!analyses.length){alert('먼저 한 개 이상의 검사결과를 업로드하고 검사별 분석을 생성해 주세요.');return;}
-  const unreviewed=analyses.filter(x=>!x.reviewed);
-  if(unreviewed.length&&!confirm(`상담자 검토가 완료되지 않은 분석이 ${unreviewed.length}건 있습니다. 그래도 종합보고서 초안을 생성할까요?`))return;
-  state.integratedReportLoading=true;render();
-  try{
-    const response=await fetch('/.netlify/functions/integrated-assessment-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:r.name,program:programBaseName(r.program),tests:analyses.map(x=>({testType:x.testType,sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview}))})});
-    const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'종합보고서 초안을 생성하지 못했습니다.');
-    state.integratedReportDraft={...data.report,model:data.model||'',generatedAt:new Date().toLocaleString('ko-KR'),reservationId:r.id};
-  }catch(error){alert(error.message||'종합보고서 생성 중 오류가 발생했습니다.');}
-  finally{state.integratedReportLoading=false;render();}
-}
-function saveIntegratedAssessmentReport(){
-  const r=assessmentReservation();const d=state.integratedReportDraft;if(!r||!d){alert('먼저 종합보고서 초안을 생성해 주세요.');return;}
-  const value=k=>document.getElementById(`integrated-${k}`)?.value?.trim()||'';
-  const report={id:Date.now(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),testType:'종합 심리평가',title:value('title')||`${r.name}님의 종합 심리평가 보고서`,summary:[value('purpose'),value('currentUnderstanding'),value('emotionalStress'),value('personality'),value('relationships'),value('agreementAnalysis'),value('discrepancies'),value('followUpPoints'),value('integratedUnderstanding')].filter(Boolean).join('\n\n'),strength:value('strengths'),caution:value('difficultSituations'),plan:[value('dailySuggestions'),value('counselingTopics'),value('disclaimer')].filter(Boolean).join('\n\n'),status:'전문가 검토 완료',approvedForClient:false,assessmentReport:true,tests:analysesForReservation(r.id).map(x=>x.testType),createdAt:new Date().toLocaleString('ko-KR'),version:1};
-  state.reports=[report,...state.reports];save('modumam_reports',state.reports);state.integratedReportDraft=null;alert('내담자 제공용 종합보고서를 저장했습니다. 회원 공개 전 최종 검토해 주세요.');render();
-}
-function assessmentAnalysisCard(a){
-  const fields=[['sourceSummary','원자료 확인 요약',4],['validity','해석 가능성·타당도 확인',4],['coreFindings','핵심 결과',7],['strengths','강점·자원',5],['vulnerabilities','취약요인·주의점',5],['counselingQuestions','상담에서 확인할 질문',5],['crossChecks','다른 검사와 교차 확인할 부분',5],['caseHypotheses','사례개념화 반영 가설',5],['cautions','해석상 주의사항',4]];
-  return `<details class="rounded-[2rem] border ${a.reviewed?'border-emerald-200':'border-amber-200'} bg-white shadow-sm" ${a.reviewed?'':'open'}><summary class="cursor-pointer list-none p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-lg font-extrabold">${esc(assessmentTestLabel(a.testType))}</p><p class="mt-1 text-xs text-slate-400">${esc(a.fileName||'')} · ${esc(a.createdAt||'')}</p></div><div class="flex flex-wrap items-center gap-2"><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold ${Number(a.confidenceScore||0)>=90?'text-emerald-700':Number(a.confidenceScore||0)>=80?'text-amber-700':'text-rose-700'}">신뢰도 ${Number(a.confidenceScore||0)}%</span><span class="rounded-full px-3 py-1 text-xs font-bold ${a.reviewed?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-700'}">${esc(a.status)}</span></div></div></summary><div class="border-t border-slate-100 p-5">${a.confidenceReason?`<div class="mb-4 rounded-2xl ${Number(a.confidenceScore||0)>=80?'bg-slate-50 text-slate-600':'bg-rose-50 text-rose-700'} p-4 text-xs leading-relaxed"><b>AI 판독 신뢰도 근거:</b> ${esc(a.confidenceReason)}</div>`:''}<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${fields.map(([key,label,rows])=>`<label class="block text-xs font-extrabold text-slate-500 ${key==='coreFindings'?'lg:col-span-2':''}">${label}<textarea id="assessment-${a.id}-${key}" rows="${rows}" class="mt-2 w-full rounded-2xl border border-slate-200 p-4 text-sm leading-relaxed">${esc(a[key]||'')}</textarea></label>`).join('')}</div><div class="mt-4 flex flex-wrap gap-2"><button onclick="saveAssessmentAnalysis('${a.id}')" class="rounded-xl bg-slate-900 px-4 py-3 text-xs font-extrabold text-white">상담자 검토 완료 저장</button><button onclick="deleteAssessmentAnalysis('${a.id}')" class="rounded-xl border border-rose-200 bg-white px-4 py-3 text-xs font-bold text-rose-600">삭제</button></div></div></details>`;
-}
-function testInterpretationView(){
-  const r=assessmentReservation();const requested=assessmentRequestedTests(r);const analyses=r?analysesForReservation(r.id):[];
-  const available=[...new Set([...requested,...analyses.map(x=>x.testType)])];
-  const reportDraft=state.integratedReportDraft;const crossDraft=state.assessmentCrossDraft||state.assessmentCrossAnalyses.find(x=>String(x.reservationId)===String(r?.id));
-  return layout(`<div class="space-y-6"><div class="rounded-[2rem] bg-gradient-to-r from-slate-950 via-indigo-950 to-emerald-950 p-7 text-white shadow-xl"><p class="text-xs font-extrabold text-emerald-300">AI PSYCHOLOGICAL ASSESSMENT ENGINE 1.2</p><h2 class="mt-2 text-2xl font-extrabold">심리평가센터</h2><p class="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">여러 검사결과를 일괄 업로드하고, 검사별 판독 신뢰도와 교차 일치도를 확인한 뒤 상담자용 분석·통합분석·내담자용 종합보고서를 작성합니다. AI 결과는 반드시 원자료와 대조해 검토합니다.</p></div>
-  <div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_auto]"><select onchange="setAssessmentReservation(this.value)" class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold"><option value="">회원·예약 선택</option>${state.reservations.map(x=>`<option value="${x.id}" ${String(state.assessmentReservationId)===String(x.id)?'selected':''}>${esc(x.name)} · ${esc(programBaseName(x.program))} · ${esc(x.date)} ${esc(x.time)}</option>`).join('')}</select>${r?`<button onclick="generateIntegratedAssessmentReport()" ${state.integratedReportLoading?'disabled':''} class="rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-extrabold text-white disabled:opacity-50">${state.integratedReportLoading?'종합보고서 생성 중...':'내담자용 종합보고서 생성'}</button>`:''}</div>${r?`<div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-4"><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">회원</p><p class="mt-1 font-extrabold">${esc(r.name)}님</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">프로그램</p><p class="mt-1 font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">신청 검사</p><p class="mt-1 font-extrabold">${requested.length?requested.map(esc).join(', '):'검사 미등록'}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">분석 현황</p><p class="mt-1 font-extrabold">${analyses.filter(x=>x.reviewed).length}/${Math.max(requested.length,analyses.length)} 검토 완료</p></div></div>`:''}</div>
-  ${r?`<div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 class="text-xl font-extrabold">1. 검사결과 일괄 업로드 및 검사별 분석</h3><p class="mt-1 text-xs text-slate-400">파일명에서 검사명을 자동 판별합니다. 판별이 어려우면 아직 분석하지 않은 신청 검사 순서로 연결되므로 분석 후 검사명을 확인해 주세요.</p></div><label class="cursor-pointer rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white">여러 검사파일 한 번에 선택<input type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFiles(this.files)"/></label></div><div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">${available.length?available.map(test=>{const a=analysisForTest(r.id,test);const loading=state.assessmentLoading[`${r.id}_${test}`];return`<div class="rounded-2xl border ${a?'border-emerald-200 bg-emerald-50':'border-slate-200 bg-slate-50'} p-5"><div class="flex items-center justify-between"><p class="font-extrabold">${esc(assessmentTestLabel(test))}</p><span class="rounded-full bg-white px-2 py-1 text-[10px] font-bold ${a?.reviewed?'text-emerald-700':a?'text-amber-700':'text-slate-400'}">${a?.reviewed?'검토완료':a?.needsReview?'확인필요':a?`AI초안 ${Number(a.confidenceScore||0)}%`:'업로드 대기'}</span></div><label class="mt-4 block cursor-pointer rounded-xl border-2 border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs font-extrabold text-indigo-700">${loading?'분석 중...':a?'파일 다시 업로드·재분석':'결과 파일 업로드·분석'}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label></div>`}).join(''):'<p class="text-sm text-slate-400">신청 검사 정보가 없습니다.</p>'}</div><div class="mt-5 flex flex-wrap gap-2">${ASSESSMENT_TEST_OPTIONS.filter(x=>!available.includes(x)).map(test=>`<label class="cursor-pointer rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">+ ${esc(test)}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label>`).join('')}</div></div>
-  <div class="space-y-4"><div class="flex items-end justify-between"><div><h3 class="text-xl font-extrabold">2. 상담자용 검사별 분석</h3><p class="mt-1 text-xs text-slate-400">검사별 결과와 상담 질문, 교차 확인점, 사례개념화 가설을 검토합니다. 회원에게 공개되지 않습니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${analyses.length}건</span></div>${analyses.length?analyses.map(assessmentAnalysisCard).join(''):'<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-400">검사결과 파일을 업로드하면 상담자용 분석 초안이 여기에 표시됩니다.</div>'}</div>
-  <div class="rounded-[2rem] border border-indigo-100 bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold text-indigo-600">CLINICIAN CROSS-ASSESSMENT</p><h3 class="mt-1 text-xl font-extrabold">3. 상담자용 검사 간 교차분석</h3><p class="mt-1 text-xs text-slate-400">검사 간 일치·차이, 상태와 기질의 구분, 추가 면담 질문을 정리합니다. 회원에게 공개되지 않습니다.</p></div><button onclick="generateAssessmentCrossAnalysis()" ${state.assessmentCrossLoading?'disabled':''} class="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white disabled:opacity-50">${state.assessmentCrossLoading?'교차분석 중...':crossDraft?'교차분석 다시 생성':'검사 간 교차분석 생성'}</button></div>${crossDraft?`<div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">${[['commonPatterns','검사 간 공통 특징·일치점',6],['differences','검사 간 차이·모순처럼 보이는 부분',6],['stateTrait','상태 특성과 기질·성격 특성 구분',6],['responseContext','상황·응답 태도·측정영역에 따른 설명',6],['riskProtection','위험요인과 보호요인의 교차 확인',5],['followUpQuestions','면담·행동관찰에서 추가 확인할 질문',6],['counselingImplications','상담 초점과 개입 시사점',6],['caseIntegration','사례개념화에 반영할 통합 가설',6],['limitations','해석의 한계와 주의사항',4]].map(([k,l,rows])=>`<label class="block text-xs font-extrabold text-slate-500 ${['commonPatterns','differences','caseIntegration'].includes(k)?'lg:col-span-2':''}">${l}<textarea id="cross-${k}" rows="${rows}" class="mt-2 w-full rounded-2xl border border-slate-200 p-4 text-sm leading-relaxed">${esc(crossDraft[k]||'')}</textarea></label>`).join('')}</div><div class="mt-4 flex flex-wrap gap-2"><button onclick="saveAssessmentCrossAnalysis()" class="rounded-xl bg-slate-900 px-5 py-3 text-xs font-extrabold text-white">상담자 검토 완료 저장</button><button onclick="deleteAssessmentCrossAnalysis()" class="rounded-xl border border-rose-200 bg-white px-4 py-3 text-xs font-bold text-rose-600">삭제</button><span class="self-center text-[11px] text-slate-400">${esc(crossDraft.updatedAt||crossDraft.generatedAt||'')}</span></div>`:`<div class="mt-5 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50 p-8 text-center text-sm text-indigo-500">두 개 이상의 검사별 분석이 준비되면 교차분석을 생성할 수 있습니다.</div>`}</div>
-  ${reportDraft?`<div class="rounded-[2rem] border border-emerald-200 bg-white p-6 shadow-sm"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs font-extrabold text-emerald-600">CLIENT REPORT DRAFT</p><h3 class="mt-1 text-xl font-extrabold">4. 내담자 제공용 종합보고서</h3></div><span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">전문가 최종 검토 필요</span></div><div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">${[['title','보고서 제목',2],['purpose','검사 목적과 안내',4],['currentUnderstanding','현재 마음과 전반적 이해',7],['emotionalStress','정서와 스트레스 반응',6],['personality','성격·기질 특성',6],['relationships','대인관계와 의사소통',6],['agreementAnalysis','검사 간 일치점',6],['discrepancies','검사 간 차이·추가 확인점',6],['followUpPoints','면담·행동관찰에서 추가 확인할 항목',6],['strengths','강점과 보호요인',5],['difficultSituations','어려움을 느낄 수 있는 상황',5],['integratedUnderstanding','검사 결과의 종합적 이해',8],['dailySuggestions','일상에서 도움이 되는 제안',6],['counselingTopics','상담에서 함께 살펴볼 부분',6],['disclaimer','검사 해석의 한계와 안내',4]].map(([k,l,rows])=>`<label class="block text-xs font-extrabold text-slate-500 ${['currentUnderstanding','integratedUnderstanding'].includes(k)?'lg:col-span-2':''}">${l}<textarea id="integrated-${k}" rows="${rows}" class="mt-2 w-full rounded-2xl border border-slate-200 p-4 text-sm leading-relaxed">${esc(reportDraft[k]||'')}</textarea></label>`).join('')}</div><button onclick="saveIntegratedAssessmentReport()" class="mt-5 w-full rounded-2xl bg-emerald-600 py-4 text-sm font-extrabold text-white">전문가 검토본 저장 · 회원 공개 전 대기</button></div>`:''}`:`<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-400">먼저 회원과 예약을 선택해 주세요.</div>`}</div>`)
-}
+/* [MODULE-20260716-ASSESSMENT-CENTER-01]
+   심리평가센터 기능은 ./modules/assessment-center.js 로 분리했습니다.
+   이후 심리검사 분석·교차분석·심리보고서 수정은 해당 파일에서 진행합니다.
+*/
 
 function casesView() {
   const cases = buildCases();
 
   return layout(`
-    <div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h2 class="text-xl font-extrabold">케이스관리</h2>
-          <p class="text-sm text-slate-500 mt-1">예약 1건을 하나의 상담 사례로 보고, 검사·보고서·사례개념화·회기기록을 연결합니다.</p>
+    <div class="space-y-6">
+      <div class="rounded-[2rem] bg-gradient-to-r from-slate-950 via-emerald-950 to-slate-900 p-6 text-white shadow-xl sm:p-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-extrabold text-emerald-300">CASE CONCEPTUALIZATION CENTER</p>
+            <h2 class="mt-2 text-2xl font-extrabold">AI 사례개념화</h2>
+            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">검사결과·결과보고서·상담기록을 통합하여 상담자가 검토하고 수정하는 사례개념화와 상담계획 화면입니다.</p>
+          </div>
+          <span class="w-fit rounded-full bg-white/10 px-4 py-2 text-xs font-extrabold text-white">전체 ${cases.length}건</span>
         </div>
-        <span class="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">${cases.length}건</span>
       </div>
 
-      <div class="space-y-6">
+      <div class="space-y-7">
         ${cases.map(c => {
           const f = c.formulation || {};
-          const aid = load("modumam_counseling_aid_" + c.caseId, {});
+          const cp = counselingPlanForCase(c.caseId);
+          const caseNumber = c.res.caseNumber || c.caseId;
+          const status = normalizeStatus(c.res.status);
+          const sourceBadges = [
+            c.tests.length ? `심리검사 ${c.tests.length}건` : '',
+            c.reports.length ? `결과보고서 ${c.reports.length}건` : '',
+            c.sessions.length ? `상담기록 ${c.sessions.length}건` : ''
+          ].filter(Boolean);
           return `
-            <div class="rounded-[2rem] border border-slate-100 bg-slate-50 p-5 sm:p-6">
-              <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-5">
-                <div>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-xl font-extrabold text-slate-900">${c.caseId}</p>
-                    <span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(c.res.status)}">${normalizeStatus(c.res.status)}</span>
-                  </div>
-                  <p class="text-sm text-slate-500 mt-2">${c.res.name || "-"}님 · ${c.res.program || "-"} · ${c.res.date || "-"} ${c.res.time || ""}</p>
-                </div>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                  <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">검사</p><p class="text-xl font-extrabold">${c.tests.length}</p></div>
-                  <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">AI체크인</p><p class="text-xl font-extrabold">${c.intake ? "1" : "0"}</p></div>
-                  <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">보고서</p><p class="text-xl font-extrabold">${c.reports.length}</p></div>
-                  <div class="bg-white rounded-2xl border border-slate-100 p-3"><p class="text-xs text-slate-400 font-bold">회기</p><p class="text-xl font-extrabold">${c.sessions.length}</p></div>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                <div class="space-y-5">
-                  <div class="bg-white rounded-2xl border border-slate-100 p-5">
-                    <div class="flex items-center justify-between mb-3">
-                      <h3 class="text-sm font-extrabold">검사 로드맵</h3>
-                      <div class="flex gap-2"><button onclick="generateCaseDraft('${c.caseId}')" ${state.caseDraftLoading[c.caseId]?'disabled':''} class="bg-purple-600 disabled:opacity-50 text-white rounded-xl px-4 py-2 text-xs font-bold">${state.caseDraftLoading[c.caseId]?'생성 중...':'AI 사례개념화'}</button><button onclick="printCaseFormulation('${c.caseId}')" class="bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-bold">PDF·인쇄</button></div>
+            <article class="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+              <div class="border-b border-slate-100 bg-slate-50 p-5 sm:p-6">
+                <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-extrabold text-emerald-700">사례번호</span>
+                      <h3 class="break-all text-xl font-extrabold text-slate-950 sm:text-2xl">${esc(caseNumber)}</h3>
+                      <span class="rounded-full px-3 py-1 text-xs font-extrabold ${statusClass(status)}">${esc(status)}</span>
                     </div>
-                    ${c.tests.length ? `
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        ${c.tests.map(t => `
-                          <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3">
-                            <p class="text-xs font-extrabold text-slate-700">${t}</p>
-                            <p class="text-[11px] text-slate-400 mt-1">${(c.res.testStatuses || {})[t] || "미발송"}</p>
-                          </div>
-                        `).join("")}
-                      </div>
-                    ` : `<p class="text-sm text-slate-400">신청 검사가 없습니다.</p>`}
-                  </div>
-
-                  <div class="bg-white rounded-2xl border border-slate-100 p-5">
-                    <div class="mb-3"><h3 class="text-sm font-extrabold">사례개념화</h3><p class="text-[11px] text-slate-400 mt-1">검사·AI 마음체크·보고서·회기기록을 통합한 상담자 검토용 초안입니다.</p>${f.aiGeneratedAt?`<p class="text-[11px] text-purple-600 mt-1">AI 초안 생성: ${new Date(f.aiGeneratedAt).toLocaleString('ko-KR')}</p>`:''}</div>
-                    <div class="space-y-3">
-                      <textarea id="cf-complaint-${c.caseId}" rows="2" placeholder="주호소" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.complaint || ""}</textarea>
-                      <textarea id="cf-current-${c.caseId}" rows="3" placeholder="현재 문제" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.currentProblem || ""}</textarea>
-                      <textarea id="cf-trigger-${c.caseId}" rows="2" placeholder="촉발요인" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.trigger || ""}</textarea>
-                      <textarea id="cf-maintaining-${c.caseId}" rows="2" placeholder="유지요인" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.maintaining || ""}</textarea>
-                      <textarea id="cf-protective-${c.caseId}" rows="2" placeholder="보호요인" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.protective || ""}</textarea>
-                      <textarea id="cf-strength-${c.caseId}" rows="2" placeholder="강점" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.strength || ""}</textarea>
-                      <textarea id="cf-goal-${c.caseId}" rows="2" placeholder="상담목표" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.goal || ""}</textarea>
-                      <textarea id="cf-intervention-${c.caseId}" rows="2" placeholder="개입전략" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${f.intervention || ""}</textarea>
-                      <button onclick="saveCaseFormulation('${c.caseId}')" class="w-full bg-slate-900 text-white rounded-2xl py-3 text-sm font-extrabold">사례개념화 저장</button>
+                    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">내담자</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(c.res.name||'-')}님</p><p class="mt-1 text-[11px] text-slate-400">${esc(c.res.phone||'연락처 없음')}</p></div>
+                      <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">프로그램</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(programBaseName(c.res.program))}</p></div>
+                      <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">상담방법</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(c.res.type||'미정')}</p></div>
+                      <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">예약일정</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(c.res.date||'-')} ${esc(c.res.time||'')}</p></div>
                     </div>
                   </div>
-
-                  ${(()=>{const cp=counselingPlanForCase(c.caseId);return `<div class="bg-white rounded-2xl border border-indigo-100 p-5"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 class="text-sm font-extrabold">상담계획</h3><p class="mt-1 text-[11px] text-slate-400">검사별 분석·교차분석·사례개념화·회기기록을 바탕으로 작성하는 상담자 검토용 계획입니다.</p>${cp.generatedAt?`<p class="mt-1 text-[11px] text-indigo-600">AI 초안: ${new Date(cp.generatedAt).toLocaleString('ko-KR')} · ${cp.reviewed?'상담자 검토 완료':'검토 필요'}</p>`:''}</div><div class="flex gap-2"><button onclick="generateCounselingPlan('${c.caseId}')" ${state.counselingPlanLoading[c.caseId]?'disabled':''} class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">${state.counselingPlanLoading[c.caseId]?'생성 중...':cp.generatedAt?'AI 다시 생성':'AI 상담계획 생성'}</button><button onclick="printCounselingPlan('${c.caseId}')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700">PDF·인쇄</button></div></div><div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3"><textarea id="cp-short-${c.caseId}" rows="3" placeholder="단기 상담목표" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.shortTermGoals||'')}</textarea><textarea id="cp-mid-${c.caseId}" rows="3" placeholder="중기 상담목표" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.midTermGoals||'')}</textarea><textarea id="cp-long-${c.caseId}" rows="3" placeholder="장기 상담목표" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.longTermGoals||'')}</textarea></div><div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2"><textarea id="cp-initial-${c.caseId}" rows="5" placeholder="초기 단계 계획" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.initialPhase||'')}</textarea><textarea id="cp-middle-${c.caseId}" rows="5" placeholder="중기 단계 계획" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.middlePhase||'')}</textarea><textarea id="cp-term-${c.caseId}" rows="5" placeholder="종결·사후관리 계획" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.terminationPhase||'')}</textarea><textarea id="cp-roadmap-${c.caseId}" rows="5" placeholder="회기별 로드맵" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.sessionRoadmap||'')}</textarea><textarea id="cp-interventions-${c.caseId}" rows="5" placeholder="권장 개입" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.recommendedInterventions||'')}</textarea><textarea id="cp-monitor-${c.caseId}" rows="5" placeholder="위험·보호요인 모니터링" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.monitoringPoints||'')}</textarea><textarea id="cp-questions-${c.caseId}" rows="5" placeholder="다음 회기 질문" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.nextSessionQuestions||'')}</textarea><textarea id="cp-tasks-${c.caseId}" rows="5" placeholder="내담자 실천과제" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(cp.clientTasks||'')}</textarea><textarea id="cp-limit-${c.caseId}" rows="4" placeholder="한계와 유의사항" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm lg:col-span-2">${esc(cp.limitations||'')}</textarea></div><button onclick="saveCounselingPlan('${c.caseId}')" class="mt-3 w-full rounded-2xl bg-slate-900 py-3 text-sm font-extrabold text-white">상담계획 검토본 저장</button></div>`})()}
-                </div>
-
-                <div class="space-y-5">
-                  <div class="bg-white rounded-2xl border border-slate-100 p-5">
-                    <h3 class="text-sm font-extrabold mb-3">회기기록 추가</h3>
-                    <input id="session-date-${c.caseId}" type="date" value="${new Date().toISOString().slice(0,10)}" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3" />
-                    <input id="session-goal-${c.caseId}" placeholder="오늘 회기 목표" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3" />
-                    <textarea id="session-content-${c.caseId}" rows="3" placeholder="오늘 상담 내용" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"></textarea>
-                    <textarea id="session-change-${c.caseId}" rows="2" placeholder="내담자 변화/반응" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"></textarea>
-                    <textarea id="session-task-${c.caseId}" rows="2" placeholder="마음 숙제/실천과제" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"></textarea>
-                    <textarea id="session-next-${c.caseId}" rows="2" placeholder="다음 회기 목표" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"></textarea>
-                    <button onclick="saveCaseSession('${c.caseId}')" class="w-full bg-emerald-600 text-white rounded-2xl py-3 text-sm font-extrabold">회기기록 저장</button>
-                  </div>
-
-                  <div class="bg-white rounded-2xl border border-slate-100 p-5">
-                    <h3 class="text-sm font-extrabold mb-3">회기기록</h3>
-                    ${c.sessions.length ? c.sessions.map(s => `
-                      <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-3">
-                        <div class="flex justify-between mb-2">
-                          <p class="text-xs font-bold text-emerald-700">${s.date || ""} · ${s.goal || "회기"}</p>
-                          <button onclick="deleteCaseSession('${c.caseId}', ${s.id})" class="text-xs font-bold text-rose-600">삭제</button>
-                        </div>
-                        <p class="text-xs text-slate-600 whitespace-pre-line"><b>내용</b>\n${s.content || ""}</p>
-                        ${s.change ? `<p class="text-xs text-slate-600 whitespace-pre-line mt-2"><b>변화</b>\n${s.change}</p>` : ""}
-                        ${s.task ? `<p class="text-xs text-slate-600 whitespace-pre-line mt-2"><b>과제</b>\n${s.task}</p>` : ""}
-                        ${s.next ? `<p class="text-xs text-slate-600 whitespace-pre-line mt-2"><b>다음 회기</b>\n${s.next}</p>` : ""}
-                      </div>
-                    `).join("") : `<p class="text-sm text-slate-400">저장된 회기기록이 없습니다.</p>`}
-                  </div>
-
-                  <div class="bg-white rounded-2xl border border-purple-100 p-5">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                      <div>
-                        <h3 class="text-sm font-extrabold">AI 상담보조</h3>
-                        <p class="text-xs text-slate-400 mt-1">상담 전 1분 브리핑 · 질문 추천 · 개입 아이디어</p>
-                      </div>
-                      <div class="flex gap-2">
-                        <button onclick="generateCounselingAid('${c.caseId}')" class="bg-purple-600 text-white rounded-xl px-3 py-2 text-xs font-bold">초안 생성</button>
-                        <button onclick="copyCounselingAid('${c.caseId}')" class="bg-white border border-purple-200 text-purple-700 rounded-xl px-3 py-2 text-xs font-bold">복사</button>
-                      </div>
-                    </div>
-                    <div class="space-y-3">
-                      <textarea id="aid-focus-${c.caseId}" rows="3" placeholder="오늘 상담 초점" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.focus || ""}</textarea>
-                      <textarea id="aid-questions-${c.caseId}" rows="5" placeholder="상담에서 확인할 질문" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.questions || ""}</textarea>
-                      <textarea id="aid-intervention-${c.caseId}" rows="4" placeholder="개입 아이디어" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.intervention || ""}</textarea>
-                      <textarea id="aid-caution-${c.caseId}" rows="3" placeholder="주의사항" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.caution || ""}</textarea>
-                      <textarea id="aid-next-${c.caseId}" rows="3" placeholder="다음 회기 계획" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">${aid.nextPlan || ""}</textarea>
-                      <textarea id="aid-source-${c.caseId}" rows="2" placeholder="참고자료" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-500">${aid.source || ""}</textarea>
-                      <button onclick="saveCounselingAid('${c.caseId}')" class="w-full bg-slate-900 text-white rounded-2xl py-3 text-sm font-extrabold">AI 상담보조 저장</button>
-                    </div>
-                    ${aid.updatedAt ? `<p class="text-[11px] text-slate-400 mt-3">마지막 업데이트: ${aid.updatedAt}</p>` : ""}
-                  </div>
-
-                  <div class="bg-slate-900 text-white rounded-2xl p-5">
-                    <h3 class="text-sm font-extrabold mb-3">마음 타임라인</h3>
-                    <div class="border-l border-white/20 pl-4 space-y-4">
-                      <div><p class="text-xs font-bold text-emerald-300">${c.res.date || ""} · 예약</p><p class="text-xs text-slate-300">${programBaseName(c.res.program)}</p></div>
-                      ${c.intake ? `<div><p class="text-xs font-bold text-emerald-300">AI 접수</p><p class="text-xs text-slate-300">마음 체크인 요약 저장</p></div>` : ""}
-                      ${c.tests.map(t => `<div><p class="text-xs font-bold text-emerald-300">심리검사</p><p class="text-xs text-slate-300">${t}</p></div>`).join("")}
-                      ${c.reports.map(r => `<div><p class="text-xs font-bold text-emerald-300">보고서</p><p class="text-xs text-slate-300">${r.title || ""}</p></div>`).join("")}
-                      ${c.sessions.map(s => `<div><p class="text-xs font-bold text-emerald-300">${s.date || ""} · 회기</p><p class="text-xs text-slate-300">${s.goal || ""}</p></div>`).join("")}
-                    </div>
+                  <div class="grid shrink-0 grid-cols-3 gap-2 text-center">
+                    <div class="min-w-20 rounded-2xl border border-slate-100 bg-white p-3"><p class="text-[10px] font-bold text-slate-400">검사</p><p class="mt-1 text-xl font-extrabold">${c.tests.length}</p></div>
+                    <div class="min-w-20 rounded-2xl border border-slate-100 bg-white p-3"><p class="text-[10px] font-bold text-slate-400">보고서</p><p class="mt-1 text-xl font-extrabold">${c.reports.length}</p></div>
+                    <div class="min-w-20 rounded-2xl border border-slate-100 bg-white p-3"><p class="text-[10px] font-bold text-slate-400">회기</p><p class="mt-1 text-xl font-extrabold">${c.sessions.length}</p></div>
                   </div>
                 </div>
               </div>
-            </div>
+
+              <div class="space-y-6 p-5 sm:p-6">
+                <section class="rounded-[1.75rem] border border-slate-100 bg-slate-50 p-5">
+                  <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <h4 class="text-base font-extrabold text-slate-900">검사 로드맵 및 AI 분석 근거</h4>
+                      <p class="mt-1 text-xs leading-relaxed text-slate-500">현재 연결된 자료를 확인한 뒤 AI 사례개념화 초안을 생성하세요.</p>
+                      <div class="mt-3 flex flex-wrap gap-2">${sourceBadges.length?sourceBadges.map(x=>`<span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-extrabold text-emerald-700">✓ ${esc(x)}</span>`).join(''):'<span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-extrabold text-amber-700">연결된 분석자료 없음</span>'}</div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <button onclick="generateCaseDraft('${c.caseId}')" ${state.caseDraftLoading[c.caseId]?'disabled':''} class="rounded-xl bg-purple-600 px-4 py-3 text-xs font-extrabold text-white disabled:opacity-50">${state.caseDraftLoading[c.caseId]?'생성 중...':f.aiGeneratedAt?'AI 다시 생성':'AI 사례개념화 생성'}</button>
+                      <button onclick="printCaseFormulation('${c.caseId}')" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold text-slate-700">PDF·인쇄</button>
+                    </div>
+                  </div>
+                  <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    ${c.tests.length?c.tests.map(t=>`<div class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-sm font-extrabold text-slate-800">${esc(t)}</p><p class="mt-1 text-[11px] text-slate-400">${esc((c.res.testStatuses||{})[t]||'미발송')}</p></div>`).join(''):'<div class="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-400">신청 검사가 없습니다.</div>'}
+                  </div>
+                </section>
+
+                <section class="rounded-[1.75rem] border border-purple-100 bg-white p-5 sm:p-6">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p class="text-xs font-extrabold text-purple-600">CASE FORMULATION</p>
+                      <h4 class="mt-1 text-xl font-extrabold text-slate-950">사례개념화</h4>
+                      <p class="mt-1 text-xs leading-relaxed text-slate-500">검사·결과보고서·상담기록을 바탕으로 작성한 상담자 내부 검토용 내용입니다.</p>
+                      ${f.aiGeneratedAt?`<p class="mt-2 text-[11px] font-bold text-purple-600">AI 초안 생성 ${new Date(f.aiGeneratedAt).toLocaleString('ko-KR')}</p>`:''}
+                    </div>
+                    <button onclick="saveCaseFormulation('${c.caseId}')" class="rounded-xl bg-slate-900 px-5 py-3 text-xs font-extrabold text-white">사례개념화 저장</button>
+                  </div>
+                  <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <label class="text-xs font-extrabold text-slate-500">주호소<textarea id="cf-complaint-${c.caseId}" rows="4" placeholder="내담자가 호소하는 핵심 어려움" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.complaint||'')}</textarea></label>
+                    <label class="text-xs font-extrabold text-slate-500">현재 문제와 기능 영향<textarea id="cf-current-${c.caseId}" rows="4" placeholder="현재 문제와 일상·관계·기능에 미치는 영향" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.currentProblem||'')}</textarea></label>
+                    <label class="text-xs font-extrabold text-slate-500">촉발요인<textarea id="cf-trigger-${c.caseId}" rows="4" placeholder="최근 어려움이 시작되거나 악화된 계기" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.trigger||'')}</textarea></label>
+                    <label class="text-xs font-extrabold text-slate-500">유지요인<textarea id="cf-maintaining-${c.caseId}" rows="4" placeholder="어려움이 반복·지속되는 요인" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.maintaining||'')}</textarea></label>
+                    <label class="text-xs font-extrabold text-slate-500">보호요인<textarea id="cf-protective-${c.caseId}" rows="4" placeholder="안전과 회복에 도움이 되는 관계·환경·자원" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.protective||'')}</textarea></label>
+                    <label class="text-xs font-extrabold text-slate-500">강점과 자원<textarea id="cf-strength-${c.caseId}" rows="4" placeholder="내담자의 강점·대처능력·활용 가능한 자원" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.strength||'')}</textarea></label>
+                    <label class="text-xs font-extrabold text-slate-500">상담목표<textarea id="cf-goal-${c.caseId}" rows="5" placeholder="합의할 단기·중기 상담목표" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.goal||'')}</textarea></label>
+                    <label class="text-xs font-extrabold text-slate-500">개입전략<textarea id="cf-intervention-${c.caseId}" rows="5" placeholder="상담 접근, 우선 개입, 모니터링 계획" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.intervention||'')}</textarea></label>
+                  </div>
+                </section>
+
+                <section class="rounded-[1.75rem] border border-indigo-100 bg-indigo-50/30 p-5 sm:p-6">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p class="text-xs font-extrabold text-indigo-600">COUNSELING PLAN</p>
+                      <h4 class="mt-1 text-xl font-extrabold text-slate-950">상담계획</h4>
+                      <p class="mt-1 text-xs leading-relaxed text-slate-500">사례개념화와 검사·회기자료를 바탕으로 상담자가 검토하고 수정합니다.</p>
+                      ${cp.generatedAt?`<p class="mt-2 text-[11px] font-bold text-indigo-600">AI 초안 ${new Date(cp.generatedAt).toLocaleString('ko-KR')} · ${cp.reviewed?'상담자 검토 완료':'검토 필요'}</p>`:''}
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <button onclick="generateCounselingPlan('${c.caseId}')" ${state.counselingPlanLoading[c.caseId]?'disabled':''} class="rounded-xl bg-indigo-600 px-4 py-3 text-xs font-extrabold text-white disabled:opacity-50">${state.counselingPlanLoading[c.caseId]?'생성 중...':cp.generatedAt?'AI 다시 생성':'AI 상담계획 생성'}</button>
+                      <button onclick="printCounselingPlan('${c.caseId}')" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold text-slate-700">PDF·인쇄</button>
+                    </div>
+                  </div>
+                  <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <textarea id="cp-short-${c.caseId}" rows="4" placeholder="단기 상담목표" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.shortTermGoals||'')}</textarea>
+                    <textarea id="cp-mid-${c.caseId}" rows="4" placeholder="중기 상담목표" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.midTermGoals||'')}</textarea>
+                    <textarea id="cp-long-${c.caseId}" rows="4" placeholder="장기 상담목표" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.longTermGoals||'')}</textarea>
+                  </div>
+                  <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <textarea id="cp-initial-${c.caseId}" rows="6" placeholder="초기 단계 계획" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.initialPhase||'')}</textarea>
+                    <textarea id="cp-middle-${c.caseId}" rows="6" placeholder="중기 단계 계획" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.middlePhase||'')}</textarea>
+                    <textarea id="cp-term-${c.caseId}" rows="6" placeholder="종결·사후관리 계획" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.terminationPhase||'')}</textarea>
+                    <textarea id="cp-roadmap-${c.caseId}" rows="6" placeholder="회기별 로드맵" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.sessionRoadmap||'')}</textarea>
+                    <textarea id="cp-interventions-${c.caseId}" rows="6" placeholder="권장 개입" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.recommendedInterventions||'')}</textarea>
+                    <textarea id="cp-monitor-${c.caseId}" rows="6" placeholder="위험·보호요인 모니터링" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.monitoringPoints||'')}</textarea>
+                    <textarea id="cp-questions-${c.caseId}" rows="6" placeholder="다음 회기 질문" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.nextSessionQuestions||'')}</textarea>
+                    <textarea id="cp-tasks-${c.caseId}" rows="6" placeholder="내담자 실천과제" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">${esc(cp.clientTasks||'')}</textarea>
+                    <textarea id="cp-limit-${c.caseId}" rows="5" placeholder="한계와 유의사항" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm lg:col-span-2">${esc(cp.limitations||'')}</textarea>
+                  </div>
+                  <button onclick="saveCounselingPlan('${c.caseId}')" class="mt-4 w-full rounded-2xl bg-slate-900 py-3 text-sm font-extrabold text-white">상담계획 검토본 저장</button>
+                </section>
+
+                <section class="rounded-[1.75rem] border border-slate-100 bg-white p-5">
+                  <div class="flex items-center justify-between gap-3"><div><h4 class="text-base font-extrabold">참고 회기기록</h4><p class="mt-1 text-xs text-slate-400">상담기록에서 최종 저장된 회기자료입니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${c.sessions.length}건</span></div>
+                  <div class="mt-4 space-y-3">${c.sessions.length?c.sessions.map((session,index)=>`<details class="rounded-2xl border border-slate-100 bg-slate-50" ${index===0?'open':''}><summary class="cursor-pointer list-none p-4 text-sm font-extrabold text-slate-800">${esc(session.date||'상담일 미입력')} · ${esc(session.sessionNumber?`${session.sessionNumber}회기`:session.goal||'회기기록')}</summary><div class="border-t border-slate-100 p-4 text-xs leading-relaxed text-slate-600"><p class="whitespace-pre-line"><b>상담내용</b>\n${esc(session.content||'')}</p>${session.change?`<p class="mt-3 whitespace-pre-line"><b>상담결과</b>\n${esc(session.change)}</p>`:''}${session.next?`<p class="mt-3 whitespace-pre-line"><b>다음회기</b>\n${esc(session.next)}</p>`:''}</div></details>`).join(''):'<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-400">저장된 회기기록이 없습니다.</div>'}</div>
+                </section>
+              </div>
+            </article>
           `;
-        }).join("") || empty("케이스 데이터가 없습니다.")}
+        }).join('') || empty('케이스 데이터가 없습니다.')}
       </div>
     </div>
   `);
@@ -1438,7 +1887,7 @@ function documentStatusClass(st){
 }
 function updateDocumentStatus(id,status){updateReservation(id,{documentReviewStatus:status})}
 function copyApplicationText(id){
-  const r=state.reservations.find(x=>x.id===id);if(!r)return;
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
   const a=r.applicationForm||{}, c=r.consentForm||{};
   const text=`[모두의 마음연구소 상담신청서 및 동의 확인]
 
@@ -1475,7 +1924,7 @@ function copyApplicationText(id){
   copyText(text);
 }
 function printApplication(id){
-  const r=state.reservations.find(x=>x.id===id);if(!r)return;
+  const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
   const a=r.applicationForm||{}, c=r.consentForm||{};
   const w=window.open('','_blank');
   w.document.write(`<html><head><title>상담신청서_${esc(r.name)}</title><style>body{font-family:Arial,sans-serif;padding:40px;line-height:1.7;color:#1e293b}h1{font-size:24px}.box{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:14px 0;background:#f8fafc}p{margin:6px 0}.sign{margin-top:28px;border-top:1px solid #ddd;padding-top:18px}</style></head><body><p style="font-size:12px;color:#047857;font-weight:bold;">MODUMAM LAB</p><h1>상담신청서 및 심리상담 동의 확인서</h1><div class="box"><p><b>성명:</b> ${esc(r.name)}</p><p><b>생년월일:</b> ${esc(a.birth)}</p><p><b>연락처:</b> ${esc(r.phone)}</p><p><b>이메일:</b> ${esc(a.email)}</p><p><b>선호 연락:</b> ${esc(a.contactMethod)}</p><p><b>소속/직업군:</b> ${esc(a.clientType)}</p></div><div class="box"><p><b>프로그램:</b> ${esc(programBaseName(r.program))}</p><p><b>상담 방식:</b> ${esc(r.type)}</p><p><b>희망 일정:</b> ${esc(r.date)} ${esc(r.time)}</p><p><b>선택 검사:</b> ${esc((r.selectedTests||r.extraTests||[]).join(', '))}</p></div><div class="box"><p><b>현재 가장 힘든 점:</b></p><p>${esc(a.concern)}</p><p><b>이전 상담/치료/검사 경험:</b> ${esc(a.counselingHistory)}</p><p><b>복용 중인 약:</b> ${esc(a.medication)}</p><p><b>진단/치료 중인 질환:</b> ${esc(a.diagnosis)}</p><p><b>최근 자해/자살 위험:</b> ${esc(a.risk)}</p></div><div class="box"><p><b>개인정보 수집·이용:</b> ${c.privacy?'동의':'미동의'}</p><p><b>심리검사/상담 및 비밀보장 예외:</b> ${c.counseling?'동의':'미동의'}</p><p><b>예약 변경/취소 및 노쇼 규정:</b> ${c.cancelPolicy?'동의':'미동의'}</p><p><b>동의일시:</b> ${esc(c.signedAt)}</p><p><b>문서버전:</b> ${esc(c.documentVersion)}</p></div><div class="sign"><p>작성자(전자서명): <b>${esc(c.signature)}</b></p><p>관리자 확인상태: ${esc(documentStatus(r))}</p></div><script>window.print();<\/script></body></html>`);
@@ -1559,11 +2008,11 @@ function resultUploadCountForReservation(reservationId){
 }
 function toggleAiResultCounseling(id,enabled){
   const patch={aiResultCounselingEnabled:!!enabled};
-  if(enabled&&!state.reservations.find(r=>r.id===id)?.aiResultCounselingActivatedAt){patch.aiResultCounselingActivatedAt=new Date().toLocaleString();}
+  if(enabled&&!state.reservations.find(r=>String(r.id)===String(id))?.aiResultCounselingActivatedAt){patch.aiResultCounselingActivatedAt=new Date().toLocaleString();}
   updateReservation(id,patch);
 }
 function toggleResultUploadVisibility(id){
-  const item=state.resultUploads.find(x=>x.id===id);
+  const item=state.resultUploads.find(x=>String(x.id)===String(id));
   if(!item)return;
   item.visibleToClient=!item.visibleToClient;
   item.visibilityUpdatedAt=new Date().toLocaleString();
@@ -1572,12 +2021,12 @@ function toggleResultUploadVisibility(id){
 }
 function deleteResultUpload(id){
   if(!confirm('업로드한 검사결과를 삭제하시겠습니까?'))return;
-  state.resultUploads=state.resultUploads.filter(x=>x.id!==id);
+  state.resultUploads=state.resultUploads.filter(x=>String(x.id)!==String(id));
   save('modumam_test_result_uploads',state.resultUploads);
   render();
 }
 function downloadResultUpload(id){
-  const item=state.resultUploads.find(x=>x.id===id);
+  const item=state.resultUploads.find(x=>String(x.id)===String(id));
   if(!item||!item.dataUrl){alert('저장된 파일을 찾을 수 없습니다.');return;}
   const a=document.createElement('a');a.href=item.dataUrl;a.download=item.fileName||'검사결과';document.body.appendChild(a);a.click();a.remove();
 }
@@ -1607,34 +2056,578 @@ function saveResultUpload(event){
   reader.readAsDataURL(file);
 }
 function resultUploadsView(){
-  const pending=state.reservations.filter(r=>['검사완료','결과업로드'].includes(normalizeStatus(r.status))&&resultUploadCountForReservation(r.id)===0);
-  return layout(`<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-    <form onsubmit="saveResultUpload(event)" class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4">
-      <div><p class="text-xs font-extrabold text-emerald-700">ADMIN RESULT UPLOAD</p><h2 class="text-xl font-extrabold mt-1">심리검사 결과 업로드</h2><p class="text-sm text-slate-500 mt-2">회원과 검사를 선택하고 결과 파일 및 간단한 관리자 메모를 저장합니다.</p></div>
-      <select id="result-reservation" required class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold"><option value="">대상 회원 선택</option>${state.reservations.map(r=>`<option value="${r.id}">${esc(r.name)} · ${esc(programBaseName(r.program))} · ${esc(r.date)}</option>`).join('')}</select>
-      <select id="result-test-type" required class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold"><option value="">검사명 선택</option>${['TCI 기질 및 성격검사','MMPI-2','PAI','SCT 문장완성검사','HTP 그림검사','PAT 부모양육태도검사','STS 영유아 기질검사','K-CDI 아동발달검사','PHQ-9 우울검사','GAD-7 불안검사','회복탄력성검사','직업흥미검사','기타'].map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
-      <input id="result-file" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" required class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm bg-slate-50"/>
-      <p class="text-[11px] text-slate-400">로컬 시험용: PDF 또는 이미지, 2MB 이하. 실제 운영 전 서버 저장소 연결이 필요합니다.</p>
-      <textarea id="result-summary" rows="4" placeholder="관리자 메모 또는 결과 핵심 요약(선택)" class="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none"></textarea>
-      <label class="flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-sm font-bold text-emerald-800"><input id="result-visible" type="checkbox" class="w-4 h-4"/> 회원 마이페이지 공개 승인</label>
-      <button class="w-full bg-slate-900 text-white rounded-2xl py-4 text-sm font-extrabold">검사결과 저장</button>
-    </form>
-    <div class="xl:col-span-2 space-y-6">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">${card('업로드 완료',state.resultUploads.length+'건','브라우저 저장','📁','emerald')}${card('업로드 대기',pending.length+'건','검사완료 기준','⏳','orange')}${card('AI 결과상담 활성',state.reservations.filter(r=>r.aiResultCounselingEnabled).length+'명','회원별 활성화','🤖','purple')}</div>
-      <div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex items-center justify-between mb-5"><div><h2 class="text-xl font-extrabold">회원별 결과·AI 상담 관리</h2><p class="text-sm text-slate-500 mt-1">검사결과 업로드와 AI 결과상담 활성 상태를 한 화면에서 관리합니다.</p></div></div>
-      <div class="space-y-4">${state.reservations.map(r=>{const uploads=state.resultUploads.filter(x=>String(x.reservationId)===String(r.id));return`<div class="rounded-2xl border border-slate-100 bg-slate-50 p-5"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><div class="flex flex-wrap items-center gap-2"><p class="font-extrabold text-lg">${esc(r.name)}님</p><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span></div><p class="text-xs text-slate-500 mt-2">${esc(programBaseName(r.program))} · ${esc(r.date)} ${esc(r.time)} · ${esc(r.phone)}</p><p class="text-xs font-bold ${uploads.length?'text-emerald-700':'text-amber-700'} mt-2">검사결과 ${uploads.length}건</p></div><label class="flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm font-extrabold"><input type="checkbox" ${r.aiResultCounselingEnabled?'checked':''} onchange="toggleAiResultCounseling(${r.id},this.checked)" class="w-4 h-4"/> AI 결과상담 활성화</label></div>${uploads.length?`<div class="mt-4 space-y-2">${uploads.map(u=>`<div class="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p class="text-sm font-extrabold">${esc(u.testType)} · ${esc(u.fileName)}</p><p class="text-xs text-slate-400 mt-1">${esc(u.createdAt)} · ${u.visibleToClient?'회원 공개':'관리자 전용'}</p>${u.summary?`<p class="text-xs text-slate-600 mt-2">${esc(u.summary)}</p>`:''}</div><div class="flex flex-wrap gap-2"><button onclick="downloadResultUpload(${u.id})" class="text-xs font-bold bg-emerald-600 text-white rounded-xl px-3 py-2">파일 열기</button><button onclick="toggleResultUploadVisibility(${u.id})" class="text-xs font-bold ${u.visibleToClient?'bg-slate-700 text-white':'bg-indigo-600 text-white'} rounded-xl px-3 py-2">${u.visibleToClient?'공개 취소':'회원 공개'}</button><button onclick="deleteResultUpload(${u.id})" class="text-xs font-bold bg-white border border-rose-200 text-rose-600 rounded-xl px-3 py-2">삭제</button></div></div>`).join('')}</div>`:''}</div>`}).join('')||empty('예약 회원이 없습니다.')}</div></div>
+  const rows=state.reservations.slice().sort((a,b)=>{
+    const aDate=`${a.date||''} ${a.time||''}`;
+    const bDate=`${b.date||''} ${b.time||''}`;
+    return bDate.localeCompare(aDate);
+  });
+  const activeAi=rows.filter(r=>r.aiResultCounselingEnabled===true).length;
+  const aiCompleted=rows.filter(r=>!!r.aiResultCounselingCompletedAt).length;
+  const pendingReservations=rows.filter(r=>!['상담완료','종결','예약취소'].includes(normalizeStatus(r.status))).length;
+
+  return layout(`<div class="space-y-6">
+    <div class="rounded-[2rem] bg-gradient-to-r from-slate-950 via-indigo-950 to-violet-950 p-6 text-white shadow-xl sm:p-8">
+      <p class="text-xs font-extrabold text-violet-300">PSYCHOLOGICAL TEST OPERATIONS</p>
+      <h2 class="mt-2 text-2xl font-extrabold">심리검사 예약 · AI 상담 관리</h2>
+      <p class="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">심리검사 예약정보와 진행상태를 확인하고, 결과보고서가 준비된 회원의 AI 결과상담을 활성화합니다. 검사결과 파일 업로드와 분석은 심리평가센터에서 진행합니다.</p>
+      <div class="mt-5 flex flex-wrap gap-2">
+        <button onclick="setMenu('reservation')" class="rounded-xl bg-white px-4 py-2 text-xs font-extrabold text-slate-900">예약관리 열기</button>
+        <button onclick="setMenu('interpretation')" class="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-extrabold text-white">심리평가센터 열기</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
+      ${card('전체 예약',rows.length+'건','심리검사·상담 예약','📅','blue')}
+      ${card('진행 중',pendingReservations+'건','종결·취소 제외','⏳','orange')}
+      ${card('AI 상담 활성',activeAi+'명','회원별 활성화','🤖','purple')}
+      ${card('AI 상담 완료',aiCompleted+'건','상담 완료 기록','✅','emerald')}
+    </div>
+
+    <div class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+      <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 class="text-xl font-extrabold">예약 확인 및 AI 결과상담 활성화</h2>
+          <p class="mt-1 text-sm text-slate-500">예약일정 · 프로그램명 · 검사명 · 상담방식을 확인하고 진행상태와 AI 상담 이용 여부를 관리합니다.</p>
+        </div>
+        <div class="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs font-bold text-indigo-700">결과 업로드는 심리평가센터에서 관리</div>
+      </div>
+
+      <div class="space-y-4">${rows.map(r=>{
+        const tests=requestedTests(r).map(shortTestName);
+        const st=normalizeStatus(r.status);
+        const uploads=state.resultUploads.filter(x=>String(x.reservationId)===String(r.id));
+        const enabled=r.aiResultCounselingEnabled===true;
+        const completed=!!r.aiResultCounselingCompletedAt;
+        const aiLabel=completed?'상담 완료':enabled?'활성':'비활성';
+        const aiClass=completed?'bg-emerald-100 text-emerald-700':enabled?'bg-violet-100 text-violet-700':'bg-slate-100 text-slate-500';
+        return `<article class="rounded-3xl border border-slate-100 bg-slate-50 p-5">
+          <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="text-lg font-extrabold text-slate-900">${esc(r.name)}님</p>
+                <span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${statusClass(st)}">${esc(st)}</span>
+                <span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${aiClass}">AI 상담 ${aiLabel}</span>
+              </div>
+              <p class="mt-2 text-xs text-slate-500">${esc(r.phone||'연락처 없음')} · 신청일 ${esc(r.createdAt||r.date||'')}</p>
+
+              <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">예약일정</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(r.date||'미정')} ${esc(r.time||'')}</p></div>
+                <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">프로그램명</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(programBaseName(r.program)||'미정')}</p></div>
+                <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">검사명</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(tests.join(', ')||'없음')}</p></div>
+                <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">상담방식</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(r.type||'미정')}</p></div>
+              </div>
+
+              <div class="mt-4 flex flex-wrap gap-2 text-[11px] font-bold">
+                <span class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-600">평가센터 결과 ${uploads.length}건</span>
+                ${r.resultReportApproved?'<span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">결과보고서 승인</span>':'<span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-700">결과보고서 확인 필요</span>'}
+                ${completed?`<span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">완료 ${esc(r.aiResultCounselingCompletedAt)}</span>`:''}
+              </div>
+            </div>
+
+            <div class="w-full space-y-3 xl:w-64">
+              <label class="flex items-center justify-between gap-3 rounded-2xl border ${enabled?'border-violet-200 bg-violet-50':'border-slate-200 bg-white'} px-4 py-3 text-sm font-extrabold">
+                <span>AI 결과상담 활성화</span>
+                <input type="checkbox" ${enabled?'checked':''} ${completed?'disabled':''} onchange="toggleAiResultCounseling(${r.id},this.checked)" class="h-5 w-5"/>
+              </label>
+              <select onchange="updateReservation(${r.id},{status:this.value})" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold">
+                ${STATUS.map(x=>`<option value="${x}" ${st===x?'selected':''}>${x}</option>`).join('')}
+              </select>
+              <div class="grid grid-cols-2 gap-2">
+                <button onclick="openMemberChartByReservation(${r.id},'profile')" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-extrabold">전자차트</button>
+                <button onclick="setMenu('reservation')" class="rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-extrabold text-white">예약관리</button>
+              </div>
+              <button onclick="setMenu('interpretation')" class="w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-xs font-extrabold text-white">심리평가센터에서 결과 확인</button>
+            </div>
+          </div>
+        </article>`;
+      }).join('')||empty('확인할 예약이 없습니다.')}</div>
     </div>
   </div>`);
 }
+
+
+// ===== [MODUMAM COUNSELING 시작] =====
+function setCounselingJournalTab(tab){
+  state.counselingJournalTab=tab==='termination'?'termination':'sessions';
+  render();
+}
+
+
+async function callCounselingFunction(functionName, options = {}){
+  const path=`/.netlify/functions/${functionName}`;
+  const localHost=['localhost','127.0.0.1'].includes(window.location.hostname);
+  const candidates=localHost
+    ? [`http://localhost:8888${path}`,path]
+    : [path];
+
+  let lastError=null;
+
+  for(const url of [...new Set(candidates)]){
+    try{
+      const response=await fetch(url,options);
+      const raw=await response.text();
+
+      let data={};
+      try{
+        data=raw?JSON.parse(raw):{};
+      }catch{
+        throw new Error(
+          response.status===404
+            ? 'AI 회기기록 함수를 찾지 못했습니다.'
+            : 'AI 회기기록 서버 응답을 읽지 못했습니다.'
+        );
+      }
+
+      if(!response.ok){
+        throw new Error(
+          data.error ||
+          data.message ||
+          `AI 회기기록 요청 실패 (HTTP ${response.status})`
+        );
+      }
+
+      return data;
+    }catch(error){
+      lastError=error;
+    }
+  }
+
+  if(localHost){
+    throw new Error(
+      `${lastError?.message||'로컬 AI 서버 연결 실패'}\n새 터미널에서 npx netlify dev를 실행하고 http://localhost:8888로 접속해 주세요.`
+    );
+  }
+
+  throw lastError||new Error('AI 회기기록 서버에 연결하지 못했습니다.');
+}
+
+
+
+const COUNSELING_TRANSCRIPT_DB='modumam_counseling_files';
+const COUNSELING_TRANSCRIPT_DB_VERSION=1;
+const COUNSELING_TRANSCRIPT_STORE='transcripts';
+
+function openCounselingTranscriptDb(){
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open(
+      COUNSELING_TRANSCRIPT_DB,
+      COUNSELING_TRANSCRIPT_DB_VERSION
+    );
+
+    request.onupgradeneeded=()=>{
+      const db=request.result;
+      if(!db.objectStoreNames.contains(COUNSELING_TRANSCRIPT_STORE)){
+        db.createObjectStore(COUNSELING_TRANSCRIPT_STORE,{keyPath:'id'});
+      }
+    };
+
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(
+      request.error||new Error('축어록 파일 저장소를 열지 못했습니다.')
+    );
+  });
+}
+
+async function saveCounselingTranscriptFile(record){
+  const db=await openCounselingTranscriptDb();
+
+  try{
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(COUNSELING_TRANSCRIPT_STORE,'readwrite');
+      tx.objectStore(COUNSELING_TRANSCRIPT_STORE).put(record);
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(
+        tx.error||new Error('축어록 파일을 저장하지 못했습니다.')
+      );
+      tx.onabort=()=>reject(
+        tx.error||new Error('축어록 파일 저장이 중단되었습니다.')
+      );
+    });
+  }finally{
+    db.close();
+  }
+}
+
+async function getCounselingTranscriptFile(transcriptId){
+  const db=await openCounselingTranscriptDb();
+
+  try{
+    return await new Promise((resolve,reject)=>{
+      const tx=db.transaction(COUNSELING_TRANSCRIPT_STORE,'readonly');
+      const request=tx.objectStore(COUNSELING_TRANSCRIPT_STORE)
+        .get(String(transcriptId));
+
+      request.onsuccess=()=>resolve(request.result||null);
+      request.onerror=()=>reject(
+        request.error||new Error('축어록 파일을 불러오지 못했습니다.')
+      );
+    });
+  }finally{
+    db.close();
+  }
+}
+
+async function removeCounselingTranscriptFile(transcriptId){
+  const db=await openCounselingTranscriptDb();
+
+  try{
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(COUNSELING_TRANSCRIPT_STORE,'readwrite');
+      tx.objectStore(COUNSELING_TRANSCRIPT_STORE)
+        .delete(String(transcriptId));
+
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(
+        tx.error||new Error('축어록 파일을 삭제하지 못했습니다.')
+      );
+      tx.onabort=()=>reject(
+        tx.error||new Error('축어록 파일 삭제가 중단되었습니다.')
+      );
+    });
+  }finally{
+    db.close();
+  }
+}
+
+function counselingUploadedTranscriptKey(caseId){
+  return `modumam_uploaded_transcripts_${caseId}`;
+}
+
+function getUploadedCounselingTranscripts(caseId){
+  return load(counselingUploadedTranscriptKey(caseId),[]);
+}
+
+function saveUploadedCounselingTranscript(caseId,record){
+  const rows=getUploadedCounselingTranscripts(caseId);
+  const next=[
+    record,
+    ...rows.filter(item=>String(item.id)!==String(record.id))
+  ].slice(0,20);
+  save(counselingUploadedTranscriptKey(caseId),next);
+}
+
+function updateUploadedCounselingTranscript(caseId,transcriptId,patch){
+  const rows=getUploadedCounselingTranscripts(caseId).map(item=>
+    String(item.id)===String(transcriptId)
+      ? {...item,...patch}
+      : item
+  );
+  save(counselingUploadedTranscriptKey(caseId),rows);
+}
+
+async function deleteUploadedCounselingTranscript(caseId,transcriptId){
+  if(!confirm('업로드한 축어록 기록을 삭제하시겠습니까?'))return;
+
+  const next=getUploadedCounselingTranscripts(caseId)
+    .filter(item=>String(item.id)!==String(transcriptId));
+
+  save(counselingUploadedTranscriptKey(caseId),next);
+
+  try{
+    await removeCounselingTranscriptFile(transcriptId);
+  }catch(error){
+    console.error('[축어록 IndexedDB 삭제]',error);
+  }
+
+  render();
+}
+
+const counselingTranscriptSelections={};
+
+
+function handleCounselingTranscriptInput(input){
+  if(!input)return;
+
+  const caseId=String(input.dataset.counselingCaseId||'');
+  const file=input.files?.[0];
+
+  if(!caseId){
+    alert('사례 정보를 확인하지 못했습니다.');
+    input.value='';
+    return;
+  }
+
+  if(!file){
+    return;
+  }
+
+  selectCounselingTranscript(caseId,file);
+}
+window.handleCounselingTranscriptInput=handleCounselingTranscriptInput;
+
+function selectCounselingTranscript(caseId,file){
+  if(!file)return;
+
+  const extension=String(file.name||'').split('.').pop().toLowerCase();
+  const allowedMime=['text/plain','application/pdf','image/png','image/jpeg','image/webp'];
+  const allowedExtensions=['txt','pdf','png','jpg','jpeg','webp'];
+
+  if(
+    !allowedMime.includes(file.type) &&
+    !allowedExtensions.includes(extension)
+  ){
+    alert('축어록은 TXT, PDF, PNG, JPG, WEBP 파일만 업로드할 수 있습니다.');
+    return;
+  }
+
+  if(file.size>4*1024*1024){
+    alert('축어록 파일은 4MB 이하로 올려 주세요.');
+    return;
+  }
+
+  counselingTranscriptSelections[String(caseId)]=file;
+
+  const nameEl=document.getElementById(`counseling-transcript-name-${caseId}`);
+  if(nameEl){
+    nameEl.innerHTML=`<span class="font-extrabold">선택 완료:</span> ${esc(file.name)} · ${Math.ceil(file.size/1024)}KB`;
+    nameEl.className='mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700';
+  }
+
+  const runButton=document.getElementById(`counseling-transcript-run-${caseId}`);
+  if(runButton){
+    runButton.disabled=false;
+    runButton.classList.remove('opacity-50','cursor-not-allowed');
+    runButton.classList.add('cursor-pointer');
+  }
+}
+
+async function uploadCounselingTranscriptAuto(caseId,reservationId){
+  const input=document.getElementById(`counseling-transcript-file-${caseId}`);
+  const file=input?.files?.[0];
+
+  if(!file){
+    alert('축어록 파일을 먼저 선택해 주세요.');
+    input?.click();
+    return;
+  }
+
+  const extension=String(file.name||'').split('.').pop().toLowerCase();
+  const allowedMime=['text/plain','application/pdf','image/png','image/jpeg','image/webp'];
+  const allowedExtensions=['txt','pdf','png','jpg','jpeg','webp'];
+
+  if(!allowedMime.includes(file.type) && !allowedExtensions.includes(extension)){
+    alert('축어록은 TXT, PDF, PNG, JPG, WEBP 파일만 업로드할 수 있습니다.');
+    return;
+  }
+
+  if(file.size>8*1024*1024){
+    alert('축어록 파일은 8MB 이하로 올려 주세요.');
+    return;
+  }
+
+  const reservation=state.reservations.find(
+    item=>String(item.id)===String(reservationId)
+  );
+
+  if(!reservation){
+    alert('예약 정보를 찾지 못했습니다.');
+    return;
+  }
+
+  const sessionNumber=Math.max(
+    1,
+    Number(document.getElementById(`counseling-session-number-${caseId}`)?.value)||1
+  );
+
+  const sessionDate=String(
+    document.getElementById(`counseling-session-date-${caseId}`)?.value ||
+    reservation.date ||
+    new Date().toISOString().slice(0,10)
+  );
+
+  const button=document.getElementById(`counseling-transcript-run-${caseId}`);
+  const status=document.getElementById(`counseling-transcript-status-${caseId}`);
+
+  if(button){
+    button.disabled=true;
+    button.textContent='파일 저장 중...';
+  }
+
+  try{
+    const transcriptId=String(Date.now());
+
+    const mimeType=file.type || (
+      extension==='pdf'?'application/pdf':
+      extension==='txt'?'text/plain':
+      extension==='png'?'image/png':
+      extension==='webp'?'image/webp':
+      'image/jpeg'
+    );
+
+    // 파일 본문은 용량 제한이 큰 IndexedDB에 저장합니다.
+    await saveCounselingTranscriptFile({
+      id:transcriptId,
+      caseId:String(caseId),
+      reservationId:String(reservationId),
+      sessionNumber,
+      sessionDate,
+      fileName:file.name,
+      fileSize:file.size,
+      mimeType,
+      blob:file,
+      createdAt:new Date().toISOString()
+    });
+
+    // localStorage에는 작은 메타데이터만 저장합니다.
+    const uploadRecord={
+      id:transcriptId,
+      reservationId:String(reservationId),
+      sessionNumber,
+      sessionDate,
+      fileName:file.name,
+      fileSize:file.size,
+      mimeType,
+      aiStatus:'대기',
+      createdAt:new Date().toLocaleString('ko-KR')
+    };
+
+    saveUploadedCounselingTranscript(caseId,uploadRecord);
+
+    if(input)input.value='';
+
+    if(status){
+      status.textContent=`업로드 완료: ${file.name}`;
+      status.className='mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700';
+    }
+
+    alert('축어록 파일 업로드가 완료되었습니다.');
+    render();
+  }catch(error){
+    console.error('[상담일지 축어록 파일 저장]',error);
+
+    if(status){
+      status.textContent=`파일 업로드 실패: ${error?.message||'알 수 없는 오류'}`;
+      status.className='mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700';
+    }
+
+    alert(error?.message||'축어록 파일 업로드 중 오류가 발생했습니다.');
+  }finally{
+    if(button){
+      button.disabled=false;
+      button.textContent='축어록 업로드';
+    }
+  }
+}
+
+
+async function retryCounselingTranscriptAI(caseId,reservationId,transcriptId){
+  const reservation=state.reservations.find(
+    item=>String(item.id)===String(reservationId)
+  );
+
+  const transcript=getUploadedCounselingTranscripts(caseId)
+    .find(item=>String(item.id)===String(transcriptId));
+
+  if(!reservation||!transcript){
+    alert('축어록 또는 예약 정보를 찾지 못했습니다.');
+    return;
+  }
+
+  try{
+    updateUploadedCounselingTranscript(caseId,transcriptId,{aiStatus:'작성 중'});
+    render();
+
+    const storedFile=await getCounselingTranscriptFile(transcriptId);
+
+    if(!storedFile?.blob){
+      throw new Error('저장된 축어록 파일을 찾지 못했습니다.');
+    }
+
+    const base64=await fileToBase64(storedFile.blob);
+
+    const data=await callCounselingFunction('counseling-transcript-summary',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        clientName:reservation.name||'',
+        program:programBaseName(reservation.program),
+        counselingMethod:reservation.type||'',
+        date:transcript.sessionDate,
+        sessionNumber:transcript.sessionNumber,
+        fileName:transcript.fileName,
+        mimeType:transcript.mimeType,
+        base64
+      })
+    });
+
+    if(!data?.note){
+      throw new Error('AI 회기기록 결과를 받지 못했습니다.');
+    }
+
+    const note=data.note;
+    const key='modumam_case_sessions_'+caseId;
+    const sessions=load(key,[]);
+
+    sessions.unshift({
+      id:Date.now(),
+      sessionNumber:transcript.sessionNumber,
+      date:transcript.sessionDate,
+      goal:note.goal||`${transcript.sessionNumber}회기 축어록 기반 회기기록`,
+      content:note.content||'',
+      change:note.change||'',
+      task:note.task||'',
+      next:note.next||'',
+      transcriptSummary:note.summary||'',
+      transcriptFileName:transcript.fileName,
+      transcriptMimeType:transcript.mimeType,
+      transcriptUploadId:transcript.id,
+      aiGenerated:true,
+      createdAt:new Date().toLocaleString('ko-KR')
+    });
+
+    save(key,sessions);
+
+    updateUploadedCounselingTranscript(caseId,transcriptId,{
+      aiStatus:'완료',
+      aiError:'',
+      aiCompletedAt:new Date().toLocaleString('ko-KR')
+    });
+
+    alert('AI 회기기록 작성이 완료되었습니다.');
+    render();
+  }catch(error){
+    updateUploadedCounselingTranscript(caseId,transcriptId,{
+      aiStatus:'실패',
+      aiError:error?.message||'AI 작성 실패'
+    });
+
+    alert(error?.message||'AI 회기기록 작성에 실패했습니다.');
+    render();
+  }
+}
+
+
+window.retryCounselingTranscriptAI=retryCounselingTranscriptAI;
+window.deleteUploadedCounselingTranscript=deleteUploadedCounselingTranscript;
+
+function runCounselingTranscriptFromButton(button){
+  if(!button)return;
+
+  const caseId=String(button.dataset.counselingCaseId||'');
+  const reservationId=String(button.dataset.counselingReservationId||'');
+
+  if(!caseId||!reservationId){
+    alert('회기기록에 필요한 사례 또는 예약 정보를 확인하지 못했습니다.');
+    return;
+  }
+
+  uploadCounselingTranscriptAuto(caseId,reservationId);
+}
+window.runCounselingTranscriptFromButton=runCounselingTranscriptFromButton;
+
+
+window.selectCounselingTranscript=selectCounselingTranscript;
+window.uploadCounselingTranscriptAuto=uploadCounselingTranscriptAuto;
+// ===== [MODUMAM COUNSELING 끝] =====
 
 function todayCounselingView(){
   const rows=todayReservations();
   const active=rows.filter(r=>['상담준비','상담진행'].includes(normalizeStatus(r.status)));
   return layout(`<div class="space-y-6">
     <div class="bg-gradient-to-r from-slate-900 to-emerald-900 text-white rounded-[2rem] p-6 sm:p-8 shadow-sm">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><p class="text-xs font-extrabold text-emerald-300">TODAY COUNSELING</p><h2 class="text-2xl sm:text-3xl font-extrabold mt-2">오늘 상담 대기함</h2><p class="text-sm text-slate-200 mt-2">오늘의 예약을 확인하고 전자차트·회기기록·다음 예약으로 바로 연결합니다.</p></div><div class="grid grid-cols-2 gap-3"><div class="bg-white/10 rounded-2xl px-5 py-4"><p class="text-xs text-slate-300">오늘 예약</p><p class="text-3xl font-extrabold">${rows.length}</p></div><div class="bg-white/10 rounded-2xl px-5 py-4"><p class="text-xs text-slate-300">상담 준비·진행</p><p class="text-3xl font-extrabold">${active.length}</p></div></div></div>
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><p class="text-xs font-extrabold text-emerald-300">TODAY COUNSELING</p><h2 class="text-2xl sm:text-3xl font-extrabold mt-2">오늘 상담 대기함</h2><p class="text-sm text-slate-200 mt-2">오늘의 예약을 확인하고 예약관리·상담 시작·다음 예약으로 바로 연결합니다.</p></div><div class="grid grid-cols-2 gap-3"><div class="bg-white/10 rounded-2xl px-5 py-4"><p class="text-xs text-slate-300">오늘 예약</p><p class="text-3xl font-extrabold">${rows.length}</p></div><div class="bg-white/10 rounded-2xl px-5 py-4"><p class="text-xs text-slate-300">상담 준비·진행</p><p class="text-3xl font-extrabold">${active.length}</p></div></div></div>
     </div>
-    <div class="space-y-4">${rows.length?rows.map(r=>{const tests=requestedTests(r).map(shortTestName);const st=normalizeStatus(r.status);return `<div class="bg-white rounded-[2rem] border border-slate-100 p-5 sm:p-6 shadow-sm"><div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5"><div class="flex-1"><div class="flex flex-wrap items-center gap-2"><p class="text-xl font-extrabold">${esc(r.time||'--:--')} · ${esc(r.name)}님</p><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(st)}">${esc(st)}</span></div><p class="text-xs text-slate-400 mt-1">${esc(r.phone||'연락처 없음')}</p><div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-5 text-sm"><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">예약일정</p><p class="font-extrabold mt-1">${esc(r.date)} ${esc(r.time)}</p></div><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">프로그램명</p><p class="font-extrabold mt-1">${esc(programBaseName(r.program))}</p></div><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">검사명</p><p class="font-extrabold mt-1">${esc(tests.join(', ')||'없음')}</p></div><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">상담방식</p><p class="font-extrabold mt-1">${esc(r.type||'미정')}</p></div></div></div><div class="xl:w-52 grid grid-cols-2 xl:grid-cols-1 gap-2"><button onclick="openMemberChartByReservation(${r.id},'profile')" class="bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-extrabold">전자차트</button><button onclick="startCounseling(${r.id})" class="bg-emerald-600 text-white rounded-xl px-4 py-3 text-xs font-extrabold">상담 시작</button><button onclick="openMemberChartByReservation(${r.id},'session')" class="bg-blue-600 text-white rounded-xl px-4 py-3 text-xs font-extrabold">회기기록</button><button onclick="completeCounseling(${r.id})" class="bg-slate-900 text-white rounded-xl px-4 py-3 text-xs font-extrabold">상담 완료</button><button onclick="scheduleNextCounseling(${r.id})" class="col-span-2 xl:col-span-1 bg-purple-600 text-white rounded-xl px-4 py-3 text-xs font-extrabold">다음 상담 예약</button></div></div></div>`}).join(''):empty('오늘 예정된 상담이 없습니다.')}</div>
+    <div class="space-y-4">${rows.length?rows.map(r=>{const tests=requestedTests(r).map(shortTestName);const st=normalizeStatus(r.status);return `<div class="bg-white rounded-[2rem] border border-slate-100 p-5 sm:p-6 shadow-sm"><div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5"><div class="flex-1"><div class="flex flex-wrap items-center gap-2"><p class="text-xl font-extrabold">${esc(r.time||'--:--')} · ${esc(r.name)}님</p><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(st)}">${esc(st)}</span></div><p class="text-xs text-slate-400 mt-1">${esc(r.caseNumber||'사례번호 생성 전')} · ${esc(r.reservationNumber||'-')} · ${esc(r.phone||'연락처 없음')}</p><div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-5 text-sm"><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">예약일정</p><p class="font-extrabold mt-1">${esc(r.date)} ${esc(r.time)}</p></div><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">프로그램명</p><p class="font-extrabold mt-1">${esc(programBaseName(r.program))}</p></div><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">검사명</p><p class="font-extrabold mt-1">${esc(tests.join(', ')||'없음')}</p></div><div class="bg-slate-50 rounded-2xl p-3"><p class="text-[11px] font-bold text-slate-400">상담방식</p><p class="font-extrabold mt-1">${esc(r.type||'미정')}</p></div></div></div><div class="xl:w-52 grid grid-cols-2 xl:grid-cols-1 gap-2"><button onclick="setMenu('reservation')" class="bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-extrabold">예약관리</button><button onclick="startCounseling(${r.id})" class="bg-emerald-600 text-white rounded-xl px-4 py-3 text-xs font-extrabold">상담 시작</button><button onclick="openCounselingRecordByReservation(${r.id})" class="bg-blue-600 text-white rounded-xl px-4 py-3 text-xs font-extrabold">회기기록</button><button onclick="completeCounselingAndOpenChart(${r.id})" class="bg-slate-900 text-white rounded-xl px-4 py-3 text-xs font-extrabold">상담 완료</button><button onclick="scheduleNextCounseling(${r.id})" class="col-span-2 xl:col-span-1 bg-purple-600 text-white rounded-xl px-4 py-3 text-xs font-extrabold">다음 상담 예약</button></div></div></div>`}).join(''):empty('오늘 예정된 상담이 없습니다.')}</div>
   </div>`)
 }
 
@@ -1696,38 +2689,97 @@ function operatingSecretaryView(){
 }
 
 function dashboardView(){
+  // ===== [MODUMAM 오늘업무 우선처리·빠른메뉴 삭제 시작] =====
   const today=todayReservations();
-  const clients=buildClients().length;
-  const tasks=workflowTasks();
-  const autoTasks=automatedTasks();
-  const summary=workflowSummary();
-  const wait=summary.find(x=>x.key==='approval')?.count||0;
-  const pay=summary.find(x=>x.key==='payment')?.count||0;
-  const send=summary.find(x=>x.key==='send')?.count||0;
-  const uploadWait=summary.find(x=>x.key==='upload')?.count||0;
-  const counsel=summary.find(x=>x.key==='counsel')?.count||0;
-  const aiActive=state.reservations.filter(r=>r.aiResultCounselingEnabled).length;
-  const recent=state.reservations.slice().sort((a,b)=>String(b.id).localeCompare(String(a.id))).slice(0,6);
-  const priorityTasks=autoTasks.slice(0,10);
-  return layout(`<div class="mb-6 rounded-[2rem] bg-slate-950 p-6 text-white shadow-xl shadow-slate-900/10 sm:p-8"><div class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between"><div><p class="text-xs font-extrabold text-emerald-300">TODAY WORK CENTER</p><h2 class="mt-2 text-2xl font-extrabold sm:text-3xl">오늘 업무를 한 화면에서 처리하세요.</h2><p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300">예약·검사·상담 자료를 확인해 가장 먼저 처리할 업무를 자동으로 안내합니다.</p></div><div class="grid grid-cols-3 gap-3"><button onclick="setMenu('today')" class="rounded-2xl bg-white/10 px-4 py-4 text-left hover:bg-white/15"><p class="text-[11px] text-slate-300">오늘 상담</p><p class="mt-1 text-2xl font-extrabold">${today.length}</p></button><button onclick="setMenu('reservation')" class="rounded-2xl bg-white/10 px-4 py-4 text-left hover:bg-white/15"><p class="text-[11px] text-slate-300">우선 업무</p><p class="mt-1 text-2xl font-extrabold">${autoTasks.length}</p></button><button onclick="setMenu('members')" class="rounded-2xl bg-white/10 px-4 py-4 text-left hover:bg-white/15"><p class="text-[11px] text-slate-300">전체 회원</p><p class="mt-1 text-2xl font-extrabold">${clients}</p></button></div></div></div>${operatingSecretaryView()}<div class="grid grid-cols-2 xl:grid-cols-6 gap-4 sm:gap-5 mb-8">
-    ${card('전체 회원',clients+'명','예약·기록 통합','👥','blue')}
-    ${card('오늘 예약',today.length+'건','오늘 상담 일정','📅','emerald')}
-    ${card('승인 대기',wait+'건','확인 필요','🔴','orange')}
-    ${card('결제 대기',pay+'건','입금 확인','💳','blue')}
-    ${card('결과 업로드',uploadWait+'건','검사완료 기준','📁','purple')}
-    ${card('자동 생성 업무',autoTasks.length+'건','다음 처리 업무','⚡','emerald')}
-  </div>
-  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-    <div class="xl:col-span-2 bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5"><div><p class="text-xs font-extrabold text-emerald-700">WORKFLOW</p><h2 class="text-lg font-extrabold">업무 진행 현황</h2><p class="text-sm text-slate-500 mt-1">예약부터 상담완료까지 현재 업무량을 한눈에 확인합니다.</p></div><button onclick="setMenu('reservation')" class="text-xs font-bold bg-slate-900 text-white rounded-xl px-4 py-2">예약관리 열기</button></div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">${summary.map(x=>`<button onclick="setMenu('reservation')" class="rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100 p-4 text-left"><p class="text-[11px] font-bold text-slate-400">${x.label}</p><p class="text-2xl font-extrabold text-slate-900 mt-2">${x.count}</p></button>`).join('')}</div>
+  const tasks=automatedTasks();
+  const recent=state.reservations
+    .slice()
+    .sort((a,b)=>Number(b.id||0)-Number(a.id||0))
+    .slice(0,5);
+
+  return layout(`<div class="space-y-6">
+    <section class="rounded-[2rem] bg-slate-950 p-6 text-white shadow-xl shadow-slate-900/10 sm:p-8">
+      <div class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <p class="text-xs font-extrabold text-emerald-300">TODAY WORK CENTER</p>
+          <h2 class="mt-2 text-2xl font-extrabold sm:text-3xl">오늘 해야 할 일을 확인하세요.</h2>
+          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">처리가 필요한 내용을 확인한 뒤 해당 관리 페이지로 이동하여 진행합니다.</p>
+        </div>
+        <button onclick="refreshSharedOperatingData(true)" class="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-xs font-extrabold text-white hover:bg-white/15">예약 새로 불러오기</button>
+      </div>
+    </section>
+
+    <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+      <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-extrabold text-rose-600">TODAY TASKS</p>
+          <h2 class="mt-1 text-xl font-extrabold">오늘 해야 할 일</h2>
+          <p class="mt-1 text-sm text-slate-500">업무 내용을 확인하고 버튼을 눌러 관련 관리 페이지에서 처리하세요.</p>
+        </div>
+        <span class="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-extrabold text-slate-600">${tasks.length}건</span>
+      </div>
+      <div class="space-y-3">
+        ${tasks.length
+          ? tasks.slice(0,12).map(automationTaskCard).join('')
+          : '<div class="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-8 text-center text-sm font-bold text-emerald-700">현재 처리할 업무가 없습니다.</div>'}
+      </div>
+    </section>
+
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-extrabold text-emerald-600">TODAY</p>
+            <h2 class="mt-1 text-xl font-extrabold">오늘 예약</h2>
+          </div>
+          <button onclick="setMenu('today')" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">오늘 상담 열기</button>
+        </div>
+        <div class="space-y-3">
+          ${today.length
+            ? today.map(r=>{
+                const tests=requestedTests(r).map(shortTestName);
+                return `<article class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-sm font-extrabold text-slate-900">${esc(r.time||'--:--')} · ${esc(r.name)}님</p>
+                        <span class="rounded-full px-3 py-1 text-[10px] font-extrabold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span>
+                      </div>
+                      <p class="mt-2 text-xs text-slate-500">${esc(programBaseName(r.program))} · ${esc(tests.join(', ')||'검사 없음')} · ${esc(r.type||'상담방식 미정')}</p>
+                    </div>
+                    <button onclick="startCounseling(${r.id})" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-extrabold text-white">상담 시작</button>
+                  </div>
+                </article>`;
+              }).join('')
+            : empty('오늘 예약 일정이 없습니다.')}
+        </div>
+      </section>
+
+      <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-extrabold text-indigo-600">RECENT</p>
+            <h2 class="mt-1 text-xl font-extrabold">최근 신청</h2>
+          </div>
+          <button onclick="setMenu('reservation')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold">전체 보기</button>
+        </div>
+        <div class="space-y-3">
+          ${recent.length
+            ? recent.map(r=>`<button onclick="openMemberChartByReservation(${r.id},'profile')" class="w-full rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left hover:border-indigo-200">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-sm font-extrabold text-slate-900">${esc(r.name)}님</p>
+                    <p class="mt-1 text-[11px] text-slate-400">${esc(r.date||'')} ${esc(r.time||'')} · ${esc(programBaseName(r.program))}</p>
+                  </div>
+                  <span class="rounded-full px-2 py-1 text-[10px] font-extrabold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span>
+                </div>
+              </button>`).join('')
+            : empty('최근 예약이 없습니다.')}
+        </div>
+      </section>
     </div>
-    <div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex items-center justify-between mb-4"><div><p class="text-xs font-extrabold text-rose-600">TODAY TASKS</p><h2 class="text-lg font-extrabold">오늘 해야 할 일</h2></div><span class="text-xs font-extrabold bg-rose-50 text-rose-600 rounded-full px-3 py-1">${autoTasks.length}건</span></div>${priorityTasks.length?priorityTasks.map(automationTaskCard).join(''):empty('처리할 업무가 없습니다.')}</div>
-  </div>
-  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-    <div class="xl:col-span-2 bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex items-center justify-between mb-5"><div><h2 class="text-lg font-extrabold">오늘 예약</h2><p class="text-sm text-slate-500 mt-1">상담 일정과 준비상태를 확인합니다.</p></div><button onclick="setMenu('today')" class="text-xs font-bold border border-slate-200 rounded-xl px-4 py-2">오늘 상담 대기함</button></div>${today.length?today.map(r=>`<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 py-4 last:border-0"><div><p class="font-extrabold">${esc(r.time)||'--:--'} · ${esc(r.name)}님</p><p class="text-sm text-slate-500 mt-1">${esc(programBaseName(r.program))} / ${esc(r.type)}</p></div><div class="flex flex-wrap gap-2"><span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span><button onclick="openMemberChartByReservation(${r.id},'profile')" class="text-xs font-bold border border-slate-200 bg-white rounded-xl px-3 py-1">전자차트</button><button onclick="startCounseling(${r.id})" class="text-xs font-bold bg-emerald-600 text-white rounded-xl px-3 py-1">상담 시작</button></div></div>`).join(''):empty('오늘 예약 일정이 없습니다.')}</div>
-    <div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex items-center justify-between mb-4"><div><h2 class="text-lg font-extrabold">실시간 예약 현황 및 관리</h2><p class="text-xs text-slate-400 mt-1">신청 완료 ${recent.length}건</p></div><button onclick="setMenu('reservation')" class="text-xs font-bold border border-slate-200 rounded-xl px-3 py-2">전체 관리</button></div><div class="space-y-3">${recent.length?recent.map(r=>{const tests=requestedTests(r);return`<div class="bg-slate-50 border border-slate-100 rounded-2xl p-4"><div class="flex items-start justify-between gap-2"><div><p class="font-extrabold text-sm">${esc(r.name)}님</p><p class="text-xs text-slate-400 mt-1">${esc(r.phone||'연락처 없음')}</p></div><span class="text-[11px] font-bold px-2 py-1 rounded-full ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-xs"><div><p class="font-bold text-slate-400">예약일정</p><p class="font-extrabold text-slate-800 mt-1">${esc(r.date)} ${esc(r.time)}</p></div><div><p class="font-bold text-slate-400">프로그램명</p><p class="font-extrabold text-slate-800 mt-1">${esc(programBaseName(r.program))}</p></div><div><p class="font-bold text-slate-400">검사명</p><p class="font-extrabold text-slate-800 mt-1">${tests.map(shortTestName).join(', ')||'없음'}</p></div><div><p class="font-bold text-slate-400">상담방식</p><p class="font-extrabold text-slate-800 mt-1">${esc(r.type||'미정')}</p></div></div><div class="mt-3">${operationPipeline(r)}</div><div class="mt-3">${focusedNextTaskBlock(r)}</div></div>`}).join(''):empty('예약 데이터가 없습니다.')}</div></div>
   </div>`);
+  // ===== [MODUMAM 오늘업무 우선처리·빠른메뉴 삭제 끝] =====
 }
 
 function reservationSyncStatus(){
@@ -1751,28 +2803,74 @@ function reservationView(){
       <div class="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
         <div class="mb-3"><p class="text-xs font-extrabold text-emerald-700">검사신청·예약확인</p><p class="mt-1 text-[11px] text-emerald-700/70">예약 운영에 필요한 핵심 정보를 가장 먼저 확인합니다.</p></div>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">예약일정</p><div class="mt-2 grid grid-cols-2 gap-2"><input type="date" value="${esc(r.date)}" onchange="updateCounselingDate(${r.id},this.value)" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"><select onchange="updateCounselingTime(${r.id},this.value)" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${COUNSELING_TIMES.map(time=>`<option value="${time}" ${String(r.time||'')===time?'selected':''}>${time}</option>`).join('')}</select></div></div>
+          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">예약일정</p><div class="mt-2 grid grid-cols-2 gap-2"><input id="reservation-date-${esc(String(r.id))}" type="date" value="${esc(r.date)}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"><select id="reservation-time-${esc(String(r.id))}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${COUNSELING_TIMES.map(time=>`<option value="${time}" ${String(r.time||'')===time?'selected':''}>${time}</option>`).join('')}</select></div></div>
           <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">프로그램명</p><p class="mt-2 font-extrabold">${esc(programBaseName(r.program))}</p></div>
           <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">신청 검사</p><div class="mt-2 flex flex-wrap gap-1.5">${tests.length?tests.map(t=>`<span class="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-1 text-xs font-extrabold text-purple-700">${esc(shortTestName(t))}</span>`).join(''):'<span class="text-xs text-slate-400">신청 검사 없음</span>'}</div></div>
-          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">상담방식</p><select onchange="updateCounselingMethod(${r.id},this.value)" class="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${COUNSELING_METHODS.map(method=>`<option value="${method}" ${String(r.type||'')===method?'selected':''}>${method==='Zoom(비대면)'?'화상(비대면)':method}</option>`).join('')}</select></div>
+          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">상담방식</p><select id="reservation-method-${esc(String(r.id))}" class="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${COUNSELING_METHODS.map(method=>`<option value="${method}" ${String(r.type||'')===method?'selected':''}>${method==='Zoom(비대면)'?'화상(비대면)':method}</option>`).join('')}</select></div>
         </div>
       </div>
 
       <div class="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-        <div class="flex items-center justify-between gap-3"><div><p class="text-sm font-extrabold">자동 진행상태</p><p class="mt-1 text-xs text-slate-500">${esc(autoStatusDescription(r))}</p></div><span class="rounded-full px-3 py-1 text-xs font-extrabold ${statusClass(st)}">${esc(st)}</span></div><div class="mt-4">${focusedNextTaskBlock(r)}</div>
+        <div><p class="text-sm font-extrabold">자동 진행상태</p><p class="mt-1 text-xs text-slate-500">${esc(autoStatusDescription(r))}</p></div><div class="mt-4">${focusedNextTaskBlock(r)}</div>
         <div class="mt-4">${operationPipeline(r)}</div>
-        <details class="mt-3 rounded-xl border border-slate-100 bg-white p-3"><summary class="cursor-pointer text-[11px] font-extrabold text-slate-600">진행상태 이력 ${Array.isArray(r.statusHistory)?r.statusHistory.length:0}건</summary><div class="mt-2">${statusHistoryPanel(r,6)}</div></details>
       </div>
 
-      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div class="xl:col-span-2 rounded-2xl border border-slate-100 bg-white p-4"><div class="flex items-center justify-between"><div><h4 class="text-sm font-extrabold">신청 검사 관리</h4><p class="mt-1 text-[11px] text-slate-400">검사 상태 변경과 링크 저장에 따라 진행상태가 자동 반영됩니다.</p></div><button onclick="markAllTestsSent(${r.id})" class="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">전체 발송완료</button></div><div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">${tests.length?tests.map(t=>`<div class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p class="text-sm font-extrabold">${esc(t)}</p><select onchange='updateTestStatus(${r.id}, ${JSON.stringify(t)}, this.value)' class="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold">${['미발송','발송완료','검사완료','결과확인'].map(x=>`<option value="${x}" ${(r.testStatuses||{})[t]===x?'selected':''}>${x}</option>`).join('')}</select><input id="test-link-${r.id}-${encodeURIComponent(t)}" type="url" value="${esc((r.testLinks||{})[t]||'')}" placeholder="온라인 검사 링크" class="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"><div class="mt-2 grid grid-cols-2 gap-2"><button onclick='saveTestLink(${r.id}, ${JSON.stringify(t)}, document.getElementById(${JSON.stringify(`test-link-${r.id}-${encodeURIComponent(t)}`)}).value)' class="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-extrabold text-white">링크 저장</button><button onclick='openTestLink(${r.id}, ${JSON.stringify(t)})' class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-extrabold text-indigo-700">링크 열기</button></div></div>`).join(''):empty('신청된 검사가 없습니다.')}</div>${Object.values(r.testLinks||{}).some(Boolean)?`<button onclick="copyMemberTestLinks(${r.id})" class="mt-3 w-full rounded-xl bg-slate-900 px-4 py-3 text-xs font-extrabold text-white">검사 링크 안내 복사</button>`:''}</div>
-        <div class="space-y-4"><div class="rounded-2xl border border-slate-100 bg-white p-4"><div class="flex items-center justify-between"><div><h4 class="text-sm font-extrabold">운영 메모</h4><p class="mt-1 text-[11px] text-slate-400">연락·결제·검사 발송 참고사항</p></div><button onclick="saveMemo(${r.id})" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white">저장</button></div><textarea id="memo-${r.id}" rows="4" class="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" placeholder="운영 메모">${esc(r.adminMemo||'')}</textarea></div><div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-xs font-extrabold text-slate-500">안내·기타</p><div class="mt-3 grid grid-cols-2 gap-2"><button onclick="copyPaymentMessage(${r.id})" class="rounded-xl border border-emerald-200 bg-white py-2 text-xs font-bold text-emerald-700">결제안내</button><button onclick="copyTestGuide(${r.id})" class="rounded-xl bg-indigo-600 py-2 text-xs font-bold text-white">검사안내</button><button onclick="copyDocumentReminder(${r.id})" class="rounded-xl bg-teal-600 py-2 text-xs font-bold text-white">서류안내</button><button onclick="setReportFromReservation(${r.id})" class="rounded-xl bg-purple-600 py-2 text-xs font-bold text-white">보고서 작성</button><button onclick="openIntake(${r.id})" class="rounded-xl border border-purple-200 bg-white py-2 text-xs font-bold text-purple-700">AI요약</button><button onclick="deleteReservation(${r.id})" class="rounded-xl border border-rose-200 bg-white py-2 text-xs font-bold text-rose-700">예약 삭제</button></div></div></div>
+      <div class="mt-4 grid grid-cols-1 gap-4">
+        <div class="rounded-2xl border border-slate-100 bg-white p-4"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h4 class="text-sm font-extrabold">신청 검사 관리</h4><p class="mt-1 text-[11px] text-slate-400">검사기관 사이트를 저장하고 바로 열어 신청 검사를 관리합니다.</p></div><button onclick="markAllTestsSent(${r.id})" class="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">전체 발송완료</button></div><div class="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4"><p class="text-xs font-extrabold text-slate-500">신청 검사</p><div class="mt-2 flex flex-wrap gap-2">${tests.length?tests.map(t=>`<span class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700">${esc(t)}</span>`).join(''):'<span class="text-xs text-slate-400">신청된 검사가 없습니다.</span>'}</div></div><div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2"><article class="rounded-2xl border border-rose-100 bg-rose-50 p-4"><p class="text-[10px] font-extrabold text-rose-500">MAUMSARANG</p><h5 class="mt-1 text-base font-extrabold">마음사랑검사</h5><input id="test-provider-url-maumsarang" type="url" value="${esc(getTestProviderUrl('maumsarang'))}" class="mt-4 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs"><div class="mt-3 grid grid-cols-2 gap-2"><button onclick="saveTestProviderUrl('maumsarang')" class="rounded-xl bg-rose-600 px-3 py-2 text-xs font-extrabold text-white">링크 저장</button><button onclick="openTestProviderUrl('maumsarang')" class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold text-rose-700">사이트 열기</button></div></article><article class="rounded-2xl border border-indigo-100 bg-indigo-50 p-4"><p class="text-[10px] font-extrabold text-indigo-500">INPSYT</p><h5 class="mt-1 text-base font-extrabold">인싸이트검사</h5><input id="test-provider-url-insight" type="url" value="${esc(getTestProviderUrl('insight'))}" class="mt-4 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs"><div class="mt-3 grid grid-cols-2 gap-2"><button onclick="saveTestProviderUrl('insight')" class="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-extrabold text-white">링크 저장</button><button onclick="openTestProviderUrl('insight')" class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-extrabold text-indigo-700">사이트 열기</button></div></article></div></div>
+
       </div>
     </section>`}).join('')||empty('예약이 없습니다.')}
   </div>`)
 }
-function intakeView(){return layout(`<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">${state.intakes.length?state.intakes.map(i=>`<div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm"><div class="flex justify-between gap-3 mb-4"><div><p class="font-extrabold text-lg">${esc(i.name||'이름 미입력')}</p><p class="text-xs text-slate-500 mt-1">${esc(i.phone)} · ${esc(i.email)}</p><p class="text-xs text-slate-400 mt-1">${esc(i.date)}</p></div><span class="text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1 rounded-full h-fit">${esc(i.status||'신규접수')}</span></div>${i.risk?`<p class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-2xl p-3 mb-4">위기 신호: ${esc(i.risk)}</p>`:''}<pre class="whitespace-pre-wrap text-xs leading-relaxed bg-slate-50 border border-slate-100 rounded-2xl p-4 max-h-96 overflow-auto">${esc(i.summary||'요약 없음')}</pre><button onclick='copyText(${JSON.stringify(i.summary||'')})' class="mt-4 text-xs font-bold border border-slate-200 rounded-xl px-4 py-2">요약 복사</button></div>`).join(''):empty('저장된 AI 마음 체크인 요약이 없습니다.')}</div>`)}
+function aiMonitoringRecords(){
+  const stored=load('modumam_ai_result_counseling_records',[]);
+  const rows=Array.isArray(stored)?stored:[];
+  const aiReservations=state.reservations.filter(isAiResultCounselingReservation);
+  const map=new Map();
 
+  rows.forEach(record=>{
+    const key=String(record.sessionId||record.id||record.reservationId||Math.random());
+    map.set(key,{...record});
+  });
+
+  aiReservations.forEach(r=>{
+    const exists=[...map.values()].some(x=>String(x.reservationId)===String(r.id));
+    if(!exists && ['상담준비','상담진행','상담완료'].includes(normalizeStatus(r.status))){
+      const key='reservation-'+String(r.id);
+      map.set(key,{
+        id:key,
+        sessionId:key,
+        reservationId:r.id,
+        clientName:r.name||'',
+        phone:r.phone||'',
+        counselingType:'AI 결과상담',
+        reportTitle:'검사결과 해석상담',
+        reservationDate:r.date||'',
+        reservationTime:r.time||'',
+        startedAt:r.counselingStartedAt||'',
+        updatedAt:r.updatedAt||r.statusUpdatedAt||'',
+        completedAt:r.aiResultCounselingCompletedAt||'',
+        status:r.aiResultCounselingCompletedAt||normalizeStatus(r.status)==='상담완료'?'완료':'대기',
+        summary:r.aiResultCounselingSummary||'',
+        messages:[],
+        messageCount:0,
+        riskDetected:false,
+        placeholder:true
+      });
+    }
+  });
+
+  return [...map.values()].sort((a,b)=>String(b.updatedAt||b.startedAt||'').localeCompare(String(a.updatedAt||a.startedAt||'')));
+}
+
+function aiMonitoringMessageBubble(message){
+  const isUser=message?.role==='user';
+  return `<div class="flex ${isUser?'justify-end':'justify-start'}"><div class="max-w-[88%] rounded-2xl px-4 py-3 ${isUser?'bg-slate-900 text-white':'border border-slate-200 bg-white text-slate-700'}"><p class="mb-1 text-[10px] font-extrabold ${isUser?'text-slate-300':'text-emerald-700'}">${isUser?'내담자':'AI 결과상담'}</p><p class="whitespace-pre-wrap text-sm leading-relaxed">${esc(message?.text||'')}</p><p class="mt-2 text-right text-[9px] text-slate-400">${esc(message?.time||'')}</p></div></div>`;
+}
+function intakeView(){
+  const records=aiMonitoringRecords(),active=records.filter(r=>r.status==='진행중'),completed=records.filter(r=>r.status==='완료'),risk=records.filter(r=>r.riskDetected);
+  return layout(`<div class="space-y-6"><div class="rounded-[2rem] bg-gradient-to-r from-slate-950 via-indigo-950 to-emerald-950 p-7 text-white shadow-xl"><p class="text-xs font-extrabold text-emerald-300">AI RESULT COUNSELING MONITORING</p><h2 class="mt-2 text-2xl font-extrabold">AI 모니터링</h2><p class="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">예약된 AI(비대면) 검사결과 해석상담의 진행 상태와 내담자·AI 대화를 읽기 전용으로 확인합니다.</p><div class="mt-5"><button onclick="refreshSharedOperatingData(true)" class="rounded-xl bg-white px-4 py-2 text-xs font-extrabold text-slate-900">새로고침</button></div></div><div class="grid grid-cols-1 gap-4 sm:grid-cols-4">${card('전체 AI 상담',records.length+'건','결과해석 AI 상담','🤖','purple')}${card('진행 중',active.length+'건','현재 상담 진행','●','emerald')}${card('완료',completed.length+'건','상담 종료 기록','✓','blue')}${card('위험표현',risk.length+'건','상담자 확인 필요','!','orange')}</div><div class="space-y-5">${records.length?records.map(record=>{const reservation=state.reservations.find(r=>String(r.id)===String(record.reservationId));const messages=Array.isArray(record.messages)?record.messages:[];const isActive=record.status==='진행중';return `<details class="overflow-hidden rounded-[2rem] border ${record.riskDetected?'border-rose-300':'border-slate-100'} bg-white shadow-sm" ${isActive||record.riskDetected||String(record.reservationId)===String(state.aiMonitoringSelectedId||'')?'open':''}><summary class="cursor-pointer list-none p-5 sm:p-6"><div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"><div><div class="flex flex-wrap items-center gap-2"><p class="text-lg font-extrabold text-slate-950">${esc(record.clientName||reservation?.name||'이름 미입력')}님</p><span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${isActive?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-600'}">${isActive?'● 진행 중':'상담 완료'}</span>${record.riskDetected?'<span class="rounded-full bg-rose-100 px-3 py-1 text-[11px] font-extrabold text-rose-700">위험표현 확인</span>':''}</div><p class="mt-2 text-xs text-slate-500">${esc(record.phone||reservation?.phone||'')} · ${esc(record.reservationDate||reservation?.date||'')} ${esc(record.reservationTime||reservation?.time||'')} · ${esc(record.reportTitle||'결과보고서')}</p></div><div class="rounded-xl bg-slate-50 px-4 py-3 text-center"><p class="text-[9px] font-bold text-slate-400">대화</p><p class="text-sm font-extrabold">${messages.length}개</p></div></div></summary><div class="border-t border-slate-100 bg-slate-50 p-5 sm:p-6"><div class="max-h-[620px] space-y-3 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-100/70 p-4">${messages.length?messages.map(aiMonitoringMessageBubble).join(''):empty(record.placeholder?'내담자가 AI 결과상담을 시작하면 대화가 실시간으로 표시됩니다.':'아직 저장된 대화가 없습니다.')}</div>${record.summary?`<div class="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4"><p class="text-xs font-extrabold text-indigo-700">AI 상담 마무리 요약</p><p class="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">${esc(record.summary)}</p></div>`:''}<p class="mt-4 text-[10px] text-slate-400">시작 ${esc(record.startedAt||'')} · 최근 업데이트 ${esc(record.updatedAt||'')} · 읽기 전용</p></div></details>`;}).join(''):empty('내담자가 예약된 AI 결과상담을 시작하면 이곳에 표시됩니다.')}</div></div>`);
+}
 function detailedReportTemplate(testType, reportType) {
   const admin = reportType === "관리자용";
 
@@ -2741,6 +3839,17 @@ function saveClientProfileMemo(k){
 }
 function setMemberSearch(v){state.memberSearch=v;render()}
 function setMemberStatus(v){state.memberStatus=v;render()}
+function findMemberChart(){
+  const input=document.getElementById('member-chart-search');
+  const value=String(input?.value||'').trim();
+  if(!value){alert('내담자 이름·연락처·사례번호를 입력해 주세요.');input?.focus();return;}
+  state.memberSearch=value;
+  state.selectedClientKey='';
+  render();
+}
+function clearMemberChartSearch(){state.memberSearch='';state.selectedClientKey='';render();}
+window.findMemberChart=findMemberChart;
+window.clearMemberChartSearch=clearMemberChartSearch;
 
 function openClientChart(key,tab='profile'){
   state.selectedClientKey=String(key||'');
@@ -2816,95 +3925,208 @@ function clientTimelineBlock(c){
   </div>`;
 }
 
+function memberChartSessionRows(c){
+  const rows=[];
+  const seen=new Set();
+  const push=(item,source='상담일지')=>{
+    const content=String(item.memo||item.content||item.intervention||'').trim();
+    const key=String(item.id||`${item.date||''}-${content.slice(0,80)}`);
+    if(seen.has(key))return;
+    seen.add(key);
+    const parsed=parseStructuredSessionMemo(content);
+    rows.push({
+      id:key,
+      date:item.date||item.sessionDate||item.createdAt||'',
+      sessionNumber:Number(item.sessionNumber||item.round||0),
+      method:item.method||item.counselingMethod||'',
+      referral:item.referralReason||item.complaint||item.theme||parsed.theme||'',
+      goal:item.goal||item.sessionGoal||parsed.theme||'',
+      content:item.sessionContent||content||parsed.intervention||'',
+      result:item.result||item.change||parsed.change||item.aiSummary||'',
+      next:item.next||item.nextSession||parsed.next||'',
+      source
+    });
+  };
+  (c.notes||[]).forEach(x=>push(x,'상담일지'));
+  (c.reservations||[]).forEach(r=>{
+    const caseId=caseIdFromReservation(r);
+    load('modumam_case_sessions_'+caseId,[]).forEach(x=>push({...x,method:x.method||r.type},x.sourceLabel||'회기기록'));
+  });
+  return rows.sort((a,b)=>timelineDateValue(b.date)-timelineDateValue(a.date));
+}
+
+function memberReservationSection(c){
+  const rows=(c.reservations||[]).slice().sort((a,b)=>`${b.date||''} ${b.time||''}`.localeCompare(`${a.date||''} ${a.time||''}`));
+  return `<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+    <div class="mb-5 flex items-center justify-between gap-3"><div><p class="text-xs font-extrabold text-emerald-700">RESERVATION WORKFLOW</p><h3 class="mt-1 text-lg font-extrabold">예약 진행상태 정리</h3></div><span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">${rows.length}건</span></div>
+    <div class="space-y-4">${rows.length?rows.map(r=>`<article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span><p class="text-sm font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4"><div><p class="text-[10px] font-bold text-slate-400">예약일정</p><p class="mt-1 text-xs font-extrabold">${esc(r.date||'미정')} ${esc(r.time||'')}</p></div><div><p class="text-[10px] font-bold text-slate-400">검사명</p><p class="mt-1 text-xs font-extrabold">${esc(requestedTests(r).map(shortTestName).join(', ')||'없음')}</p></div><div><p class="text-[10px] font-bold text-slate-400">상담방법</p><p class="mt-1 text-xs font-extrabold">${esc(r.type||'미정')}</p></div><div><p class="text-[10px] font-bold text-slate-400">최근 변경</p><p class="mt-1 text-xs font-extrabold">${esc(r.statusUpdatedAt||r.scheduleUpdatedAt||r.updatedAt||'기록 없음')}</p></div></div></div><button onclick="setMenu('reservation')" class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">예약관리</button></div><div class="mt-4">${operationPipeline(r)}</div></article>`).join(''):'<p class="text-sm text-slate-400">예약 기록이 없습니다.</p>'}</div>
+  </section>`;
+}
+
+function assessmentDraftForReservation(reservationId){
+  return (state.assessmentReportDrafts||[]).find(x=>String(x.reservationId)===String(reservationId))||null;
+}
+function assessmentDraftsForClient(c){
+  const ids=new Set((c.reservations||[]).map(r=>String(r.id)));
+  return (state.assessmentReportDrafts||[]).filter(x=>ids.has(String(x.reservationId)));
+}
+function openAssessmentDraftFromChart(reservationId){
+  const draft=assessmentDraftForReservation(reservationId);
+  if(!draft){alert('승인 대기 보고서를 찾지 못했습니다.');return;}
+  state.assessmentReservationId=String(reservationId);
+  state.integratedReportDraft={...draft};
+  state.menu='interpretation';
+  render();
+  setTimeout(()=>document.getElementById('integrated-report-revision-comment')?.focus(),100);
+}
+function printAssessmentDraft(reservationId,client=false){
+  const draft=assessmentDraftForReservation(reservationId);
+  const reservation=state.reservations.find(r=>String(r.id)===String(reservationId));
+  if(!draft||!reservation){alert('보고서 초안을 찾지 못했습니다.');return;}
+  const data=client?(draft.clientReport||{}):draft;
+  const sections={
+    subtitle:data.subtitle||'',evaluationOverview:data.evaluationOverview||'',testGuide:data.testGuide||'',keyMessage:data.keyMessage||'',
+    emotionalProfile:data.emotionalProfile||'',thinkingStyle:data.thinkingStyle||'',relationshipStyle:data.relationshipStyle||'',stressRecovery:data.stressRecovery||'',
+    strengthsResources:data.strengthsResources||'',integratedUnderstanding:data.integratedUnderstanding||'',currentSignals:data.currentSignals||'',
+    psychologicalSuggestions:data.psychologicalSuggestions||'',professionalSummary:data.professionalSummary||'',disclaimer:data.disclaimer||''
+  };
+  const temp={id:'draft-'+reservationId,title:client?(data.title||'모두의 마음연구소 심리보고서'):'통합 심리평가보고서',clientName:reservation.name,
+    program:programBaseName(reservation.program),tests:draft.tests||requestedTests(reservation),updatedAt:draft.updatedAt||draft.generatedAt||'',sections};
+  const old=state.reports;
+  state.reports=[temp,...old];
+  printReport(temp.id);
+  state.reports=old;
+}
+function approveAssessmentDraftFromChart(reservationId){
+  const draft=assessmentDraftForReservation(reservationId);
+  if(!draft){alert('승인 대기 보고서를 찾지 못했습니다.');return;}
+  if(!confirm('두 보고서를 최종 승인하고 내담자에게 검사결과지와 심리보고서를 공개할까요?'))return;
+  state.assessmentReservationId=String(reservationId);
+  state.integratedReportDraft={...draft};
+  saveIntegratedAssessmentReport(true);
+}
+
+
+function approveAssessmentReportsFromChart(reservationId){
+  const reservation=(state.reservations||[]).find(r=>String(r.id)===String(reservationId));
+  if(!reservation){alert('예약 정보를 찾지 못했습니다.');return;}
+  const integrated=(state.reports||[]).find(r=>String(r.reservationId)===String(reservationId)&&r.integratedAssessmentReport);
+  const client=(state.reports||[]).find(r=>String(r.reservationId)===String(reservationId)&&r.assessmentReport&&!r.integratedAssessmentReport);
+  if(!integrated||!client){alert('통합 심리평가보고서와 모두의 마음연구소 심리보고서가 모두 생성되어야 승인할 수 있습니다.');return;}
+  if(!confirm('두 보고서를 최종 승인하고 내담자에게 심리검사 결과지와 심리보고서를 공개할까요?'))return;
+  const now=new Date().toLocaleString('ko-KR');
+  state.reports=(state.reports||[]).map(report=>{
+    if(String(report.id)===String(integrated.id)){
+      return {...report,reviewed:true,approved:true,status:'상담자 승인 완료',reviewStatus:'approved',reviewedAt:report.reviewedAt||now,approvedAt:now,reviewedBy:'상담자',approvedForClient:false,updatedAt:now};
+    }
+    if(String(report.id)===String(client.id)){
+      return {...report,reviewed:true,approved:true,status:'상담자 승인 완료',reviewStatus:'approved',reviewedAt:report.reviewedAt||now,approvedAt:now,reviewedBy:'상담자',approvedForClient:true,publishedAt:now,updatedAt:now};
+    }
+    return report;
+  });
+  save('modumam_reports',state.reports);
+  state.assessmentReportDrafts=(state.assessmentReportDrafts||[]).filter(x=>String(x.reservationId)!==String(reservationId));
+  save('modumam_assessment_report_drafts',state.assessmentReportDrafts);
+  updateReservation(reservationId,{
+    integratedAssessmentReportStatus:'상담자 승인 완료',
+    integratedAssessmentReportId:integrated.id,
+    assessmentReportStatus:'상담자 승인 완료',
+    assessmentReportId:client.id,
+    assessmentReportApprovedAt:now,
+    assessmentReportPublishedAt:now,
+    aiResultCounselingEnabled:true
+  });
+  alert('최종 승인되었습니다. 내담자는 나의 마음기록에서 검사결과지와 심리보고서를 열람할 수 있습니다.');
+  render();
+}
+
+function openAssessmentCenterForReport(reportId){
+  const report=(state.reports||[]).find(r=>String(r.id)===String(reportId));
+  if(!report){alert('보고서를 찾지 못했습니다.');return;}
+  const reservationId=report.reservationId||report.bookingId||report.sourceReservationId;
+  if(reservationId){
+    state.assessmentReservationId=String(reservationId);
+  }else{
+    const match=(state.reservations||[]).find(r=>
+      String(r.name||'').trim()===String(report.clientName||report.name||'').trim() &&
+      (!report.program || programBaseName(r.program)===programBaseName(report.program))
+    );
+    if(match) state.assessmentReservationId=String(match.id);
+  }
+  state.menu='interpretation';
+  render();
+}
+
+function memberAssessmentSection(c){
+  const analyses=(state.assessmentAnalyses||[]).filter(a=>String(a.clientName||'').trim()===String(c.name||'').trim() || (a.phone&&clientKey('',a.phone)===c.key));
+  const approvedAnalyses=analyses.filter(a=>a.reviewed||a.status==='상담자 검토 완료'||a.status==='상담자 승인 완료');
+  const reports=(c.reports||[]).filter(r=>r.integratedAssessmentReport||r.assessmentReport||String(r.title||'').includes('심리보고서'));
+  const drafts=assessmentDraftsForClient(c);
+  const integratedReports=reports.filter(r=>r.integratedAssessmentReport);
+  const clientReports=reports.filter(r=>r.assessmentReport&&!r.integratedAssessmentReport);
+  const latestIntegrated=integratedReports.slice().sort((a,b)=>timelineDateValue(b.approvedAt||b.updatedAt||b.createdAt)-timelineDateValue(a.approvedAt||a.updatedAt||a.createdAt))[0]||null;
+  const latestClient=clientReports.slice().sort((a,b)=>timelineDateValue(b.approvedAt||b.updatedAt||b.createdAt)-timelineDateValue(a.approvedAt||a.updatedAt||a.createdAt))[0]||null;
+  const approvalReservationId=latestIntegrated?.reservationId||latestClient?.reservationId||'';
+  const fullyApproved=Boolean(latestIntegrated?.approved&&latestClient?.approved&&latestClient?.approvedForClient);
+  return `<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+    <div class="mb-5 flex items-center justify-between gap-3"><div><p class="text-xs font-extrabold text-indigo-600">PSYCHOLOGICAL ASSESSMENT</p><h3 class="mt-1 text-lg font-extrabold">심리평가</h3></div><div class="flex items-center gap-2"><button onclick="setMenu('interpretation')" class="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-extrabold text-indigo-700">심리평가센터</button><span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-extrabold text-indigo-700">${reports.length+drafts.length}건</span></div></div>
+    ${drafts.length?`<div class="mb-5 space-y-3">${drafts.map(d=>{const r=(c.reservations||[]).find(x=>String(x.id)===String(d.reservationId))||{};return `<div class="rounded-2xl border-2 border-amber-200 bg-amber-50 p-5"><div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div class="flex flex-wrap items-center gap-2"><p class="text-sm font-extrabold text-amber-950">승인 대기 보고서</p><span class="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-amber-700">AI 생성 완료 · 승인 전</span></div><p class="mt-2 text-xs text-amber-800">${esc(r.date||'')} ${esc(r.time||'')} · ${esc(programBaseName(r.program)||'심리검사')} · ${esc((d.tests||requestedTests(r)).join(', '))}</p></div><div class="flex flex-wrap gap-2"><button onclick="printAssessmentDraft('${d.reservationId}',false)" class="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-extrabold text-amber-800">통합보고서 보기</button><button onclick="printAssessmentDraft('${d.reservationId}',true)" class="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-extrabold text-amber-800">심리보고서 보기</button><button onclick="approveAssessmentDraftFromChart('${d.reservationId}')" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-extrabold text-white">최종 승인 및 내담자 공개</button></div></div></div>`}).join('')}</div>`:''}
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4"><div class="flex items-center justify-between gap-3"><div><p class="text-[11px] font-extrabold text-indigo-600">상담자 전용</p><h4 class="mt-1 text-sm font-extrabold text-slate-900">통합 심리평가보고서</h4></div><span class="rounded-full bg-white px-3 py-1 text-[10px] font-bold text-indigo-700">${integratedReports.length}건</span></div><div class="mt-4 space-y-2">${integratedReports.length?integratedReports.map(r=>`<div class="flex flex-col gap-2 rounded-xl border border-indigo-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold">${esc(r.title||'통합 심리평가보고서')}</p><p class="mt-1 text-[10px] text-slate-400">${esc(r.approvedAt||r.updatedAt||r.createdAt||'')} · 승인완료</p></div><div class="flex flex-wrap gap-2"><button onclick="printReport(${r.id})" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold">보기·인쇄</button><span class="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700">승인완료</span></div></div>`).join(''):'<p class="text-xs text-slate-400">승인된 통합보고서가 없습니다.</p>'}</div></div>
+      <div class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4"><div class="flex items-center justify-between gap-3"><div><p class="text-[11px] font-extrabold text-emerald-700">내담자 제공</p><h4 class="mt-1 text-sm font-extrabold text-slate-900">모두의 마음연구소 심리보고서</h4></div><span class="rounded-full bg-white px-3 py-1 text-[10px] font-bold text-emerald-700">${clientReports.length}건</span></div><div class="mt-4 space-y-2">${clientReports.length?clientReports.map(r=>`<div class="flex flex-col gap-2 rounded-xl border border-emerald-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold">${esc(r.title||'모두의 마음연구소 심리보고서')}</p><p class="mt-1 text-[10px] text-slate-400">${esc(r.approvedAt||r.updatedAt||r.createdAt||'')} · ${r.approvedForClient?'내담자 공개':'공개 전'}</p></div><div class="flex flex-wrap gap-2"><button onclick="printReport(${r.id})" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold">보기·인쇄</button><span class="rounded-xl ${r.approvedForClient?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-700'} px-3 py-2 text-xs font-extrabold">${r.approvedForClient?'승인완료':'승인대기'}</span></div></div>`).join(''):'<p class="text-xs text-slate-400">승인된 심리보고서가 없습니다.</p>'}</div></div>
+    </div>
+    ${approvalReservationId?`<div class="mt-5 border-t border-slate-100 pt-5">${fullyApproved?`<div class="flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 px-5 py-4 text-sm font-extrabold text-emerald-700"><span>✓</span><span>최종 승인 완료 · 내담자 공개 중</span></div>`:`<button onclick="approveAssessmentReportsFromChart('${approvalReservationId}')" class="w-full rounded-2xl bg-emerald-600 px-6 py-4 text-sm font-extrabold text-white shadow-sm hover:bg-emerald-700">최종 승인 및 내담자 공개</button>`}</div>`:''}
+    ${!drafts.length&&!reports.length?`<button onclick="setMenu('interpretation')" class="mt-4 w-full rounded-xl border border-indigo-200 bg-white py-2.5 text-xs font-extrabold text-indigo-700">심리평가센터에서 보고서 생성</button>`:''}
+  </section>`;
+}
+
+function memberAiCounselingSection(c){
+  const rows=c.aiResultRecords||[];
+  return `<section class="rounded-[2rem] border border-purple-100 bg-white p-5 shadow-sm sm:p-6"><div class="mb-5 flex items-center justify-between gap-3"><div><p class="text-xs font-extrabold text-purple-600">AI RESULT COUNSELING</p><h3 class="mt-1 text-lg font-extrabold">AI 결과상담기록</h3></div><span class="rounded-full bg-purple-50 px-3 py-1 text-xs font-extrabold text-purple-700">${rows.length}건</span></div><div class="space-y-3">${rows.length?rows.map(record=>`<details class="rounded-2xl border border-purple-100 bg-purple-50 p-4"><summary class="cursor-pointer list-none"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-sm font-extrabold text-purple-950">${esc(record.reportTitle||'AI 결과상담')}</p><p class="mt-1 text-[11px] text-purple-500">${esc(record.completedAt||record.date||'날짜 기록 없음')} · 대화 ${Number(record.messageCount||0)}개</p></div><span class="rounded-full bg-white px-3 py-1 text-[10px] font-bold text-amber-700">상담자 검토 필요</span></div></summary><p class="mt-4 whitespace-pre-line border-t border-purple-100 pt-4 text-xs leading-relaxed text-slate-700">${esc(record.summary||'저장된 상담정리가 없습니다.')}</p></details>`).join(''):'<p class="text-sm text-slate-400">AI 결과상담 기록이 없습니다.</p>'}</div></section>`;
+}
+
+function memberJournalSection(c){
+  const rows=memberChartSessionRows(c);
+  return `<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6"><div class="mb-5 flex items-center justify-between gap-3"><div><p class="text-xs font-extrabold text-blue-600">COUNSELING JOURNAL</p><h3 class="mt-1 text-lg font-extrabold">상담기록</h3></div><span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-extrabold text-blue-700">${rows.length}건</span></div><div class="space-y-3">${rows.length?rows.map((x,index)=>`<details class="rounded-2xl border border-slate-100 bg-slate-50 p-4" ${index===0?'open':''}><summary class="cursor-pointer list-none"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-sm font-extrabold">${x.sessionNumber?`${x.sessionNumber}회기`:`${rows.length-index}회기`} · ${esc(String(x.date||'날짜 미상').slice(0,10))}</p><p class="mt-1 text-[11px] text-slate-400">${esc(x.method||'상담방법 미기록')} · ${esc(x.source)}</p></div><span class="rounded-full bg-white px-3 py-1 text-[10px] font-bold text-slate-500">펼쳐보기</span></div></summary><div class="mt-4 grid grid-cols-1 gap-3 border-t border-slate-200 pt-4 lg:grid-cols-2"><div class="rounded-xl bg-white p-3"><p class="text-[10px] font-extrabold text-slate-400">의뢰사유</p><p class="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-700">${esc(x.referral||'기록 없음')}</p></div><div class="rounded-xl bg-white p-3"><p class="text-[10px] font-extrabold text-slate-400">상담목표</p><p class="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-700">${esc(x.goal||'기록 없음')}</p></div><div class="rounded-xl bg-white p-3 lg:col-span-2"><p class="text-[10px] font-extrabold text-slate-400">상담내용</p><p class="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-700">${esc(x.content||'기록 없음')}</p></div><div class="rounded-xl bg-white p-3"><p class="text-[10px] font-extrabold text-slate-400">상담결과</p><p class="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-700">${esc(x.result||'기록 없음')}</p></div><div class="rounded-xl bg-white p-3"><p class="text-[10px] font-extrabold text-slate-400">다음회기</p><p class="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-700">${esc(x.next||'기록 없음')}</p></div></div></details>`).join(''):'<p class="text-sm text-slate-400">저장된 상담기록이 없습니다.</p>'}</div><button onclick="setMenu('counseling')" class="mt-4 w-full rounded-xl border border-slate-200 bg-white py-3 text-xs font-extrabold">상담기록에서 관리</button></section>`;
+}
+
+function memberFullChart(c){
+  const latest=c.reservations[0]||{};
+  const tests=[...new Set((c.reservations||[]).flatMap(r=>requestedTests(r)).map(shortTestName))];
+  return `<article class="space-y-5 rounded-[2rem] border border-emerald-100 bg-slate-50 p-4 shadow-sm sm:p-6"><div class="rounded-[1.75rem] bg-gradient-to-r from-slate-950 to-emerald-950 p-5 text-white sm:p-6"><div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div class="flex flex-wrap items-center gap-2"><h2 class="text-2xl font-extrabold">${esc(c.name)}님 전자차트</h2><span class="rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold">${esc(normalizeStatus(latest.status||'예약신청'))}</span></div><p class="mt-2 text-sm text-slate-300">${esc(c.caseNumber||'사례번호 생성 전')} · ${esc(c.phone||'연락처 없음')} · ${esc(programBaseName(latest.program)||'프로그램 없음')}</p></div><button onclick="clearMemberChartSearch()" class="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-extrabold">다른 내담자 찾기</button></div><div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4"><div class="rounded-2xl bg-white/10 p-3"><p class="text-[10px] font-bold text-slate-300">사례번호 · 상태</p><p class="mt-1 text-xs font-extrabold">${esc(c.caseNumber||'생성 전')} · ${esc(caseStatusLabel(latest))}</p><p class="mt-1 text-[10px] text-slate-300">예약번호 ${esc(latest.reservationNumber||'-')}</p></div><div class="rounded-2xl bg-white/10 p-3"><p class="text-[10px] font-bold text-slate-300">신청 검사</p><p class="mt-1 text-xs font-extrabold">${esc(tests.join(', ')||'없음')}</p></div><div class="rounded-2xl bg-white/10 p-3"><p class="text-[10px] font-bold text-slate-300">상담방법</p><p class="mt-1 text-xs font-extrabold">${esc(latest.type||'미정')}</p></div><div class="rounded-2xl bg-white/10 p-3"><p class="text-[10px] font-bold text-slate-300">상담기록</p><p class="mt-1 text-xs font-extrabold">${memberChartSessionRows(c).length}건</p></div></div></div>${memberReservationSection(c)}${memberAssessmentSection(c)}${memberJournalSection(c)}</article>`;
+}
+
 function membersView(){
   const allClients=buildClients();
   const q=String(state.memberSearch||'').trim().toLowerCase();
-  let clients=allClients.filter(c=>{
-    const matchText=!q||[c.name,c.phone,...c.reservations.map(r=>r.program),...c.reservations.map(r=>r.status)].join(' ').toLowerCase().includes(q);
-    const matchStatus=state.memberStatus==='전체'||c.reservations.some(r=>normalizeStatus(r.status)===state.memberStatus);
-    return matchText&&matchStatus;
-  });
-  if(!state.selectedClientKey){
-    return layout(`<div class="space-y-6">
-      <div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div><p class="text-xs font-extrabold text-emerald-700">CLIENT CENTER</p><h2 class="mt-1 text-2xl font-extrabold">회원관리</h2><p class="mt-2 text-sm text-slate-500">회원을 선택하면 예약·검사·회기기록과 전자차트가 한 화면에 열립니다.</p></div>
-          <div class="flex w-full flex-col gap-3 sm:flex-row xl:w-auto"><input value="${esc(state.memberSearch)}" oninput="setMemberSearch(this.value)" placeholder="이름·연락처·프로그램 검색" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm sm:w-72"/><select onchange="setMemberStatus(this.value)" class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold"><option value="전체" ${state.memberStatus==='전체'?'selected':''}>전체 상태</option>${STATUS.map(st=>`<option value="${st}" ${state.memberStatus===st?'selected':''}>${st}</option>`).join('')}</select></div>
-        </div>
-        <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">전체 회원</p><p class="text-2xl font-extrabold">${allClients.length}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">검색 결과</p><p class="text-2xl font-extrabold">${clients.length}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">검사결과</p><p class="text-2xl font-extrabold">${state.resultUploads.length}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">AI 상담 활성</p><p class="text-2xl font-extrabold">${state.reservations.filter(r=>r.aiResultCounselingEnabled||r.aiCounselingEnabled).length}</p></div></div>
-      </div>
-      <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">${clients.map(c=>{const latest=c.reservations[0]||{};const tests=[...new Set(c.reservations.flatMap(r=>requestedTests(r)))];return `<button onclick="openClientChart('${c.key}','profile')" class="rounded-[2rem] border border-slate-100 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"><div class="flex items-start justify-between gap-3"><div><div class="flex flex-wrap items-center gap-2"><p class="text-xl font-extrabold">${esc(c.name)}님</p><span class="rounded-full px-3 py-1 text-xs font-bold ${statusClass(latest.status||'예약신청')}">${esc(normalizeStatus(latest.status||'예약신청'))}</span></div><p class="mt-1 text-xs text-slate-400">${esc(c.phone||'연락처 없음')}</p></div><span class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">전자차트 열기</span></div><div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div class="rounded-2xl bg-slate-50 p-3"><p class="text-[10px] font-bold text-slate-400">최근 예약</p><p class="mt-1 text-xs font-extrabold">${esc(((latest.date||'')+' '+(latest.time||'')).trim()||'없음')}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="text-[10px] font-bold text-slate-400">프로그램</p><p class="mt-1 text-xs font-extrabold">${esc(programBaseName(latest.program)||'없음')}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="text-[10px] font-bold text-slate-400">검사</p><p class="mt-1 text-xs font-extrabold">${esc(tests.map(shortTestName).join(', ')||'없음')}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="text-[10px] font-bold text-slate-400">상담방식</p><p class="mt-1 text-xs font-extrabold">${esc(latest.type||'미정')}</p></div></div></button>`}).join('')||empty('조건에 맞는 회원이 없습니다.')}</div>
-    </div>`);
-  }
-  clients=clients.filter(c=>c.key===state.selectedClientKey);
-  if(!clients.length){state.selectedClientKey='';return membersView();}
+  const normalizedQuery=q.replace(/[^0-9a-z가-힣]/gi,'');
+  const clients=q?allClients.filter(c=>{
+    const phone=String(c.phone||'').replace(/\D/g,'');
+    const name=String(c.name||'').toLowerCase();
+    const caseNumber=String(c.caseNumber||'').toLowerCase().replace(/[^0-9a-z]/g,'');return name.includes(q)||phone.includes(normalizedQuery)||caseNumber.includes(normalizedQuery);
+  }):[];
+  return layout(`<div class="space-y-6"><section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between"><div><p class="text-xs font-extrabold text-emerald-700">CLIENT CENTER 2.0</p><h2 class="mt-1 text-2xl font-extrabold">전자차트</h2><p class="mt-2 text-sm text-slate-500">이름·연락처·사례번호로 내담자를 찾으면 예약 진행상태, 심리검사 보고서와 그날 상담의 종합 정리본을 한 화면에서 확인합니다.</p></div><div class="flex w-full flex-col gap-2 sm:flex-row xl:w-auto"><input id="member-chart-search" value="${esc(state.memberSearch)}" onkeydown="if(event.key==='Enter')findMemberChart()" placeholder="이름·연락처·사례번호 입력" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm sm:w-80"/><button onclick="findMemberChart()" class="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-extrabold text-white">내담자 찾기</button>${q?`<button onclick="clearMemberChartSearch()" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-600">초기화</button>`:''}</div></div><div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">전체 내담자</p><p class="text-2xl font-extrabold">${allClients.length}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">검색 결과</p><p class="text-2xl font-extrabold">${q?clients.length:'-'}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">심리평가 보고서</p><p class="text-2xl font-extrabold">${(state.assessmentAnalyses||[]).filter(a=>a.reviewed||a.status==='상담자 검토 완료'||a.status==='상담자 승인 완료').length+(state.reports||[]).length}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">상담기록</p><p class="text-2xl font-extrabold">${(state.sessionNotes||[]).length}</p></div></div></section>${!q?`<section class="rounded-[2rem] border border-dashed border-emerald-200 bg-emerald-50 p-12 text-center"><p class="text-4xl">🔎</p><h3 class="mt-4 text-lg font-extrabold text-emerald-950">내담자 이름 또는 연락처를 입력해 주세요.</h3><p class="mt-2 text-sm text-emerald-700">검색하면 해당 내담자의 전체 전자차트가 바로 펼쳐집니다.</p></section>`:clients.length?`<div class="space-y-6">${clients.map(memberFullChart).join('')}</div>`:`<section class="rounded-[2rem] border border-dashed border-rose-200 bg-rose-50 p-12 text-center"><p class="text-lg font-extrabold text-rose-800">일치하는 내담자를 찾지 못했습니다.</p><p class="mt-2 text-sm text-rose-600">이름·연락처·사례번호를 다시 확인해 주세요.</p></section>`}</div>`);
+}
+
+
+/* =========================================================
+   [MOD-20260715-COUNSELING-JOURNAL-MENU]
+   상담일지: 기존 상담 시작 화면으로 들어가는 독립 카테고리
+========================================================= */
+function counselingJournalEntryView(){
+  const rows=state.reservations
+    .filter(r=>!['예약취소','종결'].includes(normalizeStatus(r.status)) && !isAiResultCounselingReservation(r))
+    .sort((a,b)=>`${a.date||''} ${a.time||''}`.localeCompare(`${b.date||''} ${b.time||''}`));
   return layout(`<div class="space-y-6">
-    <div class="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
-      <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div class="flex items-start gap-3"><button onclick="closeClientChart()" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600">← 회원 목록</button><div><p class="text-xs font-extrabold text-emerald-700">ELECTRONIC CHART 2.0</p><h2 class="mt-1 text-xl font-extrabold">회원 전자차트</h2><p class="text-sm text-slate-500 mt-1">프로필부터 상담기록·검사·보고서까지 회원별로 관리합니다.</p></div></div>
-        <div class="hidden flex-col sm:flex-row gap-3 w-full xl:w-auto">
-          <input value="${esc(state.memberSearch)}" oninput="setMemberSearch(this.value)" placeholder="이름·연락처·프로그램 검색" class="w-full sm:w-72 border border-slate-200 rounded-2xl px-4 py-3 text-sm"/>
-          <select onchange="setMemberStatus(this.value)" class="border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold">
-            <option value="전체" ${state.memberStatus==='전체'?'selected':''}>전체 상태</option>${STATUS.map(st=>`<option value="${st}" ${state.memberStatus===st?'selected':''}>${st}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-        <div class="bg-slate-50 rounded-2xl p-4"><p class="text-xs text-slate-400 font-bold">전체 회원</p><p class="text-2xl font-extrabold">${allClients.length}</p></div>
-        <div class="bg-slate-50 rounded-2xl p-4"><p class="text-xs text-slate-400 font-bold">검색 결과</p><p class="text-2xl font-extrabold">${clients.length}</p></div>
-        <div class="bg-slate-50 rounded-2xl p-4"><p class="text-xs text-slate-400 font-bold">결과 업로드</p><p class="text-2xl font-extrabold">${state.resultUploads.length}</p></div>
-        <div class="bg-slate-50 rounded-2xl p-4"><p class="text-xs text-slate-400 font-bold">AI 상담 활성</p><p class="text-2xl font-extrabold">${state.reservations.filter(r=>r.aiCounselingEnabled).length}</p></div>
-      </div>
-    </div>
-    <div class="space-y-6">${clients.map(c=>{
-      const tests=[...new Set(c.reservations.flatMap(r=>requestedTests(r)))];
-      const memos=c.reservations.filter(r=>r.adminMemo);
-      const latest=c.reservations[0]||{};
-      return `<details class="group rounded-[2rem] border border-slate-100 bg-white shadow-sm overflow-hidden" open>
-        <summary class="list-none cursor-pointer p-5 sm:p-6 bg-slate-50 hover:bg-slate-100 transition">
-          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div class="flex flex-wrap items-center gap-2"><p class="text-xl font-extrabold">👤 ${esc(c.name)}님</p><span class="text-xs font-bold bg-white border border-slate-200 rounded-full px-3 py-1">${esc(c.phone||'연락처 없음')}</span><span class="text-xs font-bold rounded-full px-3 py-1 ${statusClass(latest.status||'승인대기')}">${esc(normalizeStatus(latest.status))}</span></div>
-            <div class="grid grid-cols-4 gap-2 text-center"><span class="bg-white rounded-xl px-3 py-2 text-xs font-bold">예약 ${c.reservations.length}</span><span class="bg-white rounded-xl px-3 py-2 text-xs font-bold">검사 ${tests.length}</span><span class="bg-white rounded-xl px-3 py-2 text-xs font-bold">업로드 ${c.uploads.length}</span><span class="bg-white rounded-xl px-3 py-2 text-xs font-bold">보고서 ${c.reports.length}</span></div>
-          </div>
-        </summary>
-        <div class="p-5 sm:p-6">
-          ${counselorBriefingBlock(c)}
-          <div class="mb-3"><p class="text-xs font-extrabold text-emerald-700">검사신청·예약확인</p><p class="mt-1 text-[11px] text-slate-400">회원의 최근 예약과 신청검사를 먼저 확인합니다.</p></div><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
-            <div class="bg-slate-50 rounded-2xl p-4"><p class="text-[11px] font-bold text-slate-400">연락처</p><p class="text-sm font-extrabold mt-1">${esc(c.phone||'미등록')}</p><p class="text-[11px] font-bold text-slate-400 mt-3">최근 예약</p><p class="text-sm font-extrabold mt-1">${esc(((latest.date||'')+' '+(latest.time||'')).trim()||'기록 없음')}</p></div>
-            <div class="bg-slate-50 rounded-2xl p-4"><p class="text-[11px] font-bold text-slate-400">최근 프로그램</p><p class="text-base font-extrabold mt-1 text-slate-900">${esc(programBaseName(latest.program))}</p></div>
-            <div class="bg-slate-50 rounded-2xl p-4 md:col-span-2"><p class="text-[11px] font-bold text-slate-400">신청 심리검사</p>${electronicChartTestChips(c,latest,tests)}</div>
-            <div class="bg-slate-50 rounded-2xl p-4 md:col-span-2 xl:col-span-3"><p class="text-[11px] font-bold text-slate-400">상담 유형</p><p class="text-[11px] text-slate-400 mt-1">전체 유형 중 현재 선택된 방식이 진하게 표시됩니다.</p>${counselingMethodChips(latest.type)}</div>
-            <div class="bg-slate-50 rounded-2xl p-4"><div class="flex items-start justify-between gap-3"><div><p class="text-[11px] font-bold text-slate-400">AI 결과상담 승인</p><p class="text-sm font-extrabold mt-1 ${latest.aiResultCounselingEnabled?'text-emerald-700':'text-slate-500'}">${latest.aiResultCounselingEnabled?'승인됨':'승인 대기'}</p></div><span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${latest.aiResultCounselingEnabled?'bg-emerald-100 text-emerald-700':'bg-slate-200 text-slate-500'}">${latest.aiResultCounselingEnabled?'ON':'OFF'}</span></div><p class="text-[11px] text-slate-400 mt-2">선택 상담유형과 별개의 AI 결과상담 이용 권한입니다.</p></div>
-          </div>
-          <div class="bg-white border border-slate-100 rounded-2xl p-4 mb-5 shadow-sm"><div class="flex items-center justify-between gap-3 mb-3"><div><p class="text-sm font-extrabold">자동 진행상태</p><p class="text-[11px] text-slate-400 mt-1">실제 업무 처리 결과에 따라 단계가 자동으로 이동합니다.</p></div><span class="text-xs font-extrabold text-emerald-700">${esc(normalizeStatus(latest.status))}</span></div>${operationPipeline(latest)}</div>
-          <div class="bg-white border border-slate-100 rounded-2xl p-3 mb-5 shadow-sm">
-            <p class="text-[11px] font-extrabold text-slate-400 mb-2">전자차트 바로가기</p>
-            <div class="flex gap-2 overflow-x-auto pb-1">
-              ${[['profile','회원 프로필'],['session','회기기록'],['tests','심리검사']].map(([tab,label])=>`<button onclick="setMemberTab('${tab}','${c.key}')" class="shrink-0 rounded-xl px-4 py-2 text-xs font-extrabold ${state.memberTab===tab?'bg-slate-900 text-white':'bg-slate-100 text-slate-600'}">${label}</button>`).join('')}
-              <button onclick="setMenu('cases')" class="shrink-0 rounded-xl bg-emerald-50 px-4 py-2 text-xs font-extrabold text-emerald-700">사례개념화</button>
-              <button onclick="setMenu('report')" class="shrink-0 rounded-xl bg-orange-50 px-4 py-2 text-xs font-extrabold text-orange-700">결과보고서</button>
-            </div>
-          </div>
-          <div id="profile-${c.key}" class="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-5 scroll-mt-28">
-            <div class="flex flex-col lg:flex-row lg:items-end gap-3">
-              <div class="flex-1"><label class="text-xs font-extrabold text-amber-800">회원 프로필 메모</label><p class="text-[11px] text-amber-700 mt-1">회원 전반에서 계속 참고할 연락 선호, 가족정보, 유의사항과 장기 참고사항을 기록합니다.</p><textarea id="client-profile-memo-${c.key}" rows="2" class="w-full mt-2 bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs" placeholder="예: 문자 연락 선호, 가족관계, 지속적으로 참고할 특이사항">${esc(c.profileMemo?.memo||'')}</textarea><p class="text-[11px] text-amber-700 mt-1">${c.profileMemo?.updatedAt?'최근 저장: '+esc(c.profileMemo.updatedAt):'아직 저장된 회원 프로필 메모가 없습니다.'}</p></div>
-              <button onclick="saveClientProfileMemo('${c.key}')" class="bg-amber-600 text-white rounded-xl px-4 py-3 text-xs font-extrabold">프로필 메모 저장</button>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            <div class="space-y-5">
-              <div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-1">예약·진행상태</h3><p class="text-[11px] text-slate-400 mb-3">예약마다 달라지는 연락·결제·검사발송 등의 운영 메모를 기록합니다.</p>${c.reservations.length?c.reservations.map(r=>`<div class="border border-slate-100 rounded-2xl p-4 mb-3 bg-slate-50"><div class="mb-3">${operationPipeline(r)}</div><div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div class="grid grid-cols-1 sm:grid-cols-4 gap-2 flex-1"><div><p class="text-[10px] font-bold text-slate-400">예약일정</p><p class="text-sm font-extrabold mt-1">${esc(r.date)} ${esc(r.time)}</p></div><div><p class="text-[10px] font-bold text-slate-400">프로그램명</p><p class="text-sm font-extrabold mt-1">${esc(programBaseName(r.program))}</p></div><div><p class="text-[10px] font-bold text-slate-400">검사명</p><p class="text-sm font-extrabold mt-1">${requestedTests(r).map(shortTestName).join(', ')||'없음'}</p></div><div><p class="text-[10px] font-bold text-slate-400">상담방식</p><p class="text-sm font-extrabold mt-1">${esc(r.type||'미정')}</p></div></div><div class="flex flex-wrap items-center gap-2"><span class="rounded-full px-3 py-1 text-xs font-extrabold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span>${!['종결','예약취소'].includes(normalizeStatus(r.status))?`<button onclick="runNextAction(${r.id})" class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white">${nextActionLabel(r)}</button>`:''}</div></div><div class="mt-3">${focusedNextTaskBlock(r)}</div><details class="mt-3 rounded-xl border border-slate-100 bg-white p-3"><summary class="cursor-pointer text-[11px] font-extrabold text-slate-600">진행상태 이력 ${Array.isArray(r.statusHistory)?r.statusHistory.length:0}건</summary><div class="mt-2">${statusHistoryPanel(r,5)}</div></details><label class="mt-3 flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold"><span>AI 결과상담 활성화</span><input type="checkbox" ${r.aiResultCounselingEnabled?'checked':''} onchange="toggleAiResultCounseling(${r.id},this.checked)" class="w-4 h-4"/></label><textarea id="member-memo-${r.id}" rows="2" class="w-full mt-3 border border-slate-200 rounded-xl px-3 py-2 text-xs" placeholder="예약·운영 메모 (연락, 결제, 검사발송 등)">${esc(r.adminMemo||'')}</textarea><div class="flex gap-2 mt-2"><button onclick="document.getElementById('memo-${r.id}')?null:0; updateReservation(${r.id},{adminMemo:document.getElementById('member-memo-${r.id}').value})" class="bg-slate-900 text-white rounded-xl px-3 py-2 text-xs font-bold">운영 메모 저장</button></div></div>`).join(''):'<p class="text-sm text-slate-400">예약이력이 없습니다.</p>'}</div>
-              <div id="tests-${c.key}" class="bg-white rounded-2xl border border-slate-100 p-5 scroll-mt-28"><h3 class="text-sm font-extrabold mb-1">심리검사 및 결과</h3><p class="text-[11px] text-slate-400 mb-3">검사 파일, 요약과 회원 공개 여부를 관리합니다.</p>${c.uploads.length?c.uploads.map(u=>`<div class="border-b border-slate-100 last:border-0 py-3"><div class="flex items-start justify-between gap-3"><div><p class="text-sm font-bold">${esc(u.testType)}</p><p class="text-xs text-slate-400 mt-1">${esc(u.fileName)} · ${esc(u.createdAt)}</p><p class="text-xs text-slate-600 mt-2 whitespace-pre-line">${esc(u.summary||'요약 없음')}</p></div><div class="flex flex-wrap gap-2">${u.dataUrl?`<button onclick="window.open('${u.dataUrl}','_blank')" class="text-xs font-bold bg-indigo-50 text-indigo-700 rounded-xl px-3 py-2">파일 보기</button>`:''}<button onclick="toggleResultUploadVisibility(${u.id})" class="text-xs font-bold ${u.visibleToClient?'bg-slate-200 text-slate-700':'bg-emerald-600 text-white'} rounded-xl px-3 py-2">${u.visibleToClient?'공개 취소':'회원 공개'}</button></div></div></div>`).join(''):'<p class="text-sm text-slate-400">업로드된 검사결과가 없습니다.</p>'}<button onclick="setMenu('results')" class="w-full mt-3 border border-slate-200 rounded-xl py-2 text-xs font-bold">검사결과 업로드로 이동</button></div>
-              <div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-3">AI 마음 체크인 요약</h3>${intakeSummaryBlock(c)}</div>
-            </div>
-            <div class="space-y-5">
-              <div id="session-${c.key}" class="bg-white rounded-2xl border border-slate-100 p-5 scroll-mt-28"><h3 class="text-sm font-extrabold mb-1">회기별 상담기록</h3><p class="text-[11px] text-slate-400 mb-3">회기에서 확인한 내용, 개입, 변화와 다음 계획을 기록합니다.</p><input id="session-date-${c.key}" type="date" value="${new Date().toISOString().slice(0,10)}" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"/><input id="session-theme-${c.key}" placeholder="오늘의 핵심 주제" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm mb-3"/><textarea id="session-emotion-${c.key}" rows="2" placeholder="주요 정서와 내담자 반응" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none mb-3"></textarea><textarea id="session-intervention-${c.key}" rows="3" placeholder="상담 내용 / 사용한 개입 / 확인한 내용" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none mb-3"></textarea><textarea id="session-change-${c.key}" rows="2" placeholder="변화, 관찰점, 위험/보호요인" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none mb-3"></textarea><textarea id="session-next-${c.key}" rows="2" placeholder="다음 회기 계획 또는 과제" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm resize-none"></textarea><button onclick="saveStructuredSession('${c.key}')" class="w-full mt-3 bg-slate-900 text-white rounded-2xl py-3 text-sm font-extrabold">회기기록 저장</button><div class="mt-5 space-y-3">${c.notes.length?c.notes.map(n=>`<div class="bg-slate-50 border border-slate-100 rounded-2xl p-4"><div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2"><p class="text-xs font-bold text-emerald-700">${esc(n.date)}</p><div class="flex flex-wrap gap-2"><button onclick="generateSessionAiSummary('${c.key}',${n.id})" class="text-[11px] font-bold bg-purple-600 text-white rounded-lg px-3 py-2">${n.aiSummary?'AI 요약 다시 생성':'AI 회기요약'}</button>${n.aiSummary?`<button onclick="copySessionAiSummary('${c.key}',${n.id})" class="text-[11px] font-bold bg-white border border-purple-200 text-purple-700 rounded-lg px-3 py-2">요약 복사</button>`:''}<button onclick="deleteCounselingNote('${c.key}',${n.id})" class="text-xs font-bold text-rose-600 px-2">삭제</button></div></div><p class="text-xs text-slate-600 whitespace-pre-line">${esc(n.memo)}</p>${n.aiSummary?`<div class="mt-4 bg-purple-50 border border-purple-100 rounded-2xl p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs font-extrabold text-purple-700">AI 회기요약</p><p class="text-[10px] text-purple-400">${esc(n.aiGeneratedAt||'')}</p></div><p class="text-xs text-slate-700 whitespace-pre-line mt-2">${esc(n.aiSummary)}</p><p class="text-[11px] font-extrabold text-purple-700 mt-3">다음 회기 확인 질문</p><p class="text-xs text-slate-600 whitespace-pre-line mt-1">${esc(n.aiNextQuestions||'')}</p><p class="text-[11px] font-extrabold text-purple-700 mt-3">상담자 확인 포인트</p><p class="text-xs text-slate-600 whitespace-pre-line mt-1">${esc(n.aiCounselorFocus||'')}</p><p class="text-[10px] text-slate-400 mt-3">AI 초안은 상담기록을 바탕으로 한 참고자료이며, 최종 판단은 상담자가 합니다.</p></div>`:''}</div>`).join(''):'<p class="text-sm text-slate-400">저장된 상담 메모가 없습니다.</p>'}</div></div>
-              <div class="bg-white rounded-2xl border border-slate-100 p-5"><div class="flex items-center justify-between gap-3 mb-3"><div><h3 class="text-sm font-extrabold">AI 결과상담 기록</h3><p class="text-[11px] text-slate-400 mt-1">승인된 종합보고서를 바탕으로 진행된 회원 상담 기록입니다.</p></div><span class="rounded-full bg-purple-100 px-3 py-1 text-[11px] font-extrabold text-purple-700">${(c.aiResultRecords||[]).length}건</span></div>${(c.aiResultRecords||[]).length?(c.aiResultRecords||[]).map(record=>`<details class="mb-3 rounded-2xl border border-purple-100 bg-purple-50 p-4"><summary class="cursor-pointer text-sm font-extrabold text-purple-900">${esc(record.reportTitle||'종합 심리평가 보고서')} · ${esc(record.completedAt||record.date||'')}</summary><p class="mt-3 whitespace-pre-line text-xs leading-relaxed text-slate-700">${esc(record.summary||'상담정리 없음')}</p><div class="mt-3 flex flex-wrap gap-2"><button onclick='copyText(${JSON.stringify(record.summary||'')})' class="rounded-xl bg-white px-3 py-2 text-xs font-bold text-purple-700 border border-purple-100">정리 복사</button><span class="rounded-xl bg-white px-3 py-2 text-[11px] font-bold text-slate-500">대화 ${Number(record.messageCount||0)}개</span><span class="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">상담자 검토 필요</span></div></details>`).join(''):'<p class="text-sm text-slate-400">아직 AI 결과상담 기록이 없습니다.</p>'}</div>
-              <div class="bg-white rounded-2xl border border-slate-100 p-5"><h3 class="text-sm font-extrabold mb-1">결과보고서</h3><p class="text-[11px] text-slate-400 mb-3">전문가 검토본의 공개 승인과 PDF 출력을 관리합니다.</p>${c.reports.length?c.reports.map(r=>`<div class="border-b border-slate-100 last:border-0 py-3"><div class="flex items-start justify-between gap-3"><div><p class="text-sm font-bold">${esc(r.testType)} · ${esc(r.title)}</p><p class="text-xs text-slate-400 mt-1">${esc(r.createdAt)} · ${r.approvedForClient?'내담자 공개':'비공개'}</p></div><div class="flex gap-1"><button onclick="printReport(${r.id})" class="text-[11px] font-bold bg-orange-500 text-white rounded-lg px-2 py-1">PDF</button><button onclick="toggleReportApproval(${r.id})" class="text-[11px] font-bold ${r.approvedForClient?'bg-slate-200 text-slate-700':'bg-emerald-600 text-white'} rounded-lg px-2 py-1">${r.approvedForClient?'취소':'승인'}</button></div></div></div>`).join(''):'<p class="text-sm text-slate-400">저장된 보고서가 없습니다.</p>'}</div>
-            </div>
-          </div>
-        </div>
-      </details>`}).join('')||empty('조건에 맞는 회원이 없습니다.')}</div>
+    <section class="rounded-[2rem] bg-gradient-to-br from-emerald-700 to-slate-900 p-6 text-white shadow-lg sm:p-8">
+      <p class="text-xs font-extrabold text-emerald-200">COUNSELING JOURNAL</p>
+      <h2 class="mt-2 text-2xl font-extrabold">상담일지</h2>
+      <p class="mt-2 text-sm leading-relaxed text-slate-200">대면·찾아가는·화상 상담을 진행하며 회기 내용을 작성하는 화면입니다.</p>
+    </section>
+    <section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+      <div class="mb-5 flex items-center justify-between gap-3"><div><h3 class="text-lg font-extrabold">상담일지 대상 목록</h3><p class="mt-1 text-xs text-slate-400">대면·찾아가는·화상 상담을 선택하면 상담진행 화면이 바로 열립니다.</p></div><span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">${rows.length}건</span></div>
+      <div class="space-y-3">${rows.length?rows.map(r=>`<article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div class="flex flex-wrap items-center gap-2"><h4 class="font-extrabold text-slate-900">${esc(r.name)}님</h4><span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span></div><p class="mt-2 text-xs text-slate-500">${esc(r.date||'')} ${esc(r.time||'')} · ${esc(programBaseName(r.program))} · ${esc(r.type||'미정')}</p><p class="mt-1 text-xs text-slate-400">검사: ${esc(requestedTests(r).map(shortTestName).join(', ')||'없음')}</p></div><button onclick="startCounseling(${r.id})" class="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-extrabold text-white hover:bg-emerald-700">상담일지 열기</button></div></article>`).join(''):empty('상담일지를 작성할 대면·화상 예약이 없습니다.')}</div>
+    </section>
   </div>`)
 }
 
@@ -2972,16 +4194,17 @@ function counselingModeView(){
   const aid=load('modumam_counseling_aid_'+caseData.caseId,null);
   const tests=requestedTests(r).map(shortTestName);
   const started=r.counselingStartedAt?new Date(r.counselingStartedAt).toLocaleString('ko-KR'):new Date().toLocaleString('ko-KR');
+  const sessionNumber=(caseData.sessions?.length||0)+1; // [FIX-20260715-JOURNAL-UI]
   return `<main class="min-h-screen bg-slate-100">
-    <header class="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur"><div class="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div class="flex items-center gap-3"><button onclick="closeCounselingMode()" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-extrabold">← 오늘 상담</button><div><p class="text-[11px] font-extrabold text-emerald-700">COUNSELING MODE</p><h1 class="text-xl font-extrabold">${esc(r.name)}님 상담</h1><p class="mt-1 text-xs text-slate-400">시작 ${esc(started)} · ${esc(r.date)} ${esc(r.time)}</p></div></div><div class="flex flex-wrap gap-2"><button onclick="saveCounselingModeDraft(${r.id})" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">임시 저장</button><button onclick="saveCounselingModeSession(${r.id},false)" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-extrabold text-white">회기 저장</button><button onclick="saveCounselingModeSession(${r.id},true)" class="rounded-xl bg-slate-900 px-4 py-2 text-xs font-extrabold text-white">상담 종료</button></div></div></header>
+    <header class="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur"><div class="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div class="flex items-center gap-3"><button onclick="closeCounselingMode()" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-extrabold">← 상담일지</button><div><p class="text-[11px] font-extrabold text-emerald-700">${esc(r.caseNumber||'사례번호 생성 전')} · 상담일지 · ${sessionNumber}회기</p><h1 class="text-xl font-extrabold">${esc(r.name)}님 · ${esc(programBaseName(r.program))}</h1><p class="mt-1 text-xs text-slate-400">${esc(tests.join(' · ')||'검사 없음')} · 예약 ${esc(r.date)} ${esc(r.time)} · 시작 ${esc(started)}</p></div></div><div class="flex flex-wrap gap-2"><button onclick="saveCounselingModeDraft(${r.id})" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">임시 저장</button><button onclick="saveCounselingModeSession(${r.id},false)" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-extrabold text-white">회기 저장</button><button onclick="saveCounselingModeSession(${r.id},true)" class="rounded-xl bg-slate-900 px-4 py-2 text-xs font-extrabold text-white">상담 종료</button></div></div></header>
     <div class="grid grid-cols-1 gap-5 p-4 sm:p-6 lg:grid-cols-[260px_minmax(0,1fr)_320px] lg:p-8">
       <aside class="space-y-4">
-        <section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm"><div class="flex items-center gap-3"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-xl">👤</div><div><h2 class="text-lg font-extrabold">${esc(r.name)}님</h2><p class="text-xs text-slate-400">${esc(r.phone||'연락처 없음')}</p></div></div><div class="mt-5 space-y-3 text-xs"><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">프로그램</p><p class="mt-1 font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">상담방식</p><p class="mt-1 font-extrabold">${esc(r.type||'미정')}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">진행상태</p><p class="mt-1 font-extrabold">${esc(normalizeStatus(r.status))}</p></div></div></section>
+        <section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm"><div class="flex items-center gap-3"><div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-xl">👤</div><div><h2 class="text-lg font-extrabold">${esc(r.name)}님</h2><p class="text-xs text-slate-400">${esc(r.phone||'연락처 없음')}</p></div></div><div class="mt-5 space-y-3 text-xs"><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">프로그램</p><p class="mt-1 font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">검사명</p><p class="mt-1 font-extrabold">${esc(tests.join(', ')||'없음')}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">상담방식</p><p class="mt-1 font-extrabold">${esc(r.type||'미정')}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">예약시간</p><p class="mt-1 font-extrabold">${esc(r.date)} ${esc(r.time)}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="font-bold text-slate-400">진행상태</p><p class="mt-1 font-extrabold">${esc(normalizeStatus(r.status))}</p></div></div></section>
         <section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm"><h3 class="text-sm font-extrabold">심리검사</h3><div class="mt-3 flex flex-wrap gap-2">${tests.length?tests.map(t=>`<span class="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-extrabold text-indigo-700">${esc(t)}</span>`).join(''):'<span class="text-xs text-slate-400">신청 검사 없음</span>'}</div></section>
-        <section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm"><h3 class="text-sm font-extrabold">최근 참고정보</h3><div class="mt-3 space-y-3 text-xs"><div><p class="font-bold text-slate-400">AI 마음체크</p><p class="mt-1 whitespace-pre-line text-slate-600">${esc(caseData.intake?.summary||caseData.intake?.concern||'기록 없음')}</p></div><div><p class="font-bold text-slate-400">이전 회기</p><p class="mt-1 text-slate-600">${caseData.sessions.length}건</p></div><div><p class="font-bold text-slate-400">결과보고서</p><p class="mt-1 text-slate-600">${client.reports?.length||0}건</p></div></div></section>
+        <details class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm"><summary class="cursor-pointer text-sm font-extrabold">최근 참고정보 펼치기</summary><div class="mt-4 space-y-3 text-xs"><div><p class="font-bold text-slate-400">AI 마음체크</p><p class="mt-1 whitespace-pre-line text-slate-600">${esc(caseData.intake?.summary||caseData.intake?.concern||'기록 없음')}</p></div><div><p class="font-bold text-slate-400">이전 회기</p><p class="mt-1 text-slate-600">${caseData.sessions.length}건</p></div><div><p class="font-bold text-slate-400">결과보고서</p><p class="mt-1 text-slate-600">${client.reports?.length||0}건</p></div></div></details>
       </aside>
-      <section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6"><div class="mb-5"><p class="text-xs font-extrabold text-blue-700">SESSION NOTE</p><h2 class="mt-1 text-xl font-extrabold">회기기록</h2><p class="mt-1 text-xs text-slate-400">상담 중 핵심 내용을 간단히 기록하고 종료 후 다듬을 수 있습니다.</p></div><div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><div><label class="mb-1 block text-xs font-bold text-slate-500">상담일</label><input id="cm-date" type="date" value="${esc(draft.date||new Date().toISOString().slice(0,10))}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"/></div><div><label class="mb-1 block text-xs font-bold text-slate-500">핵심 주제</label><input id="cm-theme" value="${esc(draft.theme||'')}" placeholder="오늘 가장 중요한 상담 주제" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"/></div></div><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">주요 정서와 내담자 반응</label><textarea id="cm-emotion" rows="3" placeholder="표현된 감정, 신체반응, 말투와 태도" class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(draft.emotion||'')}</textarea><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">상담 내용·개입</label><textarea id="cm-content" rows="10" placeholder="내담자의 핵심 이야기, 상담자의 질문과 개입, 확인한 의미를 기록하세요." class="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(draft.content||'')}</textarea><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">변화·관찰 및 위험/보호요인</label><textarea id="cm-change" rows="4" placeholder="회기 중 변화, 강점, 위험 신호와 보호요인" class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(draft.change||'')}</textarea><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">다음 회기 계획·과제</label><textarea id="cm-next" rows="4" placeholder="다음에 이어갈 주제와 실천과제" class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(draft.next||'')}</textarea></section>
-      <aside class="space-y-4"><section class="rounded-[2rem] border border-purple-100 bg-white p-5 shadow-sm"><div class="flex items-center justify-between gap-2"><div><p class="text-xs font-extrabold text-purple-700">AI COUNSELING AID 2.0</p><h2 class="mt-1 text-lg font-extrabold">AI 상담도우미</h2></div><button onclick="generateCounselingAid('${caseData.caseId}')" ${state.counselingAidLoading[caseData.caseId]?'disabled':''} class="rounded-xl bg-purple-600 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-50">${state.counselingAidLoading[caseData.caseId]?'분석 중...':(aid?'메모 반영해 갱신':'초안 생성')}</button></div><p class="mt-2 text-[11px] leading-relaxed text-slate-400">현재 작성 중인 회기 메모와 기존 검사·상담 자료를 함께 반영합니다.</p>${aid?`<div class="mt-4 space-y-3"><div><label class="text-xs font-extrabold text-purple-700">현재 핵심 정서</label><textarea id="aid-emotion-${caseData.caseId}" rows="3" class="mt-1 w-full resize-none rounded-xl border border-purple-100 bg-purple-50 p-3 text-xs leading-relaxed">${esc(aid.emotion||'')}</textarea></div><div><label class="text-xs font-extrabold text-purple-700">오늘 상담 초점</label><textarea id="aid-focus-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs leading-relaxed">${esc(aid.focus||'')}</textarea></div><div><label class="text-xs font-extrabold text-purple-700">추천 질문</label><textarea id="aid-questions-${caseData.caseId}" rows="7" class="mt-1 w-full resize-y rounded-xl border border-slate-200 p-3 text-xs leading-relaxed">${esc(aid.questions||'')}</textarea></div><div><label class="text-xs font-extrabold text-purple-700">권장 개입</label><textarea id="aid-intervention-${caseData.caseId}" rows="5" class="mt-1 w-full resize-y rounded-xl border border-slate-200 p-3 text-xs leading-relaxed">${esc(aid.intervention||'')}</textarea></div><div><label class="text-xs font-extrabold text-emerald-700">강점·보호요인</label><textarea id="aid-strengths-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs leading-relaxed">${esc(aid.strengths||'')}</textarea></div><div><label class="text-xs font-extrabold text-rose-700">주의할 점</label><textarea id="aid-caution-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-rose-100 bg-rose-50 p-3 text-xs leading-relaxed">${esc(aid.caution||'')}</textarea></div><div><label class="text-xs font-extrabold text-blue-700">다음 회기 연결</label><textarea id="aid-next-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed">${esc(aid.nextPlan||'')}</textarea></div><textarea id="aid-source-${caseData.caseId}" class="hidden">${esc(aid.source||'')}</textarea><div class="grid grid-cols-2 gap-2"><button onclick="saveCounselingAid('${caseData.caseId}')" class="rounded-xl bg-slate-900 py-2 text-xs font-extrabold text-white">수정 저장</button><button onclick="copyCounselingAid('${caseData.caseId}')" class="rounded-xl border border-purple-200 py-2 text-xs font-extrabold text-purple-700">내용 복사</button></div><p class="text-[10px] text-slate-400">생성 ${esc(aid.updatedAt||'')} ${aid.model?`· ${esc(aid.model)}`:''}</p></div>`:`<div class="mt-5 rounded-2xl border border-dashed border-purple-200 bg-purple-50 p-4 text-xs leading-relaxed text-purple-700">회기 메모를 일부 입력한 뒤 초안을 생성하면 현재 정서와 상담 흐름에 더 맞는 제안을 받을 수 있습니다.</div>`}</section><section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm"><h3 class="text-sm font-extrabold">상담 후 처리</h3><div class="mt-3 space-y-2"><button onclick="saveCounselingModeSession(${r.id},false)" class="w-full rounded-xl bg-blue-50 px-3 py-3 text-xs font-extrabold text-blue-700">회기기록 저장</button><button onclick="saveCounselingModeSession(${r.id},true)" class="w-full rounded-xl bg-slate-900 px-3 py-3 text-xs font-extrabold text-white">저장 후 상담 완료</button><button onclick="scheduleNextCounseling(${r.id})" class="w-full rounded-xl bg-purple-50 px-3 py-3 text-xs font-extrabold text-purple-700">다음 상담 예약</button></div></section><p class="px-2 text-[10px] leading-relaxed text-slate-400">AI 제안은 상담자의 판단을 돕는 참고자료이며 진단이나 최종 임상 판단을 대신하지 않습니다.</p></aside>
+      <section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6"><div class="mb-5"><p class="text-xs font-extrabold text-blue-700">SESSION NOTE</p><h2 class="mt-1 text-xl font-extrabold">${sessionNumber}회기 상담일지</h2><p class="mt-1 text-xs text-slate-400">상담 중 필요한 내용을 실무 흐름에 따라 기록합니다.</p></div><div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><div><label class="mb-1 block text-xs font-bold text-slate-500">상담일</label><input id="cm-date" type="date" value="${esc(draft.date||new Date().toISOString().slice(0,10))}" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"/></div><div><label class="mb-1 block text-xs font-bold text-slate-500">오늘의 핵심주제</label><input id="cm-theme" value="${esc(draft.theme||'')}" placeholder="오늘 가장 중요한 상담 주제" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"/></div></div><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">내담자의 이야기와 주요 정서</label><textarea id="cm-emotion" rows="3" placeholder="표현된 감정, 신체반응, 말투와 태도" class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(draft.emotion||'')}</textarea><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">상담자의 개입 및 상담 내용</label><textarea id="cm-content" rows="10" placeholder="내담자의 핵심 이야기, 상담자의 질문과 개입, 확인한 의미를 기록하세요." class="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(draft.content||'')}</textarea><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">내담자의 변화·위험·보호요인</label><textarea id="cm-change" rows="4" placeholder="회기 중 변화, 강점, 위험 신호와 보호요인" class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(draft.change||'')}</textarea><label class="mb-1 mt-4 block text-xs font-bold text-slate-500">다음 회기 계획·과제</label><textarea id="cm-next" rows="4" placeholder="다음에 이어갈 주제와 실천과제" class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(draft.next||'')}</textarea></section>
+      <aside class="space-y-4"><section class="rounded-[2rem] border border-purple-100 bg-white p-5 shadow-sm"><div class="flex items-center justify-between gap-2"><div><p class="text-xs font-extrabold text-purple-700">AI COUNSELING AID 2.0</p><h2 class="mt-1 text-lg font-extrabold">AI 상담도우미</h2></div><button onclick="generateCounselingAid('${caseData.caseId}')" ${state.counselingAidLoading[caseData.caseId]?'disabled':''} class="rounded-xl bg-purple-600 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-50">${state.counselingAidLoading[caseData.caseId]?'분석 중...':(aid?'메모 반영해 갱신':'초안 생성')}</button></div><p class="mt-2 text-[11px] leading-relaxed text-slate-400">현재 작성 중인 회기 메모와 기존 검사·상담 자료를 함께 반영합니다.</p>${aid?`<div class="mt-4 space-y-3"><div><label class="text-xs font-extrabold text-purple-700">현재 핵심 정서</label><textarea id="aid-emotion-${caseData.caseId}" rows="3" class="mt-1 w-full resize-none rounded-xl border border-purple-100 bg-purple-50 p-3 text-xs leading-relaxed">${esc(aid.emotion||'')}</textarea></div><div><label class="text-xs font-extrabold text-purple-700">상담목표</label><textarea id="aid-focus-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs leading-relaxed">${esc(aid.focus||'')}</textarea></div><div><label class="text-xs font-extrabold text-purple-700">추천 질문</label><textarea id="aid-questions-${caseData.caseId}" rows="7" class="mt-1 w-full resize-y rounded-xl border border-slate-200 p-3 text-xs leading-relaxed">${esc(aid.questions||'')}</textarea></div><div><label class="text-xs font-extrabold text-purple-700">권장 개입</label><textarea id="aid-intervention-${caseData.caseId}" rows="5" class="mt-1 w-full resize-y rounded-xl border border-slate-200 p-3 text-xs leading-relaxed">${esc(aid.intervention||'')}</textarea></div><div><label class="text-xs font-extrabold text-emerald-700">강점·보호요인</label><textarea id="aid-strengths-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs leading-relaxed">${esc(aid.strengths||'')}</textarea></div><div><label class="text-xs font-extrabold text-rose-700">주의할 점</label><textarea id="aid-caution-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-rose-100 bg-rose-50 p-3 text-xs leading-relaxed">${esc(aid.caution||'')}</textarea></div><div><label class="text-xs font-extrabold text-blue-700">다음 회기 연결</label><textarea id="aid-next-${caseData.caseId}" rows="4" class="mt-1 w-full resize-none rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed">${esc(aid.nextPlan||'')}</textarea></div><textarea id="aid-source-${caseData.caseId}" class="hidden">${esc(aid.source||'')}</textarea><div class="grid grid-cols-2 gap-2"><button onclick="saveCounselingAid('${caseData.caseId}')" class="rounded-xl bg-slate-900 py-2 text-xs font-extrabold text-white">수정 저장</button><button onclick="copyCounselingAid('${caseData.caseId}')" class="rounded-xl border border-purple-200 py-2 text-xs font-extrabold text-purple-700">내용 복사</button></div><p class="text-[10px] text-slate-400">생성 ${esc(aid.updatedAt||'')} ${aid.model?`· ${esc(aid.model)}`:''}</p></div>`:`<div class="mt-5 rounded-2xl border border-dashed border-purple-200 bg-purple-50 p-4 text-xs leading-relaxed text-purple-700">회기 메모를 일부 입력한 뒤 초안을 생성하면 현재 정서와 상담 흐름에 더 맞는 제안을 받을 수 있습니다.</div>`}</section><section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm"><h3 class="text-sm font-extrabold">상담 후 처리</h3><div class="mt-3 space-y-2"><button onclick="saveCounselingModeSession(${r.id},false)" class="w-full rounded-xl bg-blue-50 px-3 py-3 text-xs font-extrabold text-blue-700">회기기록 저장</button><button onclick="saveCounselingModeSession(${r.id},true)" class="w-full rounded-xl bg-slate-900 px-3 py-3 text-xs font-extrabold text-white">저장 후 상담 완료</button><button onclick="scheduleNextCounseling(${r.id})" class="w-full rounded-xl bg-purple-50 px-3 py-3 text-xs font-extrabold text-purple-700">다음 상담 예약</button></div></section><p class="px-2 text-[10px] leading-relaxed text-slate-400">AI 제안은 상담자의 판단을 돕는 참고자료이며 진단이나 최종 임상 판단을 대신하지 않습니다.</p></aside>
     </div>
   </main>`;
 }
@@ -3047,6 +4270,89 @@ function printTerminationRecord(reservationId){
   const row=(title,value)=>`<section><h2>${title}</h2><div>${esc(value||'미입력').replace(/\n/g,'<br>')}</div></section>`;
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(r.name)} 종결기록</title><style>body{font-family:Arial,'Noto Sans KR',sans-serif;max-width:900px;margin:40px auto;padding:0 28px;color:#1e293b;line-height:1.7}h1{font-size:26px;margin-bottom:4px}.meta{color:#64748b;margin-top:0}section{border-top:1px solid #e2e8f0;padding:18px 0}h2{font-size:15px;color:#047857;margin:0 0 8px}div{font-size:14px}.notice{background:#f8fafc;border:1px solid #e2e8f0;padding:14px;border-radius:12px;font-size:12px;color:#64748b}</style></head><body><h1>상담 종결기록</h1><p class="meta">${esc(r.name)} · ${esc(programBaseName(r.program))} · ${esc(r.date||'')} ${esc(r.time||'')}</p><div class="notice">본 문서는 상담자가 검토·작성한 내부 상담기록입니다.</div>${row('종결 사유',t.reason)}${row('상담과정 요약',t.summary)}${row('주요 변화와 성과',t.progress)}${row('남은 어려움과 주의점',t.remaining)}${row('권장사항',t.recommendation)}${row('사후관리 계획',t.followUp)}${row('내담자 종결 피드백',t.clientFeedback)}<script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
 }
+
+
+// [FIX-20260715-SESSION-ORGANIZER-15] 상담일지·축어록 선택 기반 AI 회기록 정리
+async function organizeCounselingSession(caseId,reservationId){
+  const reservation=state.reservations.find(r=>String(r.id)===String(reservationId));
+  if(!reservation){alert('예약 정보를 찾지 못했습니다.');return;}
+
+  const useJournal=!!document.getElementById(`session-source-journal-${caseId}`)?.checked;
+  const useTranscript=!!document.getElementById(`session-source-transcript-${caseId}`)?.checked;
+  if(!useJournal&&!useTranscript){alert('상담일지 또는 축어록을 하나 이상 선택해 주세요.');return;}
+
+  const sessionNumber=Math.max(1,Number(document.getElementById(`counseling-session-number-${caseId}`)?.value)||1);
+  const sessionDate=String(document.getElementById(`counseling-session-date-${caseId}`)?.value||reservation.date||new Date().toISOString().slice(0,10));
+  const sessions=load(`modumam_case_sessions_${caseId}`,[]);
+  const journal=sessions.find(x=>!x.aiOrganized)||sessions[0]||null;
+  const sourceParts=[];
+
+  if(useJournal){
+    if(!journal){alert('불러올 상담일지가 없습니다. 상담일지에서 회기 저장을 먼저 해 주세요.');return;}
+    sourceParts.push(`[상담일지]\n의뢰사유: ${reservation.applicationForm?.concern||journal.theme||journal.goal||''}\n상담목표: ${journal.goal||journal.theme||''}\n주요정서: ${journal.emotion||''}\n상담내용: ${journal.content||''}\n상담결과: ${journal.change||''}\n다음회기: ${journal.next||''}`);
+  }
+
+  let transcriptFile=null;
+  if(useTranscript){
+    const input=document.getElementById(`counseling-transcript-file-${caseId}`);
+    transcriptFile=input?.files?.[0]||null;
+    if(!transcriptFile){alert('축어록 파일을 선택해 주세요.');input?.click();return;}
+  }
+
+  const button=document.getElementById(`session-organize-button-${caseId}`);
+  if(button){button.disabled=true;button.textContent='AI 회기 정리 중...';}
+
+  try{
+    let fileName='상담일지.txt', mimeType='text/plain', base64='';
+    if(transcriptFile && !useJournal){
+      fileName=transcriptFile.name;
+      mimeType=transcriptFile.type||'text/plain';
+      base64=await fileToBase64(transcriptFile);
+    }else{
+      if(transcriptFile){
+        const transcriptBase64=await fileToBase64(transcriptFile);
+        sourceParts.push(`[축어록 파일]\n파일명: ${transcriptFile.name}\n첨부데이터(base64): ${transcriptBase64}`);
+        fileName=`${sessionNumber}회기_상담일지_축어록.txt`;
+      }
+      const text=sourceParts.join('\n\n');
+      base64=btoa(unescape(encodeURIComponent(text)));
+    }
+
+    const data=await callCounselingFunction('counseling-transcript-summary',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({clientName:reservation.name||'',program:programBaseName(reservation.program),counselingMethod:reservation.type||'',date:sessionDate,sessionNumber,fileName,mimeType,base64})
+    });
+    if(!data?.note)throw new Error('AI 회기록 결과를 받지 못했습니다.');
+    const note=data.note;
+    const reason=reservation.applicationForm?.concern||journal?.theme||journal?.goal||'';
+    const record={
+      id:Date.now(),sessionNumber,date:sessionDate,counselingMethod:reservation.type||'미정',
+      reason,goal:note.goal||journal?.goal||'',content:note.content||journal?.content||'',
+      result:note.change||note.summary||journal?.change||'',next:note.next||journal?.next||'',
+      sourceTypes:[useJournal?'상담일지':'',useTranscript?'축어록':''].filter(Boolean),
+      aiGenerated:true,aiOrganized:true,reviewStatus:'AI 초안',createdAt:new Date().toLocaleString('ko-KR')
+    };
+    save(`modumam_case_sessions_${caseId}`,[record,...sessions]);
+    alert('AI 회기 정리가 완료되었습니다. 저장된 회기록에서 내용을 확인해 주세요.');
+    render();
+  }catch(error){alert(error?.message||'AI 회기 정리에 실패했습니다.');}
+  finally{if(button){button.disabled=false;button.textContent='AI 회기 정리';}}
+}
+window.organizeCounselingSession=organizeCounselingSession;
+
+function counselingJournalView(){
+  const tab=state.counselingJournalTab||'sessions';
+  const cases=buildCases();
+  if(tab==='termination'){
+    const rows=state.reservations.filter(r=>['상담완료','종결'].includes(normalizeStatus(r.status)));
+    return layout(`<div class="space-y-6"><section class="rounded-[2rem] bg-gradient-to-r from-slate-950 to-emerald-950 p-6 text-white shadow-xl sm:p-8"><p class="text-xs font-extrabold text-emerald-300">COUNSELING</p><h2 class="mt-2 text-2xl font-extrabold">상담기록</h2><p class="mt-2 text-sm text-slate-300">상담기록을 관리합니다.</p><div class="mt-5 flex gap-2"><button onclick="setCounselingJournalTab('sessions')" class="rounded-xl bg-white/10 px-4 py-2 text-xs font-extrabold">회기기록</button><button onclick="setCounselingJournalTab('termination')" class="rounded-xl bg-white px-4 py-2 text-xs font-extrabold text-slate-950">종결기록</button></div></section><section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="mb-5 flex items-center justify-between"><div><p class="text-xs font-extrabold text-rose-600">TERMINATION RECORD</p><h3 class="mt-1 text-xl font-extrabold">종결기록</h3></div><button onclick="setMenu('termination')" class="rounded-xl bg-slate-900 px-4 py-2 text-xs font-extrabold text-white">종결기록 작성·확인</button></div><div class="space-y-3">${rows.length?rows.map(r=>`<button onclick="setMenu('termination')" class="w-full rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left"><b>${esc(r.name)}님</b> · ${esc(r.date||'')}</button>`).join(''):empty('종결기록 대상이 없습니다.')}</div></section></div>`);
+  }
+  return layout(`<div class="space-y-6"><section class="rounded-[2rem] bg-gradient-to-r from-slate-950 to-emerald-950 p-6 text-white shadow-xl sm:p-8"><p class="text-xs font-extrabold text-emerald-300">COUNSELING SESSION RECORD</p><h2 class="mt-2 text-2xl font-extrabold">상담기록</h2><p class="mt-2 text-sm text-slate-300">상담일지와 축어록 중 필요한 자료를 선택해 AI가 회기록을 정리합니다.</p><div class="mt-5 flex gap-2"><button onclick="setCounselingJournalTab('sessions')" class="rounded-xl bg-white px-4 py-2 text-xs font-extrabold text-slate-950">회기기록</button><button onclick="setCounselingJournalTab('termination')" class="rounded-xl bg-white/10 px-4 py-2 text-xs font-extrabold">종결기록</button></div></section>
+  ${cases.map(c=>`<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6"><div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><h3 class="text-xl font-extrabold">${esc(c.res.name)}님</h3><p class="mt-1 text-sm text-slate-500">${esc(programBaseName(c.res.program))} · ${esc(c.res.type||'')} · ${esc(c.res.date||'')} ${esc(c.res.time||'')}</p></div><span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">저장 ${c.sessions.length}건</span></div>
+    <div class="mt-5 rounded-[1.75rem] border border-purple-100 bg-purple-50 p-5"><div><p class="text-xs font-extrabold text-purple-700">회기기록 정리</p><h4 class="mt-1 text-lg font-extrabold">자료 선택 후 AI 회기 정리</h4></div><div class="mt-4 flex flex-wrap gap-3"><label class="flex cursor-pointer items-center gap-2 rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-extrabold"><input id="session-source-journal-${c.caseId}" type="checkbox" checked class="h-4 w-4">상담일지</label><label class="flex cursor-pointer items-center gap-2 rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-extrabold"><input id="session-source-transcript-${c.caseId}" type="checkbox" class="h-4 w-4">축어록</label></div><div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[100px_170px_1fr]"><label class="rounded-xl border border-purple-200 bg-white px-3 py-2"><span class="block text-[10px] font-extrabold text-purple-500">회기수</span><input id="counseling-session-number-${c.caseId}" type="number" min="1" value="${c.sessions.length+1}" class="mt-1 w-full border-0 p-0 text-sm font-extrabold outline-none"></label><label class="rounded-xl border border-purple-200 bg-white px-3 py-2"><span class="block text-[10px] font-extrabold text-purple-500">상담일</span><input id="counseling-session-date-${c.caseId}" type="date" value="${esc(c.res.date||new Date().toISOString().slice(0,10))}" class="mt-1 w-full border-0 p-0 text-sm font-extrabold outline-none"></label><label class="rounded-xl border border-purple-200 bg-white px-3 py-2"><span class="block text-[10px] font-extrabold text-purple-500">축어록 파일</span><input id="counseling-transcript-file-${c.caseId}" type="file" accept=".txt,.pdf,.png,.jpg,.jpeg,.webp,text/plain,application/pdf,image/png,image/jpeg,image/webp" class="mt-1 block w-full text-xs"></label></div><button id="session-organize-button-${c.caseId}" onclick="organizeCounselingSession('${c.caseId}',${JSON.stringify(String(c.res.id))})" class="mt-4 w-full rounded-xl bg-purple-600 px-4 py-3 text-sm font-extrabold text-white">AI 회기 정리</button><p class="mt-2 text-[10px] text-purple-500">상담일지만, 축어록만, 또는 두 자료를 함께 선택할 수 있습니다.</p></div>
+    <div class="mt-6"><div class="mb-3 flex items-center justify-between"><h4 class="text-lg font-extrabold">저장된 회기록</h4><span class="text-xs font-bold text-slate-400">상담일자 · 회기수 · 상담방법</span></div><div class="space-y-4">${c.sessions.length?c.sessions.map((s,i)=>`<article class="rounded-2xl border border-slate-100 bg-slate-50 p-5"><div class="grid grid-cols-1 gap-3 sm:grid-cols-3"><div><p class="text-[10px] font-extrabold text-slate-400">상담일자</p><p class="mt-1 text-sm font-extrabold">${esc(s.date||c.res.date||'')}</p></div><div><p class="text-[10px] font-extrabold text-slate-400">회기수</p><p class="mt-1 text-sm font-extrabold">${esc(s.sessionNumber||c.sessions.length-i)}회기</p></div><div><p class="text-[10px] font-extrabold text-slate-400">상담방법</p><p class="mt-1 text-sm font-extrabold">${esc(s.counselingMethod||c.res.type||'미정')}</p></div></div><div class="mt-4 grid grid-cols-1 gap-4"><div><p class="text-xs font-extrabold text-emerald-700">의뢰사유</p><p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">${esc(s.reason||c.res.applicationForm?.concern||'미입력')}</p></div><div><p class="text-xs font-extrabold text-emerald-700">상담목표</p><p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">${esc(s.goal||'미입력')}</p></div><div><p class="text-xs font-extrabold text-emerald-700">상담내용</p><p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">${esc(s.content||'미입력')}</p></div><div><p class="text-xs font-extrabold text-emerald-700">상담결과</p><p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">${esc(s.result||s.change||'미입력')}</p></div><div><p class="text-xs font-extrabold text-emerald-700">다음회기</p><p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">${esc(s.next||'미입력')}</p></div></div>${s.sourceTypes?.length?`<p class="mt-4 text-[10px] font-bold text-purple-600">AI 생성근거: ${s.sourceTypes.map(esc).join(' + ')}</p>`:''}</article>`).join(''):empty('저장된 회기록이 없습니다.')}</div></div></section>`).join('')||empty('상담 사례가 없습니다.')}</div>`);
+}
+
 function terminationView(){
   const rows=state.reservations.filter(r=>['상담완료','종결'].includes(normalizeStatus(r.status))).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   return layout(`<div class="space-y-6"><div class="rounded-[2rem] bg-slate-950 p-6 text-white"><p class="text-xs font-extrabold text-emerald-300">CASE CLOSING</p><h2 class="mt-2 text-2xl font-extrabold">종결관리</h2><p class="mt-2 text-sm text-slate-300">상담완료 사례의 변화·남은 과제·사후관리 계획을 정리하고 종결기록을 저장합니다.</p></div>${rows.map(r=>{const t=getTerminationRecord(r.id),caseId=caseIdFromReservation(r),sessions=load('modumam_case_sessions_'+caseId,[]);return `<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6"><div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"><div><div class="flex flex-wrap items-center gap-2"><h3 class="text-xl font-extrabold">${esc(r.name)}님</h3><span class="rounded-full px-3 py-1 text-xs font-bold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span></div><p class="mt-2 text-sm text-slate-500">${esc(programBaseName(r.program))} · ${esc(r.type||'')} · 회기 ${sessions.length}건</p><p class="mt-1 text-xs text-slate-400">신청검사: ${requestedTests(r).map(shortTestName).join(', ')||'없음'}</p></div><div class="flex flex-wrap gap-2"><button onclick="generateTerminationSummary(${r.id})" ${state.terminationDraftLoading[r.id]?'disabled':''} class="rounded-xl bg-purple-600 px-4 py-2 text-xs font-extrabold text-white disabled:opacity-50">${state.terminationDraftLoading[r.id]?'생성 중...':'AI 종결요약'}</button><button onclick="printTerminationRecord(${r.id})" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">PDF·인쇄</button></div></div>${t.aiGeneratedAt?`<p class="mt-3 text-[11px] font-bold text-purple-600">AI 초안 생성: ${new Date(t.aiGeneratedAt).toLocaleString('ko-KR')}</p>`:''}<div class="mt-5 grid grid-cols-1 gap-3 xl:grid-cols-2"><textarea id="term-reason-${r.id}" rows="2" placeholder="종결 사유" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(t.reason)}</textarea><textarea id="term-summary-${r.id}" rows="4" placeholder="상담과정 요약" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(t.summary)}</textarea><textarea id="term-progress-${r.id}" rows="4" placeholder="주요 변화와 성과" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(t.progress)}</textarea><textarea id="term-remaining-${r.id}" rows="4" placeholder="남은 어려움과 주의점" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(t.remaining)}</textarea><textarea id="term-recommendation-${r.id}" rows="4" placeholder="권장사항" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(t.recommendation)}</textarea><textarea id="term-followup-${r.id}" rows="4" placeholder="사후관리 계획" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">${esc(t.followUp)}</textarea><textarea id="term-feedback-${r.id}" rows="3" placeholder="내담자 종결 피드백" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm xl:col-span-2">${esc(t.clientFeedback)}</textarea></div><button onclick="saveTerminationRecord(${r.id})" class="mt-4 w-full rounded-2xl bg-slate-900 py-3 text-sm font-extrabold text-white">종결기록 저장</button></section>`}).join('')||empty('상담완료 또는 종결 상태의 사례가 없습니다.')}</div>`)
@@ -3212,11 +4518,11 @@ function loginView(){
   </main>`;
 }
 
-function render(){const root=document.getElementById('app');if(!state.authed){root.innerHTML=loginView();return}if(state.counselingModeId){root.innerHTML=counselingModeView();return}const views={dashboard:dashboardView,today:todayCounselingView,reservation:reservationView,results:resultUploadsView,interpretation:testInterpretationView,cases:casesView,termination:terminationView,documents:documentsView,intake:intakeView,report:reportView,members:membersView,statistics:statisticsView,settings:settingsView};root.innerHTML=(views[state.menu]||dashboardView)()}
+function render(){ensureReservationIdentifiers();const root=document.getElementById('app');if(!state.authed){root.innerHTML=loginView();return}if(state.counselingModeId){root.innerHTML=counselingModeView();return}const views={dashboard:dashboardView,today:todayCounselingView,reservation:reservationView,results:resultUploadsView,interpretation:testInterpretationView,intake:intakeView,cases:casesView,journal:counselingJournalEntryView,counseling:counselingJournalView,termination:terminationView,documents:documentsView,report:reportView,members:membersView,statistics:statisticsView,settings:settingsView};root.innerHTML=(views[state.menu]||dashboardView)()}
 
 // 다른 탭의 사용자 예약 저장을 관리자 화면에 자동 반영합니다.
 window.addEventListener('storage',(event)=>{
-  if(['modumam_reservations','modumam_reservation_inbox','modumam_last_reservation','modumam_intake_summaries','modumam_reports','modumam_test_result_uploads'].includes(event.key)){
+  if(['modumam_reservations','modumam_reservation_inbox','modumam_last_reservation','modumam_intake_summaries','modumam_reports','modumam_test_result_uploads','modumam_ai_result_counseling_records'].includes(event.key)){
     if(syncSharedOperatingData()) render();
   }
 });
@@ -3234,6 +4540,10 @@ try{
     if(event.data?.type==='reservations-sync'&&Array.isArray(event.data?.reservations)){
       const changed=receiveReservationRows(event.data.reservations,'사용자 예약목록 응답');
       if(changed)render();
+    }
+    if(event.data?.type==='ai-result-monitoring-updated'){
+      state.aiResultCounselingRecords=load('modumam_ai_result_counseling_records',[]);
+      if(state.menu==='intake')render();
     }
   });
 }catch(e){}
