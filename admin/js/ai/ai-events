@@ -1,0 +1,217 @@
+// ============================================
+// AI Events
+// ============================================
+
+import {
+    createCaseConcept
+} from "./case-engine.js";
+
+import {
+    generateCounselingSupport,
+    generateSessionSummary
+} from "./ai-service.js";
+
+import {
+    buildIndividualReport,
+    buildIntegratedReport,
+    buildClinicalReport
+} from "./report-engine.js";
+
+import {
+    evaluateRisk
+} from "./safety-engine.js";
+
+// ============================================
+// 이벤트 전달
+// ============================================
+
+function dispatch(name, detail = {}) {
+    document.dispatchEvent(
+        new CustomEvent(name, {
+            detail
+        })
+    );
+}
+
+// ============================================
+// 버튼 이벤트
+// ============================================
+
+export function registerAiEvents(root = document) {
+
+    root.addEventListener("click", async (event) => {
+
+        const button = event.target.closest("[data-action]");
+
+        if (!button) return;
+
+        const action = button.dataset.action;
+
+        // =====================================
+        // 사례개념화
+        // =====================================
+
+        if (action === "ai-case-generate") {
+
+            dispatch("ai:loading", {
+                type: "case"
+            });
+
+            const result =
+                await createCaseConcept(
+                    button.dataset.client,
+                    button.dataset.chart,
+                    button.dataset.sessions,
+                    button.dataset.assessments,
+                    button.dataset.reports
+                );
+
+            dispatch("ai:case-created", result);
+
+            return;
+        }
+
+        // =====================================
+        // 상담보조
+        // =====================================
+
+        if (action === "ai-support") {
+
+            dispatch("ai:loading", {
+                type: "support"
+            });
+
+            const result =
+                await generateCounselingSupport(
+                    button.dataset.session
+                );
+
+            dispatch(
+                "ai:support-created",
+                result
+            );
+
+            return;
+        }
+
+        // =====================================
+        // 회기요약
+        // =====================================
+
+        if (action === "ai-session-summary") {
+
+            dispatch("ai:loading", {
+                type: "summary"
+            });
+
+            const result =
+                await generateSessionSummary(
+                    button.dataset.session
+                );
+
+            dispatch(
+                "ai:summary-created",
+                result
+            );
+
+            return;
+        }
+
+        // =====================================
+        // 개별보고서
+        // =====================================
+
+        if (action === "ai-individual-report") {
+
+            dispatch("ai:loading", {
+                type: "individual"
+            });
+
+            const result =
+                await buildIndividualReport(
+                    button.dataset.assessment
+                );
+
+            dispatch(
+                "ai:individual-created",
+                result
+            );
+
+            return;
+        }
+
+        // =====================================
+        // 종합보고서
+        // =====================================
+
+        if (action === "ai-integrated-report") {
+
+            dispatch("ai:loading", {
+                type: "integrated"
+            });
+
+            const result =
+                await buildIntegratedReport(
+                    button.dataset.assessments
+                );
+
+            dispatch(
+                "ai:integrated-created",
+                result
+            );
+
+            return;
+        }
+
+        // =====================================
+        // 통합 심리평가보고서
+        // =====================================
+
+        if (action === "ai-clinical-report") {
+
+            dispatch("ai:loading", {
+                type: "clinical"
+            });
+
+            const result =
+                await buildClinicalReport(
+                    button.dataset.client
+                );
+
+            dispatch(
+                "ai:clinical-created",
+                result
+            );
+
+            return;
+        }
+
+    });
+
+    // ==========================================
+    // 위험도 검사
+    // ==========================================
+
+    root.addEventListener("input", async (event) => {
+
+        const element = event.target;
+
+        if (!element.matches("[data-risk-check]")) {
+
+            return;
+
+        }
+
+        const result =
+            await evaluateRisk(
+                element.value
+            );
+
+        dispatch(
+            "ai:risk-result",
+            result
+        );
+
+    });
+
+}

@@ -1,4 +1,4 @@
-const PROMPT_VERSION = "v36-10min-notice-info-mode"; // [MOD-20260712] 열린 질문 중심 대화 개선
+const PROMPT_VERSION = "v38-mind-talk-natural-accurate-info"; // [MOD-20260727] 기존 품질 보존 + 자연스러운 대화·정확한 정보 보강
 
 const jsonResponse = (obj, statusCode = 200) => ({
   statusCode,
@@ -40,9 +40,16 @@ const wantsClosing = (text) =>
 // [MOD-20260712-003] 심리·상담·검사 관련 지식 질문은 공감만 하지 않고 정보를 먼저 제공합니다.
 const isInformationRequest = (text) => {
   const t = cleanText(text);
-  const questionForm = /(뭐야|무엇|알려\s*줘|설명해|차이|의미|뜻|어떤\s*검사|어떻게\s*진행|효과|원인|증상|기준|방법|도움이\s*돼|필요해|괜찮아)/.test(t);
-  const topic = /(TCI|MMPI|PAI|SCT|HTP|PAT|STS|K-CDI|기질|성격|심리검사|상담|우울|불안|공황|번아웃|애착|스트레스|트라우마|ADHD|자존감|감정조절|정신건강)/i.test(t);
+  // [MOD-20260727] 질문형뿐 아니라 "~에 대해 알려줘", "~란"처럼 짧은 정보 요청도 인식합니다.
+  const questionForm = /(뭐야|무엇|뭔데|란\??$|알려\s*줘|설명해|차이|의미|뜻|어떤\s*검사|어떻게\s*(진행|해야|해)|효과|원인|증상|기준|방법|도움이\s*돼|필요해|괜찮아|정확히|정보)/.test(t);
+  const topic = /(TCI|MMPI(?:-?2)?|PAI|SCT|HTP|PAT|STS|K-?CDI|기질|성격|심리검사|상담|심리상담|우울(?:증)?|불안(?:장애)?|공황(?:장애)?|번아웃|애착|스트레스|트라우마|ADHD|자폐(?:스펙트럼)?|자존감|감정조절|정신건강|수면|불면|부모교육|양육|청소년|부부|가족관계)/i.test(t);
   return questionForm && topic;
+};
+
+// [MOD-20260727] 가벼운 농담·칭찬·일상 대화를 상담 해석으로 과도하게 전환하지 않도록 구분합니다.
+const isLightConversation = (text) => {
+  const t = cleanText(text);
+  return /(잘생겼|예쁘지|멋있지|귀엽지|나\s*최고|칭찬해\s*줘|농담|장난|ㅋㅋ+|ㅎㅎ+|로또|오늘\s*기분\s*좋|신나|축하해\s*줘|대박)/i.test(t);
 };
 
 const makeCrisisReply = () =>
@@ -54,7 +61,7 @@ const makeLimitReply = () =>
 const buildConversationText = (messages) =>
   messages.map((m) => `${m.role === "user" ? "사용자" : "AI 마음지기"}: ${m.text}`).join("\n");
 
-const buildPrompt = ({ messages, minutes, shouldClose, informationMode }) => {
+const buildPrompt = ({ messages, minutes, shouldClose, informationMode, lightConversationMode }) => {
   const conversation = buildConversationText(messages);
   const lastUser = getLastUser(messages);
   const userTurns = messages.filter((m) => m.role === "user").length;
@@ -95,14 +102,26 @@ const buildPrompt = ({ messages, minutes, shouldClose, informationMode }) => {
 사용자가 이미 말한 내용을 다시 확인하기 위한 질문도 피합니다.
 질문은 대화를 이어가기 위해 꼭 필요한 경우에만 하나 사용합니다.
 
+【자연스러운 대화 모드】
+${lightConversationMode ? `
+사용자의 마지막 말은 가벼운 농담, 장난, 칭찬 또는 일상 대화에 가깝습니다.
+- 먼저 사용자의 분위기를 자연스럽게 맞추고 짧게 유머나 기쁨을 함께 나눕니다.
+- 즉시 심리 상태를 분석하거나 숨은 의미를 해석하지 않습니다.
+- 모든 농담을 상담 질문으로 바꾸지 않습니다.
+- 답변은 1~3문장으로 가볍고 자연스럽게 작성합니다.
+- 이어지는 질문이 필요하다면 부담 없는 일상 질문 하나만 사용합니다.
+` : `현재는 특별한 가벼운 대화 모드가 아닙니다.`}
+
 【정보제공 모드】
 ${informationMode ? `
 사용자가 심리학, 정신건강, 상담 방법 또는 심리검사에 관한 정보를 직접 요청했습니다.
 이번 답변은 공감만 반복하지 말고 다음 원칙을 따릅니다.
 - 먼저 질문에 대한 핵심 정보를 정확하고 쉬운 말로 3~6문장 안에서 설명합니다.
-- 알려진 일반 정보와 사용자의 개인 상태에 대한 판단을 구분합니다.
+- 확인된 일반 정보와 사용자의 개인 상태에 대한 판단을 분명히 구분합니다.
+- 확실하지 않은 내용은 추측해 채우지 말고, 확인이 필요하다고 솔직하게 밝힙니다.
 - 진단을 단정하지 않으며, 증상이 지속되거나 일상 기능이 크게 떨어지면 전문가 평가가 필요할 수 있음을 알립니다.
 - 검사 질문이라면 검사 목적, 무엇을 살펴보는지, 결과의 활용과 한계를 간단히 설명합니다.
+- 의학적·법적·제도적 수치, 연락처, 이용 기준처럼 정확성이 중요한 정보는 확신할 수 있을 때만 제시합니다.
 - 정보 제공 뒤에는 현재 상황과 연결해 살펴볼지 선택할 수 있는 짧은 문장 하나를 덧붙일 수 있습니다.
 - 사용자가 정보만 요청했다면 억지로 감정을 묻거나 상담 대화로 끌고 가지 않습니다.
 ` : `현재는 일반 마음대화 모드입니다. 사용자의 감정과 상황을 중심으로 반응합니다.`}
@@ -111,7 +130,9 @@ ${informationMode ? `
 - 항상 존댓말을 사용합니다.
 - 사용자가 실제로 말한 내용에만 반응합니다.
 - 확인되지 않은 원인, 과거 경험, 성격을 추측하거나 단정하지 않습니다.
-- 해결책과 조언을 서두르지 않습니다.
+- 해결책과 조언을 서두르지 않습니다. 다만 사용자가 방법·선택지·다음 행동을 직접 요청하면 공감만 반복하지 말고 실행 가능한 방향을 구체적으로 제시합니다.
+- 가벼운 농담과 일상 대화는 먼저 자연스럽게 받아 주며, 곧바로 심리적으로 해석하지 않습니다.
+- 사실 정보는 정확성을 우선하고, 모르는 내용을 그럴듯하게 만들어 내지 않습니다.
 - 전문 용어보다 쉬운 언어로 마음을 설명합니다.
 - 같은 공감 문장, 같은 질문, 같은 문장 구조를 반복하지 않습니다.
 - 사용자의 핵심 단어를 그대로 되풀이하는 데 그치지 말고 의미를 이해해 자연스럽게 반영합니다.
@@ -422,10 +443,12 @@ export const handler = async function (event) {
     const lastUser = getLastUser(messages);
     const allUserText = getUserText(messages);
     const userTurns = messages.filter((m) => m.role === "user").length;
-    const autoTimeClose = minutes >= 15;
+    // AI 마음대화는 시간 제한으로 자동 종료하지 않습니다.
+    // 종료는 사용자가 직접 마무리를 요청하거나, 화면의 3분+1분 무입력 타이머로만 처리합니다.
     const userRequestedClose = wantsClosing(lastUser);
     const informationMode = isInformationRequest(lastUser);
-    const shouldClose = autoTimeClose || userRequestedClose;
+    const lightConversationMode = !informationMode && isLightConversation(lastUser);
+    const shouldClose = userRequestedClose;
 
     if (hasCrisisRisk(allUserText)) {
       return jsonResponse({
@@ -463,25 +486,7 @@ export const handler = async function (event) {
       }, 200);
     }
 
-    const prompt = autoTimeClose
-      ? `
-당신은 모두의 마음연구소 AI 마음지기입니다.
-15분의 대화 시간이 모두 지났습니다.
-사용자가 갑자기 끝났다고 느끼지 않도록, 지금까지 이야기해 주신 데 대해 감사와 공감을 전하고
-이제 오늘 나눈 이야기를 바탕으로 마음을 정리해 드리겠다고 안내하세요.
-
-규칙:
-- 2~3개의 짧고 완결된 문장
-- 존댓말
-- 새로운 질문 금지
-- 심리검사 추천이나 긴 분석 금지
-- "시간 초과", "세션 종료", "시스템" 같은 기계적 표현 금지
-- AI 답변만 출력
-
-현재 대화:
-${buildConversationText(messages)}
-`
-      : buildPrompt({ messages, minutes, shouldClose, informationMode });
+    const prompt = buildPrompt({ messages, minutes, shouldClose, informationMode, lightConversationMode });
     let first = await callGemini({ apiKey, prompt, closing: shouldClose });
     let finalText = postProcess(first.text);
     let model = first.model;

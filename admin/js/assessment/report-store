@@ -1,0 +1,141 @@
+// ============================================
+// 심리평가 보고서 저장소
+// ============================================
+
+import {
+    loadJson,
+    saveJson
+} from "../core/storage.js";
+
+import {
+    STORAGE_KEYS
+} from "../core/constants.js";
+
+// ============================================
+// 전체 보고서
+// ============================================
+
+export function getReports() {
+    return loadJson(
+        STORAGE_KEYS.reports,
+        []
+    );
+}
+
+// ============================================
+// 저장
+// ============================================
+
+export function saveReports(reports) {
+    saveJson(
+        STORAGE_KEYS.reports,
+        reports
+    );
+}
+
+// ============================================
+// 단일 조회
+// ============================================
+
+export function getReport(id) {
+
+    return getReports().find(
+        report => report.id === id
+    );
+
+}
+
+// ============================================
+// 추가
+// ============================================
+
+export function addReport(report) {
+
+    const reports = getReports();
+
+    reports.push(report);
+
+    saveReports(reports);
+
+    return report;
+
+}
+
+// ============================================
+// 수정
+// ============================================
+
+export function updateReport(id, changes) {
+
+    const reports = getReports();
+
+    const index =
+        reports.findIndex(
+            report => report.id === id
+        );
+
+    if (index === -1) {
+
+        return false;
+
+    }
+
+    reports[index] = {
+
+        ...reports[index],
+
+        ...changes,
+
+        updatedAt:
+            new Date().toISOString()
+
+    };
+
+    saveReports(reports);
+
+    return true;
+
+}
+
+// ============================================
+// 삭제
+// ============================================
+
+export function removeReport(id) {
+
+    const reports =
+        getReports().filter(
+            report => report.id !== id
+        );
+
+    saveReports(reports);
+
+}
+
+// ============================================
+// 승인된 보고서
+// ============================================
+
+export function getApprovedReports() {
+
+    return getReports().filter(
+
+        report => report.status === "approved"
+
+    );
+
+}
+
+// ============================================
+// 승인대기
+// ============================================
+
+export function getPendingReports() {
+
+    return getReports().filter(
+
+        report => report.status === "pending"
+
+    );
+
+}

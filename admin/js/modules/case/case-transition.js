@@ -1,0 +1,8 @@
+(function(global){
+'use strict';
+const NS=global.MMLCaseModules=global.MMLCaseModules||{};
+function allowedFrom(current,target,options){const state=NS.caseState;if(options?.force)return true;const from=state.rank(current),to=state.rank(target);return to===from||to===from+1||Boolean(options?.allowBackward&&to<from)}
+function transition(caseRecord,target,options){if(!caseRecord)throw new Error('사례가 없습니다.');const state=NS.caseState;if(!state)throw new Error('Case State가 준비되지 않았습니다.');const next=state.normalize(target);const current=state.normalize(caseRecord.lifecycleState||caseRecord.status);if(!allowedFrom(current,next,options))return{ok:false,case:caseRecord,errors:[`허용되지 않은 상태 이동입니다: ${state.label(current)} → ${state.label(next)}`]};const validation=NS.caseValidator?.validate(caseRecord,next,options)||{ok:true,errors:[]};if(!validation.ok)return{ok:false,case:caseRecord,errors:validation.errors};const at=new Date().toISOString();const history=Array.isArray(caseRecord.lifecycleHistory)?caseRecord.lifecycleHistory.slice():[];if(current!==next)history.push({from:current,to:next,at,reason:String(options?.reason||''),actor:String(options?.actor||'admin')});return{ok:true,case:{...caseRecord,status:next,lifecycleState:next,lifecycleHistory:history,lifecycleUpdatedAt:at},errors:[],warnings:validation.warnings||[]}}
+function nextState(caseRecord){const state=NS.caseState;const current=state.normalize(caseRecord?.lifecycleState||caseRecord?.status);return state.ORDER[Math.min(state.rank(current)+1,state.ORDER.length-1)]}
+NS.caseTransition=Object.freeze({allowedFrom,transition,nextState});
+})(window);

@@ -1,0 +1,625 @@
+// ============================================
+// AI 결과 화면 렌더링
+// ============================================
+
+function escapeHtml(value = "") {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+function renderText(value = "") {
+    const text =
+        String(value || "").trim();
+
+    if (!text) {
+        return `
+            <div class="empty-state">
+                생성된 내용이 없습니다.
+            </div>
+        `;
+    }
+
+    return escapeHtml(text)
+        .replace(/\n/g, "<br>");
+}
+
+// ============================================
+// AI 로딩
+// ============================================
+
+export function renderAiLoading(
+    container,
+    message = "AI가 내용을 정리하고 있습니다."
+) {
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="ai-loading-card">
+            <div class="ai-loading-spinner"></div>
+
+            <div class="ai-loading-message">
+                ${escapeHtml(message)}
+            </div>
+        </div>
+    `;
+}
+
+// ============================================
+// AI 오류
+// ============================================
+
+export function renderAiError(
+    container,
+    message = "AI 결과를 생성하지 못했습니다."
+) {
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="ai-error-card">
+            <strong>AI 생성 오류</strong>
+
+            <p>
+                ${escapeHtml(message)}
+            </p>
+        </div>
+    `;
+}
+
+// ============================================
+// AI 사례개념화
+// ============================================
+
+export function renderCaseConcept(
+    result = {},
+    container
+) {
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="ai-result-card case-concept-card">
+
+            <div class="ai-result-header">
+                <h3>AI 사례개념화</h3>
+            </div>
+
+            <section class="ai-result-section">
+                <h4>핵심 사례개념</h4>
+                <div>
+                    ${renderText(result.concept)}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>임상적 가설</h4>
+                <div>
+                    ${renderText(result.hypothesis)}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>강점 및 보호요인</h4>
+                <div>
+                    ${renderText(result.strengths)}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>위험요인</h4>
+                <div>
+                    ${renderText(result.risks)}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>상담목표</h4>
+                <div>
+                    ${renderText(result.treatmentGoals)}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>개입방향</h4>
+                <div>
+                    ${renderText(result.intervention)}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>예후</h4>
+                <div>
+                    ${renderText(result.prognosis)}
+                </div>
+            </section>
+
+            <div class="ai-result-actions">
+                <button
+                    data-action="ai-case-save"
+                    type="button"
+                >
+                    사례개념화 저장
+                </button>
+            </div>
+
+        </div>
+    `;
+}
+
+// ============================================
+// AI 상담보조
+// ============================================
+
+export function renderCounselingSupport(
+    result = {},
+    container
+) {
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="ai-result-card counseling-support-card">
+
+            <div class="ai-result-header">
+                <h3>AI 상담보조</h3>
+            </div>
+
+            <section class="ai-result-section">
+                <h4>내담자 마음 이해</h4>
+                <div>
+                    ${renderText(
+                        result.empathy ||
+                        result.understanding
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>핵심 내용</h4>
+                <div>
+                    ${renderText(
+                        result.summary ||
+                        result.core
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>확인할 가능성</h4>
+                <div>
+                    ${renderText(
+                        result.possibilities ||
+                        result.hypothesis
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>추가 질문</h4>
+                <div>
+                    ${renderText(
+                        result.questions ||
+                        result.nextQuestion
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>다음 상담 방향</h4>
+                <div>
+                    ${renderText(
+                        result.direction ||
+                        result.recommendation
+                    )}
+                </div>
+            </section>
+
+        </div>
+    `;
+}
+
+// ============================================
+// AI 회기요약
+// ============================================
+
+export function renderSessionSummary(
+    result = {},
+    container
+) {
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="ai-result-card session-summary-card">
+
+            <div class="ai-result-header">
+                <h3>AI 회기요약</h3>
+            </div>
+
+            <section class="ai-result-section">
+                <h4>회기 요약</h4>
+                <textarea id="aiSummary">${escapeHtml(
+                    result.summary || ""
+                )}</textarea>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>상담 의견</h4>
+                <textarea id="aiOpinion">${escapeHtml(
+                    result.opinion || ""
+                )}</textarea>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>다음 회기 제언</h4>
+                <textarea id="aiRecommendation">${escapeHtml(
+                    result.recommendation || ""
+                )}</textarea>
+            </section>
+
+            <div class="ai-result-actions">
+                <button
+                    data-action="session-ai-save"
+                    data-id="${escapeHtml(
+                        result.sessionId || ""
+                    )}"
+                    type="button"
+                >
+                    AI 회기요약 저장
+                </button>
+            </div>
+
+        </div>
+    `;
+}
+
+// ============================================
+// 개별 심리검사 보고서
+// ============================================
+
+export function renderIndividualReport(
+    result = {},
+    container
+) {
+    if (!container) {
+        return;
+    }
+
+    const report =
+        result.report || result;
+
+    container.innerHTML = `
+        <div class="ai-result-card individual-report-card">
+
+            <div class="ai-result-header">
+                <h3>개별 심리검사 보고서</h3>
+            </div>
+
+            <section class="ai-result-section">
+                <h4>검사 소개</h4>
+                <div>
+                    ${renderText(
+                        report.introduction ||
+                        report.testIntroduction
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>결과 요약</h4>
+                <div>
+                    ${renderText(
+                        report.summary ||
+                        report.resultSummary
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>결과의 의미</h4>
+                <div>
+                    ${renderText(
+                        report.meaning ||
+                        report.interpretation
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>일상에서 이해하기</h4>
+                <div>
+                    ${renderText(
+                        report.dailyLife ||
+                        report.clientExplanation
+                    )}
+                </div>
+            </section>
+
+            <div class="ai-result-actions">
+                <button
+                    data-action="ai-report-save"
+                    data-report-type="individual"
+                    type="button"
+                >
+                    보고서 저장
+                </button>
+            </div>
+
+        </div>
+    `;
+}
+
+// ============================================
+// 종합보고서
+// ============================================
+
+export function renderIntegratedReport(
+    result = {},
+    container
+) {
+    if (!container) {
+        return;
+    }
+
+    const report =
+        result.report || result;
+
+    container.innerHTML = `
+        <div class="ai-result-card integrated-report-card">
+
+            <div class="ai-result-header">
+                <h3>심리검사 종합결과보고서</h3>
+            </div>
+
+            <section class="ai-result-section">
+                <h4>1. 현재 마음의 핵심 모습</h4>
+                <div>
+                    ${renderText(
+                        report.coreState ||
+                        report.currentMind
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>2. 검사별 핵심결과</h4>
+                <div>
+                    ${renderText(
+                        report.assessmentSummary ||
+                        report.testSummary
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>3. 여러 검사에서 함께 확인된 모습</h4>
+                <div>
+                    ${renderText(
+                        report.commonFindings ||
+                        report.integratedFindings
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>4. 정서와 심리상태</h4>
+                <div>
+                    ${renderText(
+                        report.emotion ||
+                        report.emotionalState
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>5. 사고와 관계 방식</h4>
+                <div>
+                    ${renderText(
+                        report.thoughtRelationship ||
+                        report.relationship
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>6. 스트레스와 일상생활</h4>
+                <div>
+                    ${renderText(
+                        report.stressDailyLife ||
+                        report.stress
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>7. 전문가 제언 및 회복 방향</h4>
+                <div>
+                    ${renderText(
+                        report.recommendation ||
+                        report.recoveryDirection
+                    )}
+                </div>
+            </section>
+
+            <div class="ai-result-actions">
+                <button
+                    data-action="ai-report-save"
+                    data-report-type="integrated"
+                    type="button"
+                >
+                    종합보고서 저장
+                </button>
+            </div>
+
+        </div>
+    `;
+}
+
+// ============================================
+// 통합 심리평가보고서
+// ============================================
+
+export function renderClinicalReport(
+    result = {},
+    container
+) {
+    if (!container) {
+        return;
+    }
+
+    const report =
+        result.report || result;
+
+    container.innerHTML = `
+        <div class="ai-result-card clinical-report-card">
+
+            <div class="ai-result-header">
+                <h3>통합 심리평가보고서</h3>
+            </div>
+
+            <section class="ai-result-section">
+                <h4>평가 목적</h4>
+                <div>
+                    ${renderText(
+                        report.purpose
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>실시검사</h4>
+                <div>
+                    ${renderText(
+                        report.assessments ||
+                        report.tests
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>행동관찰</h4>
+                <div>
+                    ${renderText(
+                        report.behaviorObservation
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>검사결과</h4>
+                <div>
+                    ${renderText(
+                        report.results ||
+                        report.assessmentResults
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>종합해석</h4>
+                <div>
+                    ${renderText(
+                        report.integration ||
+                        report.interpretation
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>결론</h4>
+                <div>
+                    ${renderText(
+                        report.conclusion
+                    )}
+                </div>
+            </section>
+
+            <section class="ai-result-section">
+                <h4>전문가 제언</h4>
+                <div>
+                    ${renderText(
+                        report.recommendation ||
+                        report.expertRecommendation
+                    )}
+                </div>
+            </section>
+
+            <div class="ai-result-actions">
+                <button
+                    data-action="ai-report-save"
+                    data-report-type="clinical"
+                    type="button"
+                >
+                    평가보고서 저장
+                </button>
+            </div>
+
+        </div>
+    `;
+}
+
+// ============================================
+// AI 품질검사 결과
+// ============================================
+
+export function renderQualityResult(
+    quality = {},
+    container
+) {
+    if (!container) {
+        return;
+    }
+
+    const issues =
+        Array.isArray(quality.issues)
+            ? quality.issues
+            : [];
+
+    container.innerHTML = `
+        <div class="ai-quality-card">
+
+            <h3>AI 품질검사</h3>
+
+            <div>
+                <strong>검사결과</strong>
+                ${escapeHtml(
+                    quality.passed === false
+                        ? "수정 필요"
+                        : "확인 완료"
+                )}
+            </div>
+
+            ${
+                issues.length
+                    ? `
+                        <ul>
+                            ${issues
+                                .map(
+                                    issue => `
+                                        <li>
+                                            ${escapeHtml(issue)}
+                                        </li>
+                                    `
+                                )
+                                .join("")}
+                        </ul>
+                    `
+                    : `
+                        <div class="empty-state">
+                            확인된 문제점이 없습니다.
+                        </div>
+                    `
+            }
+
+        </div>
+    `;
+}

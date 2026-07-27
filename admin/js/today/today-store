@@ -1,0 +1,92 @@
+// ============================================
+// TODAY 저장소
+// ============================================
+
+import {
+    loadJson,
+    saveJson
+} from "../core/storage.js";
+
+import {
+    STORAGE_KEYS
+} from "../core/constants.js";
+
+// ============================================
+// 오늘 업무
+// ============================================
+
+export function getTodayTasks() {
+
+    return loadJson(
+        STORAGE_KEYS.todayTasks,
+        []
+    );
+
+}
+
+export function saveTodayTasks(tasks) {
+
+    saveJson(
+        STORAGE_KEYS.todayTasks,
+        tasks
+    );
+
+}
+
+// ============================================
+// 오늘 상담
+// ============================================
+
+export function getTodayCounselings() {
+
+    return loadJson(
+        STORAGE_KEYS.todayCounselings,
+        []
+    );
+
+}
+
+export function saveTodayCounselings(list) {
+
+    saveJson(
+        STORAGE_KEYS.todayCounselings,
+        list
+    );
+
+}
+
+// ============================================
+// 오늘 예약
+// ============================================
+
+export function getTodayReservations() {
+
+    return loadJson(
+        STORAGE_KEYS.todayReservations,
+        []
+    );
+
+}
+
+export function saveTodayReservations(list) {
+
+    saveJson(
+        STORAGE_KEYS.todayReservations,
+        list
+    );
+
+}
+
+// ============================================
+// TODAY 전체 삭제
+// ============================================
+
+export function clearToday() {
+
+    saveTodayTasks([]);
+
+    saveTodayCounselings([]);
+
+    saveTodayReservations([]);
+
+}

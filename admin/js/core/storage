@@ -1,0 +1,31 @@
+// ============================================
+// 공통 LocalStorage 관리
+// ============================================
+
+export function loadJson(key, defaultValue = null) {
+    try {
+        const value = localStorage.getItem(key);
+        return value ? JSON.parse(value) : defaultValue;
+    } catch (err) {
+        console.error(`[Storage] ${key} 불러오기 실패`, err);
+        return defaultValue;
+    }
+}
+
+export function saveJson(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+    } catch (err) {
+        console.error(`[Storage] ${key} 저장 실패`, err);
+        return false;
+    }
+}
+
+export function removeJson(key) {
+    localStorage.removeItem(key);
+}
+
+export function hasKey(key) {
+    return localStorage.getItem(key) !== null;
+}

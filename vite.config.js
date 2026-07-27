@@ -1,17 +1,42 @@
+import { defineConfig } from 'vite';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export default {
+function copyLegacyRuntimeFiles() {
+  return {
+    name: 'copy-legacy-runtime-files',
+    closeBundle() {
+      const outDir = resolve(process.cwd(), 'dist');
+      const copies = [
+        ['admin/js', 'admin/js'],
+        ['ai', 'ai'],
+        ['client', 'client'],
+        ['js/report-viewer.js', 'js/report-viewer.js']
+      ];
+
+      for (const [source, target] of copies) {
+        const from = resolve(process.cwd(), source);
+        const to = resolve(outDir, target);
+        if (!existsSync(from)) continue;
+        mkdirSync(resolve(to, '..'), { recursive: true });
+        cpSync(from, to, { recursive: true, force: true });
+      }
+    }
+  };
+}
+
+export default defineConfig({
   root: '.',
-  publicDir: 'public',
+  appType: 'mpa',
+  plugins: [copyLegacyRuntimeFiles()],
   server: {
     host: '0.0.0.0',
-    port: 5190,
-    strictPort: true,
-    open: false
+    port: 5173,
+    strictPort: true
   },
   preview: {
     host: '0.0.0.0',
-    port: 5190,
+    port: 4173,
     strictPort: true
   },
   build: {
@@ -24,4 +49,4 @@ export default {
       }
     }
   }
-};
+});

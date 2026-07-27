@@ -1,0 +1,172 @@
+// ============================================
+// Settings Store
+// 환경설정 저장소
+// ============================================
+
+import {
+    loadJson,
+    saveJson
+} from "../core/storage.js";
+
+import {
+    STORAGE_KEYS
+} from "../core/constants.js";
+
+// ============================================
+// 기본 설정
+// ============================================
+
+const DEFAULT_SETTINGS = {
+
+    clinicName: "모두의 마음연구소",
+
+    counselorName: "",
+
+    reportApproval: true,
+
+    autoSave: true,
+
+    aiEnabled: true,
+
+    aiModel: "gemini-2.5-flash-lite",
+
+    aiTemperature: 0.4,
+
+    aiMaxTokens: 8192,
+
+    counselingMinutes: 50,
+
+    reminderMinutes: 1,
+
+    pdfPageSize: "A4",
+
+    theme: "light",
+
+    version: "1.0.0"
+
+};
+
+// ============================================
+// 환경설정 불러오기
+// ============================================
+
+export function getSettings() {
+
+    return {
+
+        ...DEFAULT_SETTINGS,
+
+        ...loadJson(
+            STORAGE_KEYS.settings,
+            {}
+        )
+
+    };
+
+}
+
+// ============================================
+// 전체 저장
+// ============================================
+
+export function saveSettings(
+    settings
+) {
+
+    saveJson(
+
+        STORAGE_KEYS.settings,
+
+        settings
+
+    );
+
+    return settings;
+
+}
+
+// ============================================
+// 단일 값 조회
+// ============================================
+
+export function getSetting(
+    key
+) {
+
+    return getSettings()[key];
+
+}
+
+// ============================================
+// 단일 값 저장
+// ============================================
+
+export function setSetting(
+    key,
+    value
+) {
+
+    const settings =
+        getSettings();
+
+    settings[key] = value;
+
+    saveSettings(
+        settings
+    );
+
+    return settings;
+
+}
+
+// ============================================
+// 여러 항목 저장
+// ============================================
+
+export function updateSettings(
+    values = {}
+) {
+
+    const settings = {
+
+        ...getSettings(),
+
+        ...values
+
+    };
+
+    saveSettings(
+        settings
+    );
+
+    return settings;
+
+}
+
+// ============================================
+// 초기화
+// ============================================
+
+export function resetSettings() {
+
+    saveSettings(
+        DEFAULT_SETTINGS
+    );
+
+    return DEFAULT_SETTINGS;
+
+}
+
+// ============================================
+// 기본값
+// ============================================
+
+export function getDefaultSettings() {
+
+    return {
+
+        ...DEFAULT_SETTINGS
+
+    };
+
+}

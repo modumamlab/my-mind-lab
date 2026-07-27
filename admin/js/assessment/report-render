@@ -1,0 +1,306 @@
+// ============================================
+// 심리평가 보고서 렌더링
+// ============================================
+
+import {
+    getReportStatusLabel,
+    getReportTypeLabel
+} from "./report-service.js";
+
+// ============================================
+// 상태 Badge
+// ============================================
+
+export function createReportStatusBadge(status) {
+
+    const label =
+        getReportStatusLabel(status);
+
+    const color = {
+
+        draft: "#9ca3af",
+        saved: "#3b82f6",
+        pending: "#f59e0b",
+        approved: "#10b981",
+        rejected: "#ef4444"
+
+    }[status] || "#6b7280";
+
+    return `
+        <span
+            class="report-status-badge"
+            style="
+                background:${color};
+                color:#fff;
+                padding:4px 10px;
+                border-radius:14px;
+                font-size:12px;
+                font-weight:600;
+            ">
+            ${label}
+        </span>
+    `;
+
+}
+
+// ============================================
+// 검사 목록
+// ============================================
+
+export function renderTestList(report) {
+
+    if (
+        !Array.isArray(report.tests) ||
+        report.tests.length === 0
+    ) {
+
+        return "-";
+
+    }
+
+    return report.tests
+        .map(test => `
+            <span class="report-test-chip">
+                ${test}
+            </span>
+        `)
+        .join(" ");
+
+}
+
+// ============================================
+// 보고서 카드
+// ============================================
+
+export function createReportCard(report) {
+
+    return `
+
+<div class="assessment-report-card">
+
+    <div class="assessment-report-header">
+
+        <div>
+
+            <h3>
+
+                ${report.title}
+
+            </h3>
+
+            <div class="assessment-report-type">
+
+                ${getReportTypeLabel(report.type)}
+
+            </div>
+
+        </div>
+
+        ${createReportStatusBadge(report.status)}
+
+    </div>
+
+    <div class="assessment-report-body">
+
+        <div>
+
+            <strong>내담자</strong>
+
+            <div>
+
+                ${report.clientName || "-"}
+
+            </div>
+
+        </div>
+
+        <div>
+
+            <strong>검사</strong>
+
+            <div>
+
+                ${renderTestList(report)}
+
+            </div>
+
+        </div>
+
+        <div>
+
+            <strong>생성일</strong>
+
+            <div>
+
+                ${report.createdAt || "-"}
+
+            </div>
+
+        </div>
+
+        <div>
+
+            <strong>수정일</strong>
+
+            <div>
+
+                ${report.updatedAt || "-"}
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="assessment-report-footer">
+
+        <button
+            data-action="preview-report"
+            data-id="${report.id}"
+        >
+            미리보기
+        </button>
+
+        <button
+            data-action="edit-report"
+            data-id="${report.id}"
+        >
+            수정
+        </button>
+
+        <button
+            data-action="save-report"
+            data-id="${report.id}"
+        >
+            저장
+        </button>
+
+        <button
+            data-action="submit-report"
+            data-id="${report.id}"
+        >
+            승인요청
+        </button>
+
+        <button
+            data-action="approve-report"
+            data-id="${report.id}"
+        >
+            승인
+        </button>
+
+        <button
+            data-action="delete-report"
+            data-id="${report.id}"
+        >
+            삭제
+        </button>
+
+    </div>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// 보고서 목록
+// ============================================
+
+export function renderReportList(
+    reports = [],
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    if (reports.length === 0) {
+
+        container.innerHTML = `
+
+<div class="empty-report">
+
+등록된 보고서가 없습니다.
+
+</div>
+
+`;
+
+        return;
+
+    }
+
+    container.innerHTML =
+        reports
+            .map(createReportCard)
+            .join("");
+
+}
+
+// ============================================
+// 보고서 통계
+// ============================================
+
+export function renderReportSummary(
+    reports = [],
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    const summary = {
+
+        total: reports.length,
+
+        draft: reports.filter(
+            r => r.status === "draft"
+        ).length,
+
+        saved: reports.filter(
+            r => r.status === "saved"
+        ).length,
+
+        pending: reports.filter(
+            r => r.status === "pending"
+        ).length,
+
+        approved: reports.filter(
+            r => r.status === "approved"
+        ).length,
+
+        rejected: reports.filter(
+            r => r.status === "rejected"
+        ).length
+
+    };
+
+    container.innerHTML = `
+
+<div class="report-summary-card">
+
+    <div>전체 ${summary.total}</div>
+
+    <div>작성 ${summary.draft}</div>
+
+    <div>저장 ${summary.saved}</div>
+
+    <div>승인대기 ${summary.pending}</div>
+
+    <div>승인 ${summary.approved}</div>
+
+    <div>반려 ${summary.rejected}</div>
+
+</div>
+
+`;
+
+}

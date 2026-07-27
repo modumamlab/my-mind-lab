@@ -1,0 +1,339 @@
+// ============================================
+// 상담일지 서비스
+// ============================================
+
+import {
+    addSession,
+    getSession,
+    getSessions,
+    getSessionsByReservation,
+    updateSession,
+    removeSession,
+    getNextSessionNumber
+} from "./session-store.js";
+
+import {
+    getReservation
+} from "../reservations/reservation-store.js";
+
+import {
+    getChartByReservation,
+    getChart
+} from "../chart/chart-store.js";
+
+import {
+    addCounselingRecord
+} from "../chart/chart-service.js";
+
+import {
+    uuid,
+    deepCopy
+} from "../core/utils.js";
+
+// ============================================
+// 상담일지 생성
+// ============================================
+
+export function createSession(
+    reservationId
+) {
+
+    const reservation =
+        getReservation(
+            reservationId
+        );
+
+    if (!reservation) {
+
+        return {
+            success: false,
+            message: "예약정보가 없습니다."
+        };
+
+    }
+
+    const chart =
+        getChartByReservation(
+            reservationId
+        );
+
+    const session = {
+
+        id: uuid(),
+
+        reservationId,
+
+        chartId:
+            chart?.id || "",
+
+        clientId:
+            reservation.clientId || "",
+
+        clientName:
+            reservation.name ||
+            reservation.clientName ||
+            "",
+
+        sessionNumber:
+            getNextSessionNumber(
+                reservationId
+            ),
+
+        date:
+            new Date()
+                .toISOString()
+                .slice(0,10),
+
+        counselingMethod:
+            reservation.method || "",
+
+        program:
+            reservation.program || "",
+
+        referralReason: "",
+
+        counselingGoal: "",
+
+        counselingContent: "",
+
+        counselingResult: "",
+
+        nextPlan: "",
+
+        transcript: "",
+
+        aiSummary: "",
+
+        aiOpinion: "",
+
+        aiRecommendation: "",
+
+        createdAt:
+            new Date().toISOString(),
+
+        updatedAt:
+            new Date().toISOString()
+
+    };
+
+    addSession(session);
+
+    if (chart) {
+
+        addCounselingRecord(
+            chart.id,
+            session
+        );
+
+    }
+
+    return {
+
+        success: true,
+
+        session
+
+    };
+
+}
+
+// ============================================
+// 저장
+// ============================================
+
+export function saveSession(
+    id,
+    values
+) {
+
+    const ok =
+        updateSession(
+            id,
+            values
+        );
+
+    if (!ok) {
+
+        return {
+
+            success:false,
+
+            message:"상담일지를 찾을 수 없습니다."
+
+        };
+
+    }
+
+    return {
+
+        success:true,
+
+        session:getSession(id)
+
+    };
+
+}
+
+// ============================================
+// 삭제
+// ============================================
+
+export function deleteSession(
+    id
+) {
+
+    removeSession(id);
+
+    return {
+
+        success:true
+
+    };
+
+}
+
+// ============================================
+// 예약별 조회
+// ============================================
+
+export function getReservationSessions(
+    reservationId
+) {
+
+    return getSessionsByReservation(
+        reservationId
+    );
+
+}
+
+// ============================================
+// AI 회기요약 저장
+// ============================================
+
+export function saveAiSummary(
+    sessionId,
+    aiResult={}
+) {
+
+    return saveSession(
+
+        sessionId,
+
+        {
+
+            aiSummary:
+                aiResult.summary || "",
+
+            aiOpinion:
+                aiResult.opinion || "",
+
+            aiRecommendation:
+                aiResult.recommendation || ""
+
+        }
+
+    );
+
+}
+
+// ============================================
+// 축어록 저장
+// ============================================
+
+export function saveTranscript(
+    sessionId,
+    transcript
+) {
+
+    return saveSession(
+
+        sessionId,
+
+        {
+
+            transcript
+
+        }
+
+    );
+
+}
+
+// ============================================
+// 상담기록 전체 조회
+// ============================================
+
+export function getAllSessions() {
+
+    return getSessions();
+
+}
+
+// ============================================
+// 상담일지 상세
+// ============================================
+
+export function getSessionDetail(
+    id
+) {
+
+    const session =
+        getSession(id);
+
+    if (!session) {
+
+        return null;
+
+    }
+
+    const chart =
+        session.chartId
+            ? getChart(
+                session.chartId
+            )
+            : null;
+
+    return {
+
+        ...deepCopy(session),
+
+        chart
+
+    };
+
+}
+
+// ============================================
+// 전자차트 데이터 생성
+// ============================================
+
+export function buildChartSessionData(
+    session
+) {
+
+    return {
+
+        sessionId:
+            session.id,
+
+        sessionNumber:
+            session.sessionNumber,
+
+        date:
+            session.date,
+
+        method:
+            session.counselingMethod,
+
+        summary:
+            session.aiSummary,
+
+        counselingResult:
+            session.counselingResult,
+
+        nextPlan:
+            session.nextPlan
+
+    };
+
+}

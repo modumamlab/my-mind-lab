@@ -1,0 +1,360 @@
+// ============================================
+// 전자차트 서비스
+// ============================================
+
+import {
+    getCharts,
+    getChart,
+    getChartByReservation,
+    addChart,
+    updateChart,
+    removeChart
+} from "./chart-store.js";
+
+import {
+    uuid,
+    deepCopy
+} from "../core/utils.js";
+
+// ============================================
+// 전자차트 생성
+// ============================================
+
+export function createChart(reservation = {}) {
+
+    const exists =
+        getChartByReservation(
+            reservation.id
+        );
+
+    if (exists) {
+
+        return exists;
+
+    }
+
+    const now =
+        new Date().toISOString();
+
+    const chart = {
+
+        id: uuid(),
+
+        reservationId:
+            reservation.id,
+
+        clientId:
+            reservation.clientId || "",
+
+        clientName:
+            reservation.name || "",
+
+        phone:
+            reservation.phone || "",
+
+        program:
+            reservation.program || "",
+
+        tests:
+            Array.isArray(
+                reservation.tests
+            )
+                ? [...reservation.tests]
+                : [],
+
+        reservation,
+
+        assessmentResults: [],
+
+        reports: [],
+
+        counselingRecords: [],
+
+        aiCounseling: [],
+
+        createdAt: now,
+
+        updatedAt: now
+
+    };
+
+    addChart(chart);
+
+    return chart;
+
+}
+
+// ============================================
+// 검사결과 추가
+// ============================================
+
+export function addAssessmentResult(
+    chartId,
+    result
+) {
+
+    const chart =
+        getChart(chartId);
+
+    if (!chart) {
+
+        return false;
+
+    }
+
+    const list =
+        Array.isArray(
+            chart.assessmentResults
+        )
+            ? [...chart.assessmentResults]
+            : [];
+
+    list.push(
+        deepCopy(result)
+    );
+
+    return updateChart(chartId, {
+
+        assessmentResults: list
+
+    });
+
+}
+
+// ============================================
+// 보고서 연결
+// ============================================
+
+export function addReportToChart(
+    chartId,
+    report
+) {
+
+    const chart =
+        getChart(chartId);
+
+    if (!chart) {
+
+        return false;
+
+    }
+
+    const reports =
+        Array.isArray(chart.reports)
+            ? [...chart.reports]
+            : [];
+
+    reports.push(
+        deepCopy(report)
+    );
+
+    return updateChart(chartId, {
+
+        reports
+
+    });
+
+}
+
+// ============================================
+// 상담기록 추가
+// ============================================
+
+export function addCounselingRecord(
+    chartId,
+    record
+) {
+
+    const chart =
+        getChart(chartId);
+
+    if (!chart) {
+
+        return false;
+
+    }
+
+    const records =
+        Array.isArray(
+            chart.counselingRecords
+        )
+            ? [...chart.counselingRecords]
+            : [];
+
+    records.push(
+        deepCopy(record)
+    );
+
+    return updateChart(chartId, {
+
+        counselingRecords:
+            records
+
+    });
+
+}
+
+// ============================================
+// AI 상담기록 추가
+// ============================================
+
+export function addAiCounselingRecord(
+    chartId,
+    record
+) {
+
+    const chart =
+        getChart(chartId);
+
+    if (!chart) {
+
+        return false;
+
+    }
+
+    const aiRecords =
+        Array.isArray(
+            chart.aiCounseling
+        )
+            ? [...chart.aiCounseling]
+            : [];
+
+    aiRecords.push(
+        deepCopy(record)
+    );
+
+    return updateChart(chartId, {
+
+        aiCounseling:
+            aiRecords
+
+    });
+
+}
+
+// ============================================
+// 예약정보 갱신
+// ============================================
+
+export function updateReservationInfo(
+    chartId,
+    reservation
+) {
+
+    return updateChart(chartId, {
+
+        reservation:
+            deepCopy(reservation),
+
+        tests:
+            Array.isArray(
+                reservation.tests
+            )
+                ? [...reservation.tests]
+                : []
+
+    });
+
+}
+
+// ============================================
+// 차트 삭제
+// ============================================
+
+export function deleteChart(
+    chartId
+) {
+
+    const chart =
+        getChart(chartId);
+
+    if (!chart) {
+
+        return {
+
+            success: false,
+
+            message:
+                "전자차트를 찾을 수 없습니다."
+
+        };
+
+    }
+
+    removeChart(chartId);
+
+    return {
+
+        success: true,
+
+        chart
+
+    };
+
+}
+
+// ============================================
+// 통계
+// ============================================
+
+export function getChartSummary() {
+
+    const charts =
+        getCharts();
+
+    return {
+
+        total:
+            charts.length,
+
+        assessmentResults:
+            charts.reduce(
+                (sum, chart) =>
+                    sum +
+                    (
+                        chart
+                            .assessmentResults
+                            ?.length || 0
+                    ),
+                0
+            ),
+
+        reports:
+            charts.reduce(
+                (sum, chart) =>
+                    sum +
+                    (
+                        chart
+                            .reports
+                            ?.length || 0
+                    ),
+                0
+            ),
+
+        counselingRecords:
+            charts.reduce(
+                (sum, chart) =>
+                    sum +
+                    (
+                        chart
+                            .counselingRecords
+                            ?.length || 0
+                    ),
+                0
+            ),
+
+        aiCounseling:
+            charts.reduce(
+                (sum, chart) =>
+                    sum +
+                    (
+                        chart
+                            .aiCounseling
+                            ?.length || 0
+                    ),
+                0
+            )
+
+    };
+
+}

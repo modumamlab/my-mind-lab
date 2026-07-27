@@ -1,0 +1,233 @@
+// ============================================
+// AI Safety Engine
+// ============================================
+
+import {
+    analyzeRisk
+} from "./ai-service.js";
+
+// ============================================
+// 위험 키워드
+// ============================================
+
+const HIGH_RISK = [
+    "죽고 싶",
+    "자살",
+    "목숨",
+    "끝내고 싶",
+    "살고 싶지",
+    "유서",
+    "자해",
+    "손목",
+    "목매",
+    "뛰어내",
+    "약 먹",
+    "칼"
+];
+
+const MEDIUM_RISK = [
+    "포기",
+    "희망이 없다",
+    "무가치",
+    "아무 의미",
+    "혼자",
+    "사라지고",
+    "괴롭다",
+    "견딜 수"
+];
+
+// ============================================
+// 텍스트 정리
+// ============================================
+
+export function normalizeText(text = "") {
+
+    return String(text)
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+
+}
+
+// ============================================
+// 키워드 검사
+// ============================================
+
+export function detectRiskKeywords(text = "") {
+
+    const source =
+        normalizeText(text);
+
+    const high =
+        HIGH_RISK.filter(
+            keyword =>
+                source.includes(
+                    keyword.toLowerCase()
+                )
+        );
+
+    const medium =
+        MEDIUM_RISK.filter(
+            keyword =>
+                source.includes(
+                    keyword.toLowerCase()
+                )
+        );
+
+    return {
+
+        high,
+
+        medium,
+
+        level:
+            high.length
+                ? "high"
+                : medium.length
+                ? "medium"
+                : "low"
+
+    };
+
+}
+
+// ============================================
+// AI 위험분석
+// ============================================
+
+export async function evaluateRisk(
+    text
+) {
+
+    const keywordResult =
+        detectRiskKeywords(text);
+
+    const aiResult =
+        await analyzeRisk(text);
+
+    return {
+
+        keyword:
+            keywordResult,
+
+        ai:
+            aiResult,
+
+        highRisk:
+
+            keywordResult.level === "high" ||
+
+            aiResult.highRisk === true
+
+    };
+
+}
+
+// ============================================
+// 관리자 알림 여부
+// ============================================
+
+export function shouldNotifyCounselor(
+    result
+) {
+
+    return Boolean(
+
+        result?.highRisk ||
+
+        result?.keyword?.level ===
+            "high"
+
+    );
+
+}
+
+// ============================================
+// 상담 종료 여부
+// ============================================
+
+export function requiresEmergencyAction(
+    result
+) {
+
+    return Boolean(
+
+        result?.highRisk
+
+    );
+
+}
+
+// ============================================
+// 응답 필터
+// ============================================
+
+export function sanitizeResponse(
+    text = ""
+) {
+
+    let value =
+        String(text);
+
+    const blocked = [
+
+        "당신은 우울증입니다",
+
+        "당신은 정신병입니다",
+
+        "당신은 ADHD입니다",
+
+        "진단",
+
+        "확진"
+
+    ];
+
+    blocked.forEach(word => {
+
+        value =
+            value.replaceAll(
+                word,
+                ""
+            );
+
+    });
+
+    return value.trim();
+
+}
+
+// ============================================
+// 보고서 필터
+// ============================================
+
+export function sanitizeReport(
+    report = {}
+) {
+
+    const result = {};
+
+    Object.keys(report).forEach(key => {
+
+        if (
+            typeof report[key] ===
+            "string"
+        ) {
+
+            result[key] =
+                sanitizeResponse(
+                    report[key]
+                );
+
+        } else {
+
+            result[key] =
+                report[key];
+
+        }
+
+    });
+
+    return result;
+
+}

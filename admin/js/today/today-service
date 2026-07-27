@@ -1,0 +1,841 @@
+// ============================================
+// TODAY 업무 처리
+// ============================================
+
+import {
+    getTodayTasks,
+    saveTodayTasks,
+    saveTodayCounselings,
+    saveTodayReservations
+} from "./today-store.js";
+
+import {
+    getReservations
+} from "../reservations/reservation-store.js";
+
+import {
+    normalizeReservationStatus
+} from "../reservations/reservation-service.js";
+
+import {
+    getChartByReservation,
+    getChart
+} from "../chart/chart-store.js";
+
+import {
+    createChart
+} from "../chart/chart-service.js";
+
+import {
+    uuid,
+    deepCopy
+} from "../core/utils.js";
+
+// ============================================
+// 날짜 문자열 정리
+// ============================================
+
+export function getLocalDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(
+        date.getMonth() + 1
+    ).padStart(2, "0");
+    const day = String(
+        date.getDate()
+    ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+// ============================================
+// 시간 문자열 정리
+// ============================================
+
+export function normalizeTime(value = "") {
+    const text = String(value || "").trim();
+
+    if (!text) {
+        return "";
+    }
+
+    const match = text.match(
+        /(\d{1,2})\s*[:시]\s*(\d{0,2})/
+    );
+
+    if (!match) {
+        return text;
+    }
+
+    const hour = String(
+        Number(match[1])
+    ).padStart(2, "0");
+
+    const minute = String(
+        Number(match[2] || 0)
+    ).padStart(2, "0");
+
+    return `${hour}:${minute}`;
+}
+
+// ============================================
+// 예약일 정리
+// ============================================
+
+export function normalizeReservationDate(
+    reservation = {}
+) {
+    const value =
+        reservation.date ||
+        reservation.reservationDate ||
+        reservation.scheduleDate ||
+        reservation.counselingDate ||
+        "";
+
+    return String(value || "")
+        .trim()
+        .slice(0, 10);
+}
+
+// ============================================
+// 상담시간 정리
+// ============================================
+
+export function getReservationTime(
+    reservation = {}
+) {
+    return normalizeTime(
+        reservation.time ||
+        reservation.reservationTime ||
+        reservation.scheduleTime ||
+        reservation.counselingTime ||
+        ""
+    );
+}
+
+// ============================================
+// 오늘 예약인지 확인
+// ============================================
+
+export function isTodayReservation(
+    reservation = {},
+    targetDate = getLocalDateString()
+) {
+    return (
+        normalizeReservationDate(
+            reservation
+        ) === targetDate
+    );
+}
+
+// ============================================
+// 취소 예약 확인
+// ============================================
+
+export function isCancelledReservation(
+    reservation = {}
+) {
+    const status =
+        normalizeReservationStatus(
+            reservation.status
+        );
+
+    return status === "예약취소";
+}
+
+// ============================================
+// 완료 예약 확인
+// ============================================
+
+export function isCompletedReservation(
+    reservation = {}
+) {
+    const status =
+        normalizeReservationStatus(
+            reservation.status
+        );
+
+    return [
+        "상담완료",
+        "완료"
+    ].includes(status);
+}
+
+// ============================================
+// 오늘 예약 목록 생성
+// ============================================
+
+export function buildTodayReservations(
+    reservations = getReservations(),
+    targetDate = getLocalDateString()
+) {
+    return reservations
+        .filter(reservation =>
+            isTodayReservation(
+                reservation,
+                targetDate
+            )
+        )
+        .filter(reservation =>
+            !isCancelledReservation(
+                reservation
+            )
+        )
+        .sort((a, b) => {
+            const first =
+                getReservationTime(a);
+            const second =
+                getReservationTime(b);
+
+            return first.localeCompare(second);
+        });
+}
+
+// ============================================
+// 상담 대상 예약인지 확인
+// ============================================
+
+export function isCounselingReservation(
+    reservation = {}
+) {
+    const method = String(
+        reservation.method ||
+        reservation.counselingMethod ||
+        reservation.serviceMethod ||
+        ""
+    );
+
+    const program = String(
+        reservation.program ||
+        reservation.programName ||
+        ""
+    );
+
+    const status =
+        normalizeReservationStatus(
+            reservation.status
+        );
+
+    if (
+        isCancelledReservation(
+            reservation
+        )
+    ) {
+        return false;
+    }
+
+    if (
+        [
+            "예약신청",
+            "예약승인",
+            "결제대기"
+        ].includes(status)
+    ) {
+        return false;
+    }
+
+    return (
+        method.includes("상담") ||
+        method.includes("대면") ||
+        method.includes("비대면") ||
+        method.includes("화상") ||
+        method.includes("AI") ||
+        program.includes("상담") ||
+        program.includes("마음이음") ||
+        program.includes("해석")
+    );
+}
+
+// ============================================
+// 오늘 상담 목록 생성
+// ============================================
+
+export function buildTodayCounselings(
+    todayReservations = []
+) {
+    return todayReservations
+        .filter(isCounselingReservation)
+        .map(reservation => {
+            const chart =
+                getChartByReservation(
+                    reservation.id
+                );
+
+            return {
+                id:
+                    reservation.id,
+
+                reservationId:
+                    reservation.id,
+
+                chartId:
+                    chart?.id || "",
+
+                clientId:
+                    reservation.clientId || "",
+
+                clientName:
+                    reservation.name ||
+                    reservation.clientName ||
+                    "",
+
+                phone:
+                    reservation.phone || "",
+
+                program:
+                    reservation.program ||
+                    reservation.programName ||
+                    "",
+
+                method:
+                    reservation.method ||
+                    reservation.counselingMethod ||
+                    "",
+
+                date:
+                    normalizeReservationDate(
+                        reservation
+                    ),
+
+                time:
+                    getReservationTime(
+                        reservation
+                    ),
+
+                status:
+                    reservation.status || "",
+
+                aiCounselingEnabled:
+                    Boolean(
+                        reservation
+                            .aiCounselingEnabled
+                    ),
+
+                resultUploaded:
+                    Boolean(
+                        reservation
+                            .resultUploaded
+                    ),
+
+                reservation:
+                    deepCopy(reservation)
+            };
+        });
+}
+
+// ============================================
+// TODAY 업무 생성
+// ============================================
+
+export function buildTodayTasks(
+    todayReservations = []
+) {
+    const existingTasks =
+        getTodayTasks();
+
+    const existingMap =
+        new Map(
+            existingTasks.map(task => [
+                task.taskKey,
+                task
+            ])
+        );
+
+    const generated = [];
+
+    todayReservations.forEach(
+        reservation => {
+            const status =
+                normalizeReservationStatus(
+                    reservation.status
+                );
+
+            const clientName =
+                reservation.name ||
+                reservation.clientName ||
+                "내담자";
+
+            const reservationId =
+                reservation.id;
+
+            const addTask = ({
+                type,
+                title,
+                description = "",
+                priority = "normal",
+                action = ""
+            }) => {
+                const taskKey =
+                    `${reservationId}:${type}`;
+
+                const existing =
+                    existingMap.get(taskKey);
+
+                generated.push({
+                    id:
+                        existing?.id ||
+                        uuid(),
+
+                    taskKey,
+
+                    reservationId,
+
+                    clientId:
+                        reservation.clientId ||
+                        "",
+
+                    clientName,
+
+                    type,
+
+                    title,
+
+                    description,
+
+                    priority,
+
+                    action,
+
+                    completed:
+                        Boolean(
+                            existing?.completed
+                        ),
+
+                    completedAt:
+                        existing
+                            ?.completedAt ||
+                        null,
+
+                    createdAt:
+                        existing
+                            ?.createdAt ||
+                        new Date()
+                            .toISOString(),
+
+                    updatedAt:
+                        new Date()
+                            .toISOString()
+                });
+            };
+
+            if (status === "예약신청") {
+                addTask({
+                    type:
+                        "reservation-approval",
+
+                    title:
+                        `${clientName} 예약 승인 확인`,
+
+                    description:
+                        "예약 내용을 확인하고 예약 승인 또는 일정 조정을 진행합니다.",
+
+                    priority:
+                        "high",
+
+                    action:
+                        "open-reservation"
+                });
+            }
+
+            if (
+                status === "예약승인" ||
+                status === "결제대기"
+            ) {
+                addTask({
+                    type:
+                        "payment-check",
+
+                    title:
+                        `${clientName} 결제 확인`,
+
+                    description:
+                        "결제 여부를 확인하고 검사 또는 상담 안내를 진행합니다.",
+
+                    priority:
+                        "high",
+
+                    action:
+                        "open-reservation"
+                });
+            }
+
+            if (
+                status === "결제완료" &&
+                !reservation.testSentAt
+            ) {
+                addTask({
+                    type:
+                        "test-guide",
+
+                    title:
+                        `${clientName} 검사 안내 발송`,
+
+                    description:
+                        "결제 확인 후 검사 링크와 진행 안내를 발송합니다.",
+
+                    priority:
+                        "high",
+
+                    action:
+                        "open-reservation"
+                });
+            }
+
+            if (
+                (
+                    status === "검사완료" ||
+                    status === "결과업로드"
+                ) &&
+                !reservation.resultUploaded
+            ) {
+                addTask({
+                    type:
+                        "result-upload",
+
+                    title:
+                        `${clientName} 검사결과 업로드`,
+
+                    description:
+                        "검사결과 파일을 업로드하고 분석 가능 상태인지 확인합니다.",
+
+                    priority:
+                        "high",
+
+                    action:
+                        "open-assessment"
+                });
+            }
+
+            if (
+                reservation.resultUploaded &&
+                String(
+                    reservation.method || ""
+                ).includes("AI") &&
+                !reservation.aiCounselingEnabled
+            ) {
+                addTask({
+                    type:
+                        "enable-ai-counseling",
+
+                    title:
+                        `${clientName} AI 상담 활성화`,
+
+                    description:
+                        "업로드된 검사결과를 확인한 후 AI 상담을 활성화합니다.",
+
+                    priority:
+                        "high",
+
+                    action:
+                        "open-reservation"
+                });
+            }
+
+            if (
+                isCounselingReservation(
+                    reservation
+                ) &&
+                !isCompletedReservation(
+                    reservation
+                )
+            ) {
+                addTask({
+                    type:
+                        "today-counseling",
+
+                    title:
+                        `${getReservationTime(
+                            reservation
+                        )} ${clientName} 상담`,
+
+                    description:
+                        `${
+                            reservation.program ||
+                            ""
+                        } · ${
+                            reservation.method ||
+                            ""
+                        }`,
+
+                    priority:
+                        "high",
+
+                    action:
+                        "start-counseling"
+                });
+            }
+        }
+    );
+
+    return generated;
+}
+
+// ============================================
+// TODAY 데이터 갱신
+// ============================================
+
+export function refreshTodayData(
+    targetDate = getLocalDateString()
+) {
+    const reservations =
+        getReservations();
+
+    const todayReservations =
+        buildTodayReservations(
+            reservations,
+            targetDate
+        );
+
+    const todayCounselings =
+        buildTodayCounselings(
+            todayReservations
+        );
+
+    const todayTasks =
+        buildTodayTasks(
+            todayReservations
+        );
+
+    saveTodayReservations(
+        todayReservations
+    );
+
+    saveTodayCounselings(
+        todayCounselings
+    );
+
+    saveTodayTasks(
+        todayTasks
+    );
+
+    return {
+        date: targetDate,
+        reservations:
+            todayReservations,
+        counselings:
+            todayCounselings,
+        tasks:
+            todayTasks
+    };
+}
+
+// ============================================
+// 업무 완료
+// 완료한 업무는 TODAY 목록에서 숨김 처리 가능
+// ============================================
+
+export function completeTodayTask(
+    taskId
+) {
+    const tasks =
+        getTodayTasks();
+
+    const index =
+        tasks.findIndex(
+            task => task.id === taskId
+        );
+
+    if (index === -1) {
+        return {
+            success: false,
+            message:
+                "오늘 업무를 찾을 수 없습니다."
+        };
+    }
+
+    tasks[index] = {
+        ...tasks[index],
+        completed: true,
+        completedAt:
+            new Date().toISOString(),
+        updatedAt:
+            new Date().toISOString()
+    };
+
+    saveTodayTasks(tasks);
+
+    return {
+        success: true,
+        task: tasks[index]
+    };
+}
+
+// ============================================
+// 업무 완료 취소
+// ============================================
+
+export function reopenTodayTask(
+    taskId
+) {
+    const tasks =
+        getTodayTasks();
+
+    const index =
+        tasks.findIndex(
+            task => task.id === taskId
+        );
+
+    if (index === -1) {
+        return {
+            success: false,
+            message:
+                "오늘 업무를 찾을 수 없습니다."
+        };
+    }
+
+    tasks[index] = {
+        ...tasks[index],
+        completed: false,
+        completedAt: null,
+        updatedAt:
+            new Date().toISOString()
+    };
+
+    saveTodayTasks(tasks);
+
+    return {
+        success: true,
+        task: tasks[index]
+    };
+}
+
+// ============================================
+// 미완료 업무만 조회
+// ============================================
+
+export function getActiveTodayTasks() {
+    return getTodayTasks()
+        .filter(
+            task => !task.completed
+        )
+        .sort((a, b) => {
+            const priorityOrder = {
+                high: 0,
+                normal: 1,
+                low: 2
+            };
+
+            const first =
+                priorityOrder[
+                    a.priority
+                ] ?? 1;
+
+            const second =
+                priorityOrder[
+                    b.priority
+                ] ?? 1;
+
+            return first - second;
+        });
+}
+
+// ============================================
+// 상담 시작 준비
+// 전자차트가 없으면 자동 생성
+// ============================================
+
+export function prepareCounselingStart(
+    reservationId
+) {
+    const reservation =
+        getReservations().find(
+            item =>
+                item.id === reservationId
+        );
+
+    if (!reservation) {
+        return {
+            success: false,
+            message:
+                "예약 정보를 찾을 수 없습니다."
+        };
+    }
+
+    let chart =
+        getChartByReservation(
+            reservationId
+        );
+
+    if (!chart) {
+        chart =
+            createChart(
+                reservation
+            );
+    }
+
+    return {
+        success: true,
+        reservation:
+            deepCopy(reservation),
+        chart
+    };
+}
+
+// ============================================
+// 전자차트 바로가기 정보
+// ============================================
+
+export function getTodayChartLink(
+    reservationId
+) {
+    const chart =
+        getChartByReservation(
+            reservationId
+        );
+
+    if (!chart) {
+        return {
+            success: false,
+            chartId: "",
+            message:
+                "연결된 전자차트가 없습니다."
+        };
+    }
+
+    return {
+        success: true,
+        chartId: chart.id,
+        chart:
+            getChart(chart.id)
+    };
+}
+
+// ============================================
+// TODAY 요약
+// ============================================
+
+export function getTodaySummary(
+    targetDate = getLocalDateString()
+) {
+    const data =
+        refreshTodayData(
+            targetDate
+        );
+
+    return {
+        date: targetDate,
+
+        reservationCount:
+            data.reservations.length,
+
+        counselingCount:
+            data.counselings.length,
+
+        taskCount:
+            data.tasks.filter(
+                task => !task.completed
+            ).length,
+
+        aiCounselingCount:
+            data.counselings.filter(
+                item =>
+                    item
+                        .aiCounselingEnabled
+            ).length,
+
+        resultUploadedCount:
+            data.reservations.filter(
+                item =>
+                    item.resultUploaded
+            ).length
+    };
+}

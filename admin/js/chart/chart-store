@@ -1,0 +1,153 @@
+// ============================================
+// 전자차트 저장소
+// ============================================
+
+import {
+    loadJson,
+    saveJson
+} from "../core/storage.js";
+
+import {
+    STORAGE_KEYS
+} from "../core/constants.js";
+
+// ============================================
+// 전체 차트
+// ============================================
+
+export function getCharts() {
+
+    return loadJson(
+        STORAGE_KEYS.charts,
+        []
+    );
+
+}
+
+// ============================================
+// 저장
+// ============================================
+
+export function saveCharts(charts) {
+
+    saveJson(
+        STORAGE_KEYS.charts,
+        charts
+    );
+
+}
+
+// ============================================
+// 단일 조회
+// ============================================
+
+export function getChart(id) {
+
+    return getCharts().find(
+        chart => chart.id === id
+    );
+
+}
+
+// ============================================
+// 예약번호 조회
+// ============================================
+
+export function getChartByReservation(
+    reservationId
+) {
+
+    return getCharts().find(
+
+        chart =>
+            chart.reservationId === reservationId
+
+    );
+
+}
+
+// ============================================
+// 추가
+// ============================================
+
+export function addChart(chart) {
+
+    const charts =
+        getCharts();
+
+    charts.push(chart);
+
+    saveCharts(charts);
+
+    return chart;
+
+}
+
+// ============================================
+// 수정
+// ============================================
+
+export function updateChart(
+    id,
+    changes
+) {
+
+    const charts =
+        getCharts();
+
+    const index =
+        charts.findIndex(
+            chart =>
+                chart.id === id
+        );
+
+    if (index === -1) {
+
+        return false;
+
+    }
+
+    charts[index] = {
+
+        ...charts[index],
+
+        ...changes,
+
+        updatedAt:
+            new Date().toISOString()
+
+    };
+
+    saveCharts(charts);
+
+    return true;
+
+}
+
+// ============================================
+// 삭제
+// ============================================
+
+export function removeChart(id) {
+
+    const charts =
+        getCharts().filter(
+
+            chart =>
+                chart.id !== id
+
+        );
+
+    saveCharts(charts);
+
+}
+
+// ============================================
+// 전체 삭제
+// ============================================
+
+export function clearCharts() {
+
+    saveCharts([]);
+
+}

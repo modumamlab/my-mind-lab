@@ -1,0 +1,219 @@
+// ============================================
+// Statistics Events
+// ============================================
+
+import {
+    buildStatistics
+} from "./statistics-service.js";
+
+import {
+    renderDashboard
+} from "./statistics-render.js";
+
+// ============================================
+// 이벤트 전달
+// ============================================
+
+function dispatch(name, detail = {}) {
+    document.dispatchEvent(
+        new CustomEvent(name, {
+            detail
+        })
+    );
+}
+
+// ============================================
+// 통계 새로고침
+// ============================================
+
+export function refreshStatistics(
+    container
+) {
+
+    const statistics =
+        buildStatistics();
+
+    renderDashboard(
+        statistics,
+        container
+    );
+
+    dispatch(
+        "statistics:updated",
+        statistics
+    );
+
+    return statistics;
+
+}
+
+// ============================================
+// 이벤트 등록
+// ============================================
+
+export function registerStatisticsEvents(
+    root = document,
+    container = null
+) {
+
+    root.addEventListener("click", (event) => {
+
+        const button =
+            event.target.closest("[data-action]");
+
+        if (!button) return;
+
+        const action =
+            button.dataset.action;
+
+        // -----------------------
+        // 새로고침
+        // -----------------------
+
+        if (
+            action ===
+            "statistics-refresh"
+        ) {
+
+            refreshStatistics(
+                container
+            );
+
+            return;
+
+        }
+
+        // -----------------------
+        // 내보내기(JSON)
+        // -----------------------
+
+        if (
+            action ===
+            "statistics-export"
+        ) {
+
+            const statistics =
+                buildStatistics();
+
+            const blob =
+                new Blob(
+                    [
+                        JSON.stringify(
+                            statistics,
+                            null,
+                            2
+                        )
+                    ],
+                    {
+                        type:
+                            "application/json"
+                    }
+                );
+
+            const url =
+                URL.createObjectURL(
+                    blob
+                );
+
+            const a =
+                document.createElement("a");
+
+            a.href = url;
+
+            a.download =
+                "statistics.json";
+
+            a.click();
+
+            URL.revokeObjectURL(
+                url
+            );
+
+            dispatch(
+                "statistics:export",
+                statistics
+            );
+
+            return;
+
+        }
+
+    });
+
+    // =========================================
+    // 예약 변경 시 자동 갱신
+    // =========================================
+
+    document.addEventListener(
+        "reservation:saved",
+        () => {
+
+            if (container) {
+
+                refreshStatistics(
+                    container
+                );
+
+            }
+
+        }
+    );
+
+    // =========================================
+    // 상담 저장 시 자동 갱신
+    // =========================================
+
+    document.addEventListener(
+        "session:saved",
+        () => {
+
+            if (container) {
+
+                refreshStatistics(
+                    container
+                );
+
+            }
+
+        }
+    );
+
+    // =========================================
+    // 보고서 승인 시 자동 갱신
+    // =========================================
+
+    document.addEventListener(
+        "report:approved",
+        () => {
+
+            if (container) {
+
+                refreshStatistics(
+                    container
+                );
+
+            }
+
+        }
+    );
+
+    // =========================================
+    // AI 결과 저장 시 자동 갱신
+    // =========================================
+
+    document.addEventListener(
+        "ai:report-saved",
+        () => {
+
+            if (container) {
+
+                refreshStatistics(
+                    container
+                );
+
+            }
+
+        }
+    );
+
+}

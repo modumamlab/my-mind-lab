@@ -1,0 +1,120 @@
+// ============================================
+// PDF 생성 엔진
+// ============================================
+
+import {
+    getReportTypeLabel
+} from "./report-service.js";
+
+// ============================================
+// PDF 제목
+// ============================================
+
+export function buildPdfTitle(report) {
+
+    return report.title ||
+        getReportTypeLabel(report.type);
+
+}
+
+// ============================================
+// PDF 기본정보
+// ============================================
+
+export function buildPdfHeader(report) {
+
+    return {
+
+        title:
+            buildPdfTitle(report),
+
+        client:
+            report.clientName || "-",
+
+        createdAt:
+            report.createdAt || "-",
+
+        updatedAt:
+            report.updatedAt || "-",
+
+        tests:
+            Array.isArray(report.tests)
+                ? report.tests.join(", ")
+                : ""
+
+    };
+
+}
+
+// ============================================
+// 섹션을 PDF용 배열로 변환
+// ============================================
+
+export function buildPdfSections(report) {
+
+    const sections = [];
+
+    if (!report.sections) {
+
+        return sections;
+
+    }
+
+    Object.values(report.sections).forEach(section => {
+
+        sections.push({
+
+            title:
+                section.title,
+
+            content:
+                section.content || ""
+
+        });
+
+    });
+
+    return sections;
+
+}
+
+// ============================================
+// PDF 데이터 생성
+// ============================================
+
+export function buildPdfData(report) {
+
+    return {
+
+        header:
+            buildPdfHeader(report),
+
+        sections:
+            buildPdfSections(report)
+
+    };
+
+}
+
+// ============================================
+// PDF 출력
+// 실제 PDF 라이브러리(jsPDF, pdf-lib 등)는
+// 이후 이 함수에서만 사용
+// ============================================
+
+export async function exportPdf(report) {
+
+    const pdfData =
+        buildPdfData(report);
+
+    console.log(
+        "PDF Export",
+        pdfData
+    );
+
+    // TODO
+    // jsPDF 또는 pdf-lib 연결
+
+    return pdfData;
+
+}

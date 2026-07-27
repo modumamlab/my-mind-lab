@@ -1,0 +1,243 @@
+// ============================================
+// Statistics Store
+// 통계 데이터 수집
+// ============================================
+
+import {
+    loadJson
+} from "../core/storage.js";
+
+import {
+    STORAGE_KEYS
+} from "../core/constants.js";
+
+// ============================================
+// 기본 배열
+// ============================================
+
+function loadArray(key) {
+
+    const data =
+        loadJson(key, []);
+
+    return Array.isArray(data)
+        ? data
+        : [];
+
+}
+
+// ============================================
+// 원본 데이터
+// ============================================
+
+export function getReservationData() {
+
+    return loadArray(
+        STORAGE_KEYS.reservations
+    );
+
+}
+
+export function getAssessmentData() {
+
+    return loadArray(
+        STORAGE_KEYS.assessments
+    );
+
+}
+
+export function getCounselingData() {
+
+    return loadArray(
+        STORAGE_KEYS.counseling
+    );
+
+}
+
+export function getClientData() {
+
+    return loadArray(
+        STORAGE_KEYS.clients
+    );
+
+}
+
+// ============================================
+// 전체 데이터
+// ============================================
+
+export function getStatisticsSource() {
+
+    return {
+
+        reservations:
+            getReservationData(),
+
+        assessments:
+            getAssessmentData(),
+
+        counseling:
+            getCounselingData(),
+
+        clients:
+            getClientData()
+
+    };
+
+}
+
+// ============================================
+// 카운트
+// ============================================
+
+export function countReservations() {
+
+    return getReservationData().length;
+
+}
+
+export function countAssessments() {
+
+    return getAssessmentData().length;
+
+}
+
+export function countCounseling() {
+
+    return getCounselingData().length;
+
+}
+
+export function countClients() {
+
+    return getClientData().length;
+
+}
+
+// ============================================
+// 예약 상태
+// ============================================
+
+export function reservationStatusSummary() {
+
+    const result = {};
+
+    getReservationData().forEach(item => {
+
+        const status =
+            item.status || "미확인";
+
+        result[status] =
+            (result[status] || 0) + 1;
+
+    });
+
+    return result;
+
+}
+
+// ============================================
+// 상담 방식
+// ============================================
+
+export function counselingMethodSummary() {
+
+    const result = {};
+
+    getCounselingData().forEach(item => {
+
+        const method =
+            item.method || "기타";
+
+        result[method] =
+            (result[method] || 0) + 1;
+
+    });
+
+    return result;
+
+}
+
+// ============================================
+// 검사 종류
+// ============================================
+
+export function assessmentSummary() {
+
+    const result = {};
+
+    getAssessmentData().forEach(item => {
+
+        const test =
+            item.testName ||
+            item.type ||
+            "기타";
+
+        result[test] =
+            (result[test] || 0) + 1;
+
+    });
+
+    return result;
+
+}
+
+// ============================================
+// 월별 예약
+// ============================================
+
+export function monthlyReservationSummary() {
+
+    const result = {};
+
+    getReservationData().forEach(item => {
+
+        if (!item.date) return;
+
+        const month =
+            item.date.substring(0, 7);
+
+        result[month] =
+            (result[month] || 0) + 1;
+
+    });
+
+    return result;
+
+}
+
+// ============================================
+// 대시보드
+// ============================================
+
+export function buildDashboardData() {
+
+    return {
+
+        reservations:
+            countReservations(),
+
+        counseling:
+            countCounseling(),
+
+        assessments:
+            countAssessments(),
+
+        clients:
+            countClients(),
+
+        reservationStatus:
+            reservationStatusSummary(),
+
+        counselingMethod:
+            counselingMethodSummary(),
+
+        assessmentSummary:
+            assessmentSummary(),
+
+        monthlyReservations:
+            monthlyReservationSummary()
+
+    };
+
+}

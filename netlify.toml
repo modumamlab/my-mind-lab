@@ -1,14 +1,26 @@
 [build]
   command = "npm run build"
   publish = "dist"
-
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
+  functions = "netlify/functions"
 
 [dev]
   command = "npm run dev"
-  targetPort = 5190
+  targetPort = 5173
   port = 8888
-  framework = "#custom"
+  publish = "dist"
   autoLaunch = false
+
+[functions]
+  node_bundler = "esbuild"
+
+# 관리자 진입 주소만 index.html로 연결합니다.
+# /admin/* 규칙은 JS/CSS 요청까지 HTML로 바꾸므로 사용하지 않습니다.
+[[redirects]]
+  from = "/admin"
+  to = "/admin/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin/"
+  to = "/admin/index.html"
+  status = 200

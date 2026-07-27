@@ -1,0 +1,308 @@
+// ============================================
+// Statistics Service
+// 통계 계산
+// ============================================
+
+import {
+    getStatisticsSource,
+    buildDashboardData
+} from "./statistics-store.js";
+
+// ============================================
+// 퍼센트 계산
+// ============================================
+
+function percent(part = 0, total = 0) {
+
+    if (!total) return 0;
+
+    return Math.round(
+        (part / total) * 100
+    );
+
+}
+
+// ============================================
+// 예약 승인율
+// ============================================
+
+export function calculateReservationRate() {
+
+    const {
+        reservations
+    } = getStatisticsSource();
+
+    const approved =
+        reservations.filter(item =>
+            item.status === "예약확정"
+        ).length;
+
+    return {
+
+        total:
+            reservations.length,
+
+        approved,
+
+        rate:
+            percent(
+                approved,
+                reservations.length
+            )
+
+    };
+
+}
+
+// ============================================
+// 상담 완료율
+// ============================================
+
+export function calculateCounselingRate() {
+
+    const {
+        counseling
+    } = getStatisticsSource();
+
+    const completed =
+        counseling.filter(item =>
+            item.status === "완료"
+        ).length;
+
+    return {
+
+        total:
+            counseling.length,
+
+        completed,
+
+        rate:
+            percent(
+                completed,
+                counseling.length
+            )
+
+    };
+
+}
+
+// ============================================
+// 보고서 승인율
+// ============================================
+
+export function calculateReportRate() {
+
+    const {
+        assessments
+    } = getStatisticsSource();
+
+    const approved =
+        assessments.filter(item =>
+            item.reportApproved
+        ).length;
+
+    return {
+
+        total:
+            assessments.length,
+
+        approved,
+
+        rate:
+            percent(
+                approved,
+                assessments.length
+            )
+
+    };
+
+}
+
+// ============================================
+// AI 상담 이용률
+// ============================================
+
+export function calculateAiUsageRate() {
+
+    const {
+        counseling
+    } = getStatisticsSource();
+
+    const aiCount =
+        counseling.filter(item =>
+            item.method === "AI 상담(비대면)"
+        ).length;
+
+    return {
+
+        total:
+            counseling.length,
+
+        aiCount,
+
+        rate:
+            percent(
+                aiCount,
+                counseling.length
+            )
+
+    };
+
+}
+
+// ============================================
+// TODAY KPI
+// ============================================
+
+export function buildTodayStatistics() {
+
+    const dashboard =
+        buildDashboardData();
+
+    return {
+
+        cards: [
+
+            {
+
+                title:
+                    "예약",
+
+                value:
+                    dashboard.reservations
+
+            },
+
+            {
+
+                title:
+                    "상담",
+
+                value:
+                    dashboard.counseling
+
+            },
+
+            {
+
+                title:
+                    "검사",
+
+                value:
+                    dashboard.assessments
+
+            },
+
+            {
+
+                title:
+                    "내담자",
+
+                value:
+                    dashboard.clients
+
+            }
+
+        ]
+
+    };
+
+}
+
+// ============================================
+// Dashboard KPI
+// ============================================
+
+export function buildDashboardStatistics() {
+
+    return {
+
+        dashboard:
+            buildDashboardData(),
+
+        reservation:
+            calculateReservationRate(),
+
+        counseling:
+            calculateCounselingRate(),
+
+        report:
+            calculateReportRate(),
+
+        aiUsage:
+            calculateAiUsageRate()
+
+    };
+
+}
+
+// ============================================
+// 월별 성장률
+// ============================================
+
+export function calculateMonthlyGrowth() {
+
+    const {
+
+        monthlyReservations
+
+    } = buildDashboardData();
+
+    const months =
+        Object.keys(
+            monthlyReservations
+        ).sort();
+
+    return months.map((month, index) => {
+
+        const current =
+            monthlyReservations[
+                month
+            ];
+
+        const previous =
+            index === 0
+                ? current
+                : monthlyReservations[
+                    months[index - 1]
+                ];
+
+        return {
+
+            month,
+
+            value:
+                current,
+
+            growth:
+                percent(
+                    current - previous,
+                    previous || 1
+                )
+
+        };
+
+    });
+
+}
+
+// ============================================
+// 전체 통계
+// ============================================
+
+export function buildStatistics() {
+
+    return {
+
+        today:
+            buildTodayStatistics(),
+
+        dashboard:
+            buildDashboardStatistics(),
+
+        monthlyGrowth:
+            calculateMonthlyGrowth()
+
+    };
+
+}

@@ -1,0 +1,178 @@
+// ============================================
+// 전자차트 이벤트
+// ============================================
+
+import {
+    createChart,
+    deleteChart
+} from "./chart-service.js";
+
+// ============================================
+// 이벤트 등록
+// ============================================
+
+export function registerChartEvents(root = document) {
+
+    // 차트 열기
+    root.querySelectorAll("[data-action='open-chart']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "chart:open",
+                        {
+                            detail: {
+                                id: button.dataset.id
+                            }
+                        }
+                    )
+                );
+
+            });
+
+        });
+
+    // 수정
+    root.querySelectorAll("[data-action='edit-chart']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "chart:edit",
+                        {
+                            detail: {
+                                id: button.dataset.id
+                            }
+                        }
+                    )
+                );
+
+            });
+
+        });
+
+    // 새 차트 생성
+    root.querySelectorAll("[data-action='new-chart']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "chart:new"
+                    )
+                );
+
+            });
+
+        });
+
+    // 차트 삭제
+    root.querySelectorAll("[data-action='delete-chart']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                if (!confirm("전자차트를 삭제하시겠습니까?")) {
+
+                    return;
+
+                }
+
+                deleteChart(
+                    button.dataset.id
+                );
+
+            });
+
+        });
+
+    // 검사결과 보기
+    root.querySelectorAll("[data-action='assessment-result']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "chart:assessment",
+                        {
+                            detail: {
+                                id: button.dataset.id
+                            }
+                        }
+                    )
+                );
+
+            });
+
+        });
+
+    // 보고서 보기
+    root.querySelectorAll("[data-action='report']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "chart:report",
+                        {
+                            detail: {
+                                id: button.dataset.id
+                            }
+                        }
+                    )
+                );
+
+            });
+
+        });
+
+    // 상담기록 보기
+    root.querySelectorAll("[data-action='counseling']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "chart:counseling",
+                        {
+                            detail: {
+                                id: button.dataset.id
+                            }
+                        }
+                    )
+                );
+
+            });
+
+        });
+
+    // AI 상담기록 보기
+    root.querySelectorAll("[data-action='ai-counseling']")
+        .forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "chart:ai",
+                        {
+                            detail: {
+                                id: button.dataset.id
+                            }
+                        }
+                    )
+                );
+
+            });
+
+        });
+
+}

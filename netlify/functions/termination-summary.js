@@ -17,6 +17,7 @@ function buildPrompt(body) {
 제공된 기록만 사용하고, 근거가 부족하면 "추가 확인 필요"라고 작성하세요.
 진단을 새로 내리거나 확정적 표현을 사용하지 마세요. 내담자의 변화와 강점, 남은 어려움, 사후관리 계획을 균형 있게 정리하세요.
 쉬운 한국어로 구체적이고 전문적으로 작성하세요.
+종결은 좋은 말로 끝내는 것이 아니라, 내담자가 실제 생활에서 이어갈 수 있는 회복자원과 작은 행동을 분명히 남기도록 작성하세요.
 
 내담자: ${clean(body.clientName,100)}
 프로그램: ${clean(body.program,200)}
@@ -46,7 +47,14 @@ ${clean(JSON.stringify(body.existing||{}),4000)||'없음'}
   "remaining": "남아 있는 어려움, 재발 가능 상황, 추가 확인이 필요한 부분을 조건부 표현으로 작성",
   "recommendation": "종결 이후 유지하면 좋은 자기돌봄·관계·생활 실천을 구체적으로 제안",
   "followUp": "추후 상담 재개 기준, 점검 시기, 위기 시 도움 요청 계획을 포함한 사후관리 계획",
-  "clientFeedback": "내담자에게 종결 시 확인할 피드백 질문 2~4개"
+  "clientFeedback": "내담자에게 종결 시 확인할 피드백 질문 2~4개",
+  "recoveryCompass": {
+    "todayUnderstanding": "상담을 통해 이해하게 된 핵심",
+    "strength": "근거가 확인된 강점",
+    "recoveryResource": "도움이 된 사람·환경·대처자원",
+    "smallAction": "이번 주 실천 가능한 한 가지",
+    "returnSignal": "상담 재개 또는 추가 도움을 고려할 신호"
+  }
 }`;
 }
 
@@ -83,6 +91,13 @@ export const handler=async(event)=>{
     catch{return jsonResponse({error:"AI 종결요약 형식을 해석하지 못했습니다. 다시 생성해 주세요."},502);}
     const fields=["reason","summary","progress","remaining","recommendation","followUp","clientFeedback"];
     const termination=Object.fromEntries(fields.map(k=>[k,clean(parsed[k],7000)]));
-    return jsonResponse({termination,model:result.model,promptVersion:"v1-clinician-review-required"});
+    termination.recoveryCompass = {
+      todayUnderstanding: clean(parsed?.recoveryCompass?.todayUnderstanding, 3000),
+      strength: clean(parsed?.recoveryCompass?.strength, 3000),
+      recoveryResource: clean(parsed?.recoveryCompass?.recoveryResource, 3000),
+      smallAction: clean(parsed?.recoveryCompass?.smallAction, 3000),
+      returnSignal: clean(parsed?.recoveryCompass?.returnSignal, 3000)
+    };
+    return jsonResponse({termination,model:result.model,promptVersion:"mml-v1-termination-recovery-compass"});
   }catch(error){console.error("[TERMINATION SUMMARY]",error.detail||error);return jsonResponse({error:"AI 종결요약 생성 중 오류가 발생했습니다."},500);}
 };

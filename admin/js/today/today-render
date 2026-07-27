@@ -1,0 +1,410 @@
+// ============================================
+// TODAY 화면 렌더링
+// ============================================
+
+function escapeHtml(value = "") {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+// ============================================
+// 우선순위 배지
+// ============================================
+
+function priorityBadge(priority) {
+
+    const config = {
+        high: {
+            text: "높음",
+            className: "badge-danger"
+        },
+        normal: {
+            text: "보통",
+            className: "badge-primary"
+        },
+        low: {
+            text: "낮음",
+            className: "badge-secondary"
+        }
+    };
+
+    const badge =
+        config[priority] ||
+        config.normal;
+
+    return `
+        <span class="${badge.className}">
+            ${badge.text}
+        </span>
+    `;
+
+}
+
+// ============================================
+// TODAY 업무 카드
+// ============================================
+
+export function createTaskCard(task) {
+
+    return `
+
+<div class="today-task-card">
+
+    <div class="today-task-header">
+
+        ${priorityBadge(task.priority)}
+
+        <h4>
+
+            ${escapeHtml(task.title)}
+
+        </h4>
+
+    </div>
+
+    <div class="today-task-body">
+
+        ${escapeHtml(task.description)}
+
+    </div>
+
+    <div class="today-task-footer">
+
+        <button
+            data-action="today-task-complete"
+            data-id="${task.id}"
+        >
+
+            완료
+
+        </button>
+
+        <button
+            data-action="${task.action}"
+            data-id="${task.reservationId}"
+
+        >
+
+            바로가기
+
+        </button>
+
+    </div>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// 오늘 예약 카드
+// ============================================
+
+export function createTodayReservationCard(item) {
+
+    return `
+
+<div class="today-reservation-card">
+
+    <div class="today-time">
+
+        ${escapeHtml(item.time)}
+
+    </div>
+
+    <div class="today-client">
+
+        <strong>
+
+            ${escapeHtml(item.name || item.clientName)}
+
+        </strong>
+
+    </div>
+
+    <div>
+
+        ${escapeHtml(item.program)}
+
+    </div>
+
+    <div>
+
+        ${escapeHtml(item.method)}
+
+    </div>
+
+    <button
+
+        data-action="open-reservation"
+
+        data-id="${item.id}"
+
+    >
+
+        예약보기
+
+    </button>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// 오늘 상담 카드
+// ============================================
+
+export function createTodayCounselingCard(item) {
+
+    return `
+
+<div class="today-counseling-card">
+
+    <div>
+
+        <strong>
+
+            ${escapeHtml(item.time)}
+
+        </strong>
+
+    </div>
+
+    <div>
+
+        ${escapeHtml(item.clientName)}
+
+    </div>
+
+    <div>
+
+        ${escapeHtml(item.program)}
+
+    </div>
+
+    <button
+
+        data-action="start-counseling"
+
+        data-id="${item.reservationId}"
+
+    >
+
+        상담시작
+
+    </button>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// 업무목록
+// ============================================
+
+export function renderTodayTasks(
+    tasks,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    if (!tasks.length) {
+
+        container.innerHTML = `
+
+<div class="empty-state">
+
+오늘 해야 할 업무가 없습니다.
+
+</div>
+
+`;
+
+        return;
+
+    }
+
+    container.innerHTML =
+        tasks
+            .map(createTaskCard)
+            .join("");
+
+}
+
+// ============================================
+// 예약목록
+// ============================================
+
+export function renderTodayReservations(
+    reservations,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    if (!reservations.length) {
+
+        container.innerHTML = `
+
+<div class="empty-state">
+
+오늘 예약이 없습니다.
+
+</div>
+
+`;
+
+        return;
+
+    }
+
+    container.innerHTML =
+        reservations
+            .map(createTodayReservationCard)
+            .join("");
+
+}
+
+// ============================================
+// 상담목록
+// ============================================
+
+export function renderTodayCounselings(
+    counselings,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    if (!counselings.length) {
+
+        container.innerHTML = `
+
+<div class="empty-state">
+
+오늘 상담이 없습니다.
+
+</div>
+
+`;
+
+        return;
+
+    }
+
+    container.innerHTML =
+        counselings
+            .map(createTodayCounselingCard)
+            .join("");
+
+}
+
+// ============================================
+// TODAY 요약
+// ============================================
+
+export function renderTodaySummary(
+    summary,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    container.innerHTML = `
+
+<div class="today-summary-grid">
+
+    <div class="summary-card">
+
+        <div class="summary-value">
+
+            ${summary.reservationCount}
+
+        </div>
+
+        <div>
+
+            오늘 예약
+
+        </div>
+
+    </div>
+
+    <div class="summary-card">
+
+        <div class="summary-value">
+
+            ${summary.counselingCount}
+
+        </div>
+
+        <div>
+
+            오늘 상담
+
+        </div>
+
+    </div>
+
+    <div class="summary-card">
+
+        <div class="summary-value">
+
+            ${summary.taskCount}
+
+        </div>
+
+        <div>
+
+            해야 할 업무
+
+        </div>
+
+    </div>
+
+    <div class="summary-card">
+
+        <div class="summary-value">
+
+            ${summary.aiCounselingCount}
+
+        </div>
+
+        <div>
+
+            AI 상담
+
+        </div>
+
+    </div>
+
+</div>
+
+`;
+
+}

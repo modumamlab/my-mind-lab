@@ -1,0 +1,265 @@
+// ============================================
+// TODAY 이벤트
+// ============================================
+
+import {
+    completeTodayTask,
+    reopenTodayTask,
+    prepareCounselingStart,
+    getTodayChartLink,
+    refreshTodayData
+} from "./today-service.js";
+
+// ============================================
+// 공통 이벤트 전달
+// ============================================
+
+function dispatchTodayEvent(
+    name,
+    detail = {}
+) {
+    document.dispatchEvent(
+        new CustomEvent(
+            name,
+            {
+                detail
+            }
+        )
+    );
+}
+
+// ============================================
+// 액션 결과 처리
+// ============================================
+
+function handleResult(
+    result,
+    successEvent = ""
+) {
+    if (!result?.success) {
+        alert(
+            result?.message ||
+            "처리하지 못했습니다."
+        );
+
+        return false;
+    }
+
+    if (successEvent) {
+        dispatchTodayEvent(
+            successEvent,
+            result
+        );
+    }
+
+    return true;
+}
+
+// ============================================
+// 클릭 이벤트 위임
+// ============================================
+
+export function registerTodayEvents(
+    root = document
+) {
+    root.addEventListener(
+        "click",
+        event => {
+            const button =
+                event.target.closest(
+                    "[data-action]"
+                );
+
+            if (
+                !button ||
+                !root.contains(button)
+            ) {
+                return;
+            }
+
+            const action =
+                button.dataset.action;
+
+            const id =
+                button.dataset.id || "";
+
+            // 오늘 업무 완료
+            if (
+                action ===
+                "today-task-complete"
+            ) {
+                const result =
+                    completeTodayTask(id);
+
+                if (
+                    handleResult(
+                        result,
+                        "today:task-completed"
+                    )
+                ) {
+                    button
+                        .closest(
+                            ".today-task-card"
+                        )
+                        ?.remove();
+                }
+
+                return;
+            }
+
+            // 완료 업무 다시 열기
+            if (
+                action ===
+                "today-task-reopen"
+            ) {
+                const result =
+                    reopenTodayTask(id);
+
+                handleResult(
+                    result,
+                    "today:task-reopened"
+                );
+
+                return;
+            }
+
+            // 예약관리 열기
+            if (
+                action ===
+                "open-reservation"
+            ) {
+                dispatchTodayEvent(
+                    "today:open-reservation",
+                    {
+                        reservationId: id
+                    }
+                );
+
+                return;
+            }
+
+            // 심리평가센터 열기
+            if (
+                action ===
+                "open-assessment"
+            ) {
+                dispatchTodayEvent(
+                    "today:open-assessment",
+                    {
+                        reservationId: id
+                    }
+                );
+
+                return;
+            }
+
+            // 상담 시작
+            if (
+                action ===
+                "start-counseling"
+            ) {
+                const result =
+                    prepareCounselingStart(
+                        id
+                    );
+
+                if (
+                    !handleResult(
+                        result
+                    )
+                ) {
+                    return;
+                }
+
+                dispatchTodayEvent(
+                    "today:start-counseling",
+                    {
+                        reservationId:
+                            result
+                                .reservation
+                                .id,
+
+                        chartId:
+                            result.chart.id,
+
+                        reservation:
+                            result.reservation,
+
+                        chart:
+                            result.chart
+                    }
+                );
+
+                return;
+            }
+
+            // 전자차트 열기
+            if (
+                action ===
+                "open-chart"
+            ) {
+                const result =
+                    getTodayChartLink(id);
+
+                if (
+                    !handleResult(
+                        result
+                    )
+                ) {
+                    return;
+                }
+
+                dispatchTodayEvent(
+                    "today:open-chart",
+                    {
+                        reservationId:
+                            id,
+
+                        chartId:
+                            result.chartId,
+
+                        chart:
+                            result.chart
+                    }
+                );
+
+                return;
+            }
+
+            // AI 상담 열기
+            if (
+                action ===
+                "open-ai-counseling"
+            ) {
+                dispatchTodayEvent(
+                    "today:open-ai-counseling",
+                    {
+                        reservationId: id
+                    }
+                );
+
+                return;
+            }
+
+            // TODAY 새로고침
+            if (
+                action ===
+                "refresh-today"
+            ) {
+                const date =
+                    button.dataset.date ||
+                    undefined;
+
+                const data =
+                    refreshTodayData(
+                        date
+                    );
+
+                dispatchTodayEvent(
+                    "today:refreshed",
+                    data
+                );
+            }
+        }
+    );
+}

@@ -1,0 +1,240 @@
+// ============================================
+// Settings Events
+// ============================================
+
+import {
+    getSettings
+} from "./settings-store.js";
+
+import {
+    applySettings,
+    restoreDefaultSettings,
+    exportSettings,
+    importSettings
+} from "./settings-service.js";
+
+import {
+    renderSettingsForm,
+    collectSettingsForm
+} from "./settings-render.js";
+
+// ============================================
+// 이벤트 전달
+// ============================================
+
+function dispatch(name, detail = {}) {
+    document.dispatchEvent(
+        new CustomEvent(name, {
+            detail
+        })
+    );
+}
+
+// ============================================
+// 환경설정 초기 표시
+// ============================================
+
+export function initializeSettingsPage(
+    container
+) {
+    const settings =
+        getSettings();
+
+    renderSettingsForm(
+        settings,
+        container
+    );
+}
+
+// ============================================
+// 이벤트 등록
+// ============================================
+
+export function registerSettingsEvents(
+    root = document,
+    container = null
+) {
+
+    root.addEventListener("click", async (event) => {
+
+        const button =
+            event.target.closest("[data-action]");
+
+        if (!button) return;
+
+        const action =
+            button.dataset.action;
+
+        // --------------------------
+        // 저장
+        // --------------------------
+
+        if (action === "settings-save") {
+
+            const values =
+                collectSettingsForm();
+
+            const result =
+                applySettings(values);
+
+            dispatch(
+                "settings:saved",
+                result
+            );
+
+            if (result.success) {
+                alert("환경설정이 저장되었습니다.");
+            } else {
+                alert(result.message);
+            }
+
+            return;
+        }
+
+        // --------------------------
+        // 초기화
+        // --------------------------
+
+        if (action === "settings-reset") {
+
+            if (
+                !confirm(
+                    "환경설정을 기본값으로 초기화하시겠습니까?"
+                )
+            ) {
+                return;
+            }
+
+            const result =
+                restoreDefaultSettings();
+
+            if (container) {
+                renderSettingsForm(
+                    result.settings,
+                    container
+                );
+            }
+
+            dispatch(
+                "settings:reset",
+                result
+            );
+
+            alert("초기화되었습니다.");
+
+            return;
+        }
+
+        // --------------------------
+        // 내보내기
+        // --------------------------
+
+        if (action === "settings-export") {
+
+            const json =
+                exportSettings();
+
+            const blob =
+                new Blob(
+                    [json],
+                    {
+                        type:
+                            "application/json"
+                    }
+                );
+
+            const url =
+                URL.createObjectURL(
+                    blob
+                );
+
+            const a =
+                document.createElement("a");
+
+            a.href = url;
+
+            a.download =
+                "settings.json";
+
+            a.click();
+
+            URL.revokeObjectURL(
+                url
+            );
+
+            dispatch(
+                "settings:export"
+            );
+
+            return;
+        }
+
+        // --------------------------
+        // 가져오기
+        // --------------------------
+
+        if (action === "settings-import") {
+
+            const input =
+                document.createElement(
+                    "input"
+                );
+
+            input.type = "file";
+
+            input.accept = ".json";
+
+            input.onchange =
+                async () => {
+
+                    const file =
+                        input.files?.[0];
+
+                    if (!file) return;
+
+                    const text =
+                        await file.text();
+
+                    const result =
+                        importSettings(
+                            text
+                        );
+
+                    if (
+                        result.success &&
+                        container
+                    ) {
+
+                        renderSettingsForm(
+                            result.settings,
+                            container
+                        );
+
+                        alert(
+                            "환경설정을 가져왔습니다."
+                        );
+
+                    } else {
+
+                        alert(
+                            result.message
+                        );
+
+                    }
+
+                    dispatch(
+                        "settings:import",
+                        result
+                    );
+
+                };
+
+            input.click();
+
+            return;
+
+        }
+
+    });
+
+}

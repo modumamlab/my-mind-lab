@@ -1,0 +1,123 @@
+// ============================================
+// 공통 UI 함수
+// ============================================
+
+export function showAlert(message) {
+    alert(message);
+}
+
+export function showConfirm(message) {
+    return confirm(message);
+}
+
+export function showSuccess(message = '저장되었습니다.') {
+    alert(message);
+}
+
+export function showError(message = '오류가 발생했습니다.') {
+    alert(message);
+}
+
+export function showLoading(text = '처리 중입니다...') {
+    console.log(`[Loading] ${text}`);
+}
+
+export function hideLoading() {
+    console.log('[Loading] 완료');
+}
+
+// ============================================
+// Toast
+// ============================================
+
+export function showToast(message, type = "success") {
+
+    console.log(`[${type}]`, message);
+
+    if (window.showNotification) {
+        window.showNotification(message, type);
+        return;
+    }
+
+    alert(message);
+}
+
+// ============================================
+// Loading
+// ============================================
+
+export function showLoading(message = "처리 중입니다...") {
+
+    const loading = document.getElementById("global-loading");
+
+    if (!loading) return;
+
+    loading.style.display = "flex";
+
+    const text = loading.querySelector(".loading-text");
+
+    if (text) {
+        text.textContent = message;
+    }
+
+}
+
+export function hideLoading() {
+
+    const loading = document.getElementById("global-loading");
+
+    if (!loading) return;
+
+    loading.style.display = "none";
+
+}
+
+// ============================================
+// Modal
+// ============================================
+
+export function openModal(id) {
+
+    const modal = document.getElementById(id);
+
+    if (!modal) return;
+
+    modal.classList.remove("hidden");
+
+}
+
+export function closeModal(id) {
+
+    const modal = document.getElementById(id);
+
+    if (!modal) return;
+
+    modal.classList.add("hidden");
+
+}
+
+// ============================================
+// Confirm
+// ============================================
+
+export function confirmAction(message) {
+
+    return window.confirm(message);
+
+}
+
+// ============================================
+// Success / Error
+// ============================================
+
+export function success(message) {
+
+    showToast(message, "success");
+
+}
+
+export function error(message) {
+
+    showToast(message, "error");
+
+}

@@ -1,0 +1,337 @@
+// ============================================
+// 상담일지 이벤트
+// ============================================
+
+import {
+    createSession,
+    saveSession,
+    deleteSession,
+    saveTranscript,
+    saveAiSummary,
+    getSessionDetail
+} from "./session-service.js";
+
+// ============================================
+// 이벤트 전달
+// ============================================
+
+function dispatchSessionEvent(
+    name,
+    detail = {}
+) {
+
+    document.dispatchEvent(
+
+        new CustomEvent(
+
+            name,
+
+            {
+
+                detail
+
+            }
+
+        )
+
+    );
+
+}
+
+// ============================================
+// 이벤트 등록
+// ============================================
+
+export function registerSessionEvents(
+    root = document
+) {
+
+    root.addEventListener(
+        "click",
+        event => {
+
+            const button =
+                event.target.closest(
+                    "[data-action]"
+                );
+
+            if (!button) {
+
+                return;
+
+            }
+
+            const action =
+                button.dataset.action;
+
+            const id =
+                button.dataset.id;
+
+            // ----------------------------
+            // 새 상담일지
+            // ----------------------------
+
+            if (
+                action ===
+                "session-new"
+            ) {
+
+                const reservationId =
+                    button.dataset.reservationId;
+
+                const result =
+                    createSession(
+                        reservationId
+                    );
+
+                dispatchSessionEvent(
+                    "session:created",
+                    result
+                );
+
+                return;
+
+            }
+
+            // ----------------------------
+            // 저장
+            // ----------------------------
+
+            if (
+                action ===
+                "session-save"
+            ) {
+
+                const values = {
+
+                    referralReason:
+                        document.querySelector(
+                            "#referralReason"
+                        )?.value || "",
+
+                    counselingGoal:
+                        document.querySelector(
+                            "#counselingGoal"
+                        )?.value || "",
+
+                    counselingContent:
+                        document.querySelector(
+                            "#counselingContent"
+                        )?.value || "",
+
+                    counselingResult:
+                        document.querySelector(
+                            "#counselingResult"
+                        )?.value || "",
+
+                    nextPlan:
+                        document.querySelector(
+                            "#nextPlan"
+                        )?.value || "",
+
+                    transcript:
+                        document.querySelector(
+                            "#transcript"
+                        )?.value || ""
+
+                };
+
+                const result =
+                    saveSession(
+                        id,
+                        values
+                    );
+
+                dispatchSessionEvent(
+                    "session:saved",
+                    result
+                );
+
+                return;
+
+            }
+
+            // ----------------------------
+            // 삭제
+            // ----------------------------
+
+            if (
+                action ===
+                "session-delete"
+            ) {
+
+                if (
+                    !confirm(
+                        "상담일지를 삭제하시겠습니까?"
+                    )
+                ) {
+
+                    return;
+
+                }
+
+                const result =
+                    deleteSession(
+                        id
+                    );
+
+                dispatchSessionEvent(
+                    "session:deleted",
+                    result
+                );
+
+                return;
+
+            }
+
+            // ----------------------------
+            // 열기
+            // ----------------------------
+
+            if (
+                action ===
+                "session-open"
+            ) {
+
+                const session =
+                    getSessionDetail(
+                        id
+                    );
+
+                dispatchSessionEvent(
+                    "session:open",
+                    {
+
+                        session
+
+                    }
+
+                );
+
+                return;
+
+            }
+
+            // ----------------------------
+            // 수정
+            // ----------------------------
+
+            if (
+                action ===
+                "session-edit"
+            ) {
+
+                dispatchSessionEvent(
+                    "session:edit",
+                    {
+
+                        id
+
+                    }
+
+                );
+
+                return;
+
+            }
+
+            // ----------------------------
+            // 축어록 저장
+            // ----------------------------
+
+            if (
+                action ===
+                "session-transcript"
+            ) {
+
+                const transcript =
+                    document.querySelector(
+                        "#transcript"
+                    )?.value || "";
+
+                const result =
+                    saveTranscript(
+                        id,
+                        transcript
+                    );
+
+                dispatchSessionEvent(
+                    "session:transcript-saved",
+                    result
+                );
+
+                return;
+
+            }
+
+            // ----------------------------
+            // AI 회기요약
+            // ----------------------------
+
+            if (
+                action ===
+                "session-ai"
+            ) {
+
+                dispatchSessionEvent(
+                    "session:request-ai",
+                    {
+
+                        id
+
+                    }
+
+                );
+
+                return;
+
+            }
+
+            // ----------------------------
+            // AI 결과 저장
+            // ----------------------------
+
+            if (
+                action ===
+                "session-ai-save"
+            ) {
+
+                const aiResult = {
+
+                    summary:
+                        document.querySelector(
+                            "#aiSummary"
+                        )?.value || "",
+
+                    opinion:
+                        document.querySelector(
+                            "#aiOpinion"
+                        )?.value || "",
+
+                    recommendation:
+                        document.querySelector(
+                            "#aiRecommendation"
+                        )?.value || ""
+
+                };
+
+                const result =
+                    saveAiSummary(
+                        id,
+                        aiResult
+                    );
+
+                dispatchSessionEvent(
+                    "session:ai-saved",
+                    result
+                );
+
+                return;
+
+            }
+
+        }
+
+    );
+
+}

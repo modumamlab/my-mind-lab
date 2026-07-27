@@ -1,0 +1,124 @@
+// ============================================
+// Admin Compatibility Layer
+// 기존 admin.js와 새 모듈 연결
+// ============================================
+
+import { refreshStatistics } from "./statistics/statistics-events.js";
+import { initializeSettingsPage } from "./settings/settings-events.js";
+import { registerReservationEvents } from "./reservations/reservation-events.js";
+import { registerAssessmentEvents } from "./assessment/assessment-events.js";
+import { registerChartEvents } from "./chart/chart-events.js";
+import { registerTodayEvents } from "./today/today-events.js";
+import { registerSessionEvents } from "./counseling/session-events.js";
+import { registerAiEvents } from "./ai/ai-events.js";
+
+// ============================================
+// 공통 컨테이너
+// ============================================
+
+function getContainer(selector) {
+    return document.querySelector(selector);
+}
+
+// ============================================
+// 예약
+// ============================================
+
+export function initReservations() {
+    registerReservationEvents(document);
+}
+
+// ============================================
+// 심리검사
+// ============================================
+
+export function initAssessment() {
+    registerAssessmentEvents(document);
+}
+
+// ============================================
+// 전자차트
+// ============================================
+
+export function initChart() {
+    registerChartEvents(document);
+}
+
+// ============================================
+// TODAY
+// ============================================
+
+export function initToday() {
+    registerTodayEvents(document);
+}
+
+// ============================================
+// 상담
+// ============================================
+
+export function initCounseling() {
+    registerSessionEvents(document);
+}
+
+// ============================================
+// AI
+// ============================================
+
+export function initAi() {
+    registerAiEvents(document);
+}
+
+// ============================================
+// 환경설정
+// ============================================
+
+export function initSettings() {
+    const container = getContainer(
+        '[data-module="settings"]'
+    );
+
+    if (!container) return;
+
+    initializeSettingsPage(container);
+}
+
+// ============================================
+// 통계
+// ============================================
+
+export function initStatistics() {
+    const container = getContainer(
+        '[data-module="statistics"]'
+    );
+
+    if (!container) return;
+
+    refreshStatistics(container);
+}
+
+// ============================================
+// 전체 초기화
+// ============================================
+
+export function initializeCompatibilityLayer() {
+
+    initReservations();
+
+    initAssessment();
+
+    initChart();
+
+    initToday();
+
+    initCounseling();
+
+    initAi();
+
+    initSettings();
+
+    initStatistics();
+
+    console.info(
+        "[Compatibility] 기존 admin.js와 새 모듈 연결 완료"
+    );
+}

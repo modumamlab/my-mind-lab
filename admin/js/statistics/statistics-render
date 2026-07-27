@@ -1,0 +1,195 @@
+// ============================================
+// Statistics Render
+// 통계 화면 렌더링
+// ============================================
+
+function escapeHtml(value = "") {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+// ============================================
+// 숫자 카드
+// ============================================
+
+export function renderStatisticCards(
+    cards = [],
+    container
+) {
+    if (!container) return;
+
+    container.innerHTML = cards.map(card => `
+        <div class="statistics-card">
+            <div class="statistics-title">
+                ${escapeHtml(card.title)}
+            </div>
+
+            <div class="statistics-value">
+                ${escapeHtml(card.value)}
+            </div>
+        </div>
+    `).join("");
+}
+
+// ============================================
+// KPI
+// ============================================
+
+export function renderKpi(
+    data = {},
+    container
+) {
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="statistics-grid">
+
+            ${createRateCard(
+                "예약 승인율",
+                data.reservation
+            )}
+
+            ${createRateCard(
+                "상담 완료율",
+                data.counseling
+            )}
+
+            ${createRateCard(
+                "보고서 승인율",
+                data.report
+            )}
+
+            ${createRateCard(
+                "AI 상담 이용률",
+                data.aiUsage
+            )}
+
+        </div>
+    `;
+}
+
+function createRateCard(
+    title,
+    value = {}
+) {
+    return `
+        <div class="statistics-card">
+
+            <h3>${escapeHtml(title)}</h3>
+
+            <div class="statistics-rate">
+
+                ${value.rate ?? 0}%
+
+            </div>
+
+            <div class="statistics-detail">
+
+                ${value.approved ??
+                  value.completed ??
+                  value.aiCount ??
+                  0}
+
+                /
+
+                ${value.total ?? 0}
+
+            </div>
+
+        </div>
+    `;
+}
+
+// ============================================
+// 월별 성장률
+// ============================================
+
+export function renderMonthlyGrowth(
+    list = [],
+    container
+) {
+    if (!container) return;
+
+    container.innerHTML = `
+        <table class="statistics-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>월</th>
+
+                    <th>예약</th>
+
+                    <th>증감률</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                ${list.map(item => `
+
+                    <tr>
+
+                        <td>${escapeHtml(item.month)}</td>
+
+                        <td>${item.value}</td>
+
+                        <td>${item.growth}%</td>
+
+                    </tr>
+
+                `).join("")}
+
+            </tbody>
+
+        </table>
+    `;
+}
+
+// ============================================
+// Dashboard
+// ============================================
+
+export function renderDashboard(
+    statistics = {},
+    container
+) {
+    if (!container) return;
+
+    container.innerHTML = `
+
+        <section class="statistics-section">
+
+            <h2>대시보드</h2>
+
+            <div id="statisticsCards"></div>
+
+            <div id="statisticsKpi"></div>
+
+            <div id="statisticsGrowth"></div>
+
+        </section>
+
+    `;
+
+    renderStatisticCards(
+        statistics.today.cards,
+        container.querySelector("#statisticsCards")
+    );
+
+    renderKpi(
+        statistics.dashboard,
+        container.querySelector("#statisticsKpi")
+    );
+
+    renderMonthlyGrowth(
+        statistics.monthlyGrowth,
+        container.querySelector("#statisticsGrowth")
+    );
+}

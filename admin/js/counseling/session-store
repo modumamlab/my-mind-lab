@@ -1,0 +1,221 @@
+// ============================================
+// 상담일지 저장소
+// ============================================
+
+import {
+    loadJson,
+    saveJson
+} from "../core/storage.js";
+
+import {
+    STORAGE_KEYS
+} from "../core/constants.js";
+
+// ============================================
+// 전체 상담일지
+// ============================================
+
+export function getSessions() {
+
+    return loadJson(
+        STORAGE_KEYS.sessions,
+        []
+    );
+
+}
+
+// ============================================
+// 저장
+// ============================================
+
+export function saveSessions(
+    sessions
+) {
+
+    saveJson(
+        STORAGE_KEYS.sessions,
+        sessions
+    );
+
+}
+
+// ============================================
+// 단일 조회
+// ============================================
+
+export function getSession(id) {
+
+    return getSessions().find(
+
+        session =>
+            session.id === id
+
+    );
+
+}
+
+// ============================================
+// 예약번호 조회
+// ============================================
+
+export function getSessionsByReservation(
+    reservationId
+) {
+
+    return getSessions().filter(
+
+        session =>
+            session.reservationId === reservationId
+
+    );
+
+}
+
+// ============================================
+// 차트 조회
+// ============================================
+
+export function getSessionsByChart(
+    chartId
+) {
+
+    return getSessions().filter(
+
+        session =>
+            session.chartId === chartId
+
+    );
+
+}
+
+// ============================================
+// 추가
+// ============================================
+
+export function addSession(
+    session
+) {
+
+    const sessions =
+        getSessions();
+
+    sessions.push(session);
+
+    saveSessions(
+        sessions
+    );
+
+    return session;
+
+}
+
+// ============================================
+// 수정
+// ============================================
+
+export function updateSession(
+    id,
+    changes
+) {
+
+    const sessions =
+        getSessions();
+
+    const index =
+        sessions.findIndex(
+
+            session =>
+                session.id === id
+
+        );
+
+    if (index === -1) {
+
+        return false;
+
+    }
+
+    sessions[index] = {
+
+        ...sessions[index],
+
+        ...changes,
+
+        updatedAt:
+            new Date().toISOString()
+
+    };
+
+    saveSessions(
+        sessions
+    );
+
+    return true;
+
+}
+
+// ============================================
+// 삭제
+// ============================================
+
+export function removeSession(
+    id
+) {
+
+    const sessions =
+        getSessions().filter(
+
+            session =>
+                session.id !== id
+
+        );
+
+    saveSessions(
+        sessions
+    );
+
+}
+
+// ============================================
+// 전체 삭제
+// ============================================
+
+export function clearSessions() {
+
+    saveSessions([]);
+
+}
+
+// ============================================
+// 회기수 계산
+// ============================================
+
+export function getNextSessionNumber(
+    reservationId
+) {
+
+    const sessions =
+        getSessionsByReservation(
+            reservationId
+        );
+
+    if (!sessions.length) {
+
+        return 1;
+
+    }
+
+    return Math.max(
+
+        ...sessions.map(
+
+            session =>
+                Number(
+                    session.sessionNumber
+                ) || 1
+
+        )
+
+    ) + 1;
+
+}

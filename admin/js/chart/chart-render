@@ -1,0 +1,328 @@
+// ============================================
+// 전자차트 렌더링
+// ============================================
+
+function escapeHtml(value = "") {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+// ============================================
+// 검사목록
+// ============================================
+
+export function renderTests(chart) {
+
+    if (!chart.tests?.length) {
+
+        return "<span>-</span>";
+
+    }
+
+    return chart.tests
+        .map(test => `
+            <span class="chart-chip">
+                ${escapeHtml(test)}
+            </span>
+        `)
+        .join("");
+
+}
+
+// ============================================
+// 검사결과 목록
+// ============================================
+
+export function renderAssessmentResults(chart) {
+
+    if (!chart.assessmentResults?.length) {
+
+        return `
+            <div class="chart-empty">
+
+                업로드된 검사결과가 없습니다.
+
+            </div>
+        `;
+
+    }
+
+    return chart.assessmentResults
+        .map(result => `
+
+<div class="chart-item">
+
+    <strong>
+
+        ${escapeHtml(result.testName)}
+
+    </strong>
+
+    <div>
+
+        ${escapeHtml(result.summary || "")}
+
+    </div>
+
+</div>
+
+`)
+        .join("");
+
+}
+
+// ============================================
+// 보고서 목록
+// ============================================
+
+export function renderReports(chart) {
+
+    if (!chart.reports?.length) {
+
+        return `
+            <div class="chart-empty">
+
+                생성된 보고서가 없습니다.
+
+            </div>
+        `;
+
+    }
+
+    return chart.reports
+        .map(report => `
+
+<div class="chart-item">
+
+    <strong>
+
+        ${escapeHtml(report.title)}
+
+    </strong>
+
+    <div>
+
+        ${escapeHtml(report.status)}
+
+    </div>
+
+</div>
+
+`)
+        .join("");
+
+}
+
+// ============================================
+// 상담기록
+// ============================================
+
+export function renderCounseling(chart) {
+
+    if (!chart.counselingRecords?.length) {
+
+        return `
+            <div class="chart-empty">
+
+                상담기록이 없습니다.
+
+            </div>
+        `;
+
+    }
+
+    return chart.counselingRecords
+        .map(record => `
+
+<div class="chart-item">
+
+    <strong>
+
+        ${escapeHtml(record.session || "")}
+
+    </strong>
+
+    <div>
+
+        ${escapeHtml(record.summary || "")}
+
+    </div>
+
+</div>
+
+`)
+        .join("");
+
+}
+
+// ============================================
+// AI 상담기록
+// ============================================
+
+export function renderAiCounseling(chart) {
+
+    if (!chart.aiCounseling?.length) {
+
+        return `
+            <div class="chart-empty">
+
+                AI 상담기록이 없습니다.
+
+            </div>
+        `;
+
+    }
+
+    return chart.aiCounseling
+        .map(record => `
+
+<div class="chart-item">
+
+    <strong>
+
+        ${escapeHtml(record.date || "")}
+
+    </strong>
+
+    <div>
+
+        ${escapeHtml(record.summary || "")}
+
+    </div>
+
+</div>
+
+`)
+        .join("");
+
+}
+
+// ============================================
+// 전자차트 카드
+// ============================================
+
+export function createChartCard(chart) {
+
+    return `
+
+<div class="chart-card">
+
+    <div class="chart-header">
+
+        <h3>
+
+            ${escapeHtml(chart.clientName)}
+
+        </h3>
+
+        <div>
+
+            ${escapeHtml(chart.program)}
+
+        </div>
+
+    </div>
+
+    <div class="chart-section">
+
+        <h4>심리검사</h4>
+
+        ${renderTests(chart)}
+
+    </div>
+
+    <div class="chart-section">
+
+        <h4>검사결과</h4>
+
+        ${renderAssessmentResults(chart)}
+
+    </div>
+
+    <div class="chart-section">
+
+        <h4>보고서</h4>
+
+        ${renderReports(chart)}
+
+    </div>
+
+    <div class="chart-section">
+
+        <h4>상담기록</h4>
+
+        ${renderCounseling(chart)}
+
+    </div>
+
+    <div class="chart-section">
+
+        <h4>AI 상담</h4>
+
+        ${renderAiCounseling(chart)}
+
+    </div>
+
+    <div class="chart-footer">
+
+        <button
+            data-action="open-chart"
+            data-id="${chart.id}"
+        >
+            열기
+        </button>
+
+        <button
+            data-action="edit-chart"
+            data-id="${chart.id}"
+        >
+            수정
+        </button>
+
+    </div>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// 차트목록
+// ============================================
+
+export function renderChartList(
+    charts = [],
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    if (!charts.length) {
+
+        container.innerHTML = `
+
+<div class="chart-empty">
+
+전자차트가 없습니다.
+
+</div>
+
+`;
+
+        return;
+
+    }
+
+    container.innerHTML = charts
+        .map(createChartCard)
+        .join("");
+
+}

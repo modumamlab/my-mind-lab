@@ -1,0 +1,337 @@
+// ============================================
+// 상담일지 화면 렌더링
+// ============================================
+
+function escapeHtml(value = "") {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+// ============================================
+// 상담일지 카드
+// ============================================
+
+export function createSessionCard(session) {
+
+    return `
+
+<div class="session-card" data-id="${session.id}">
+
+    <div class="session-header">
+
+        <div>
+
+            <strong>
+
+                ${escapeHtml(session.clientName)}
+
+            </strong>
+
+            ·
+
+            ${session.sessionNumber}회기
+
+        </div>
+
+        <div>
+
+            ${escapeHtml(session.date)}
+
+        </div>
+
+    </div>
+
+    <div class="session-body">
+
+        <div>
+
+            <strong>프로그램</strong>
+
+            ${escapeHtml(session.program)}
+
+        </div>
+
+        <div>
+
+            <strong>상담방식</strong>
+
+            ${escapeHtml(session.counselingMethod)}
+
+        </div>
+
+        <div>
+
+            <strong>상담목표</strong>
+
+            ${escapeHtml(session.counselingGoal)}
+
+        </div>
+
+        <div>
+
+            <strong>AI 요약</strong>
+
+            ${escapeHtml(session.aiSummary)}
+
+        </div>
+
+    </div>
+
+    <div class="session-footer">
+
+        <button
+            data-action="session-open"
+            data-id="${session.id}"
+        >
+            열기
+        </button>
+
+        <button
+            data-action="session-edit"
+            data-id="${session.id}"
+        >
+            수정
+        </button>
+
+        <button
+            data-action="session-delete"
+            data-id="${session.id}"
+        >
+            삭제
+        </button>
+
+    </div>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// 상담일지 목록
+// ============================================
+
+export function renderSessionList(
+    sessions,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    if (!sessions.length) {
+
+        container.innerHTML = `
+
+<div class="empty-state">
+
+등록된 상담일지가 없습니다.
+
+</div>
+
+`;
+
+        return;
+
+    }
+
+    container.innerHTML =
+        sessions
+            .map(createSessionCard)
+            .join("");
+
+}
+
+// ============================================
+// 상담일지 작성 폼
+// ============================================
+
+export function renderSessionForm(
+    session,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    container.innerHTML = `
+
+<div class="session-form">
+
+    <label>
+
+        의뢰사유
+
+        <textarea id="referralReason">${escapeHtml(session.referralReason || "")}</textarea>
+
+    </label>
+
+    <label>
+
+        상담목표
+
+        <textarea id="counselingGoal">${escapeHtml(session.counselingGoal || "")}</textarea>
+
+    </label>
+
+    <label>
+
+        상담내용
+
+        <textarea id="counselingContent">${escapeHtml(session.counselingContent || "")}</textarea>
+
+    </label>
+
+    <label>
+
+        상담결과
+
+        <textarea id="counselingResult">${escapeHtml(session.counselingResult || "")}</textarea>
+
+    </label>
+
+    <label>
+
+        다음 회기 계획
+
+        <textarea id="nextPlan">${escapeHtml(session.nextPlan || "")}</textarea>
+
+    </label>
+
+    <label>
+
+        축어록
+
+        <textarea id="transcript">${escapeHtml(session.transcript || "")}</textarea>
+
+    </label>
+
+    <div class="session-form-buttons">
+
+        <button
+            data-action="session-save"
+            data-id="${session.id}"
+        >
+            저장
+        </button>
+
+        <button
+            data-action="session-ai"
+            data-id="${session.id}"
+        >
+            AI 회기요약
+        </button>
+
+    </div>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// AI 요약 카드
+// ============================================
+
+export function renderAiSummary(
+    session,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    container.innerHTML = `
+
+<div class="ai-summary-card">
+
+    <h3>
+
+        AI 회기 요약
+
+    </h3>
+
+    <p>
+
+        ${escapeHtml(session.aiSummary || "")}
+
+    </p>
+
+    <h3>
+
+        AI 상담 의견
+
+    </h3>
+
+    <p>
+
+        ${escapeHtml(session.aiOpinion || "")}
+
+    </p>
+
+    <h3>
+
+        AI 제언
+
+    </h3>
+
+    <p>
+
+        ${escapeHtml(session.aiRecommendation || "")}
+
+    </p>
+
+</div>
+
+`;
+
+}
+
+// ============================================
+// 회기 선택 목록
+// ============================================
+
+export function renderSessionSelector(
+    sessions,
+    container
+) {
+
+    if (!container) {
+
+        return;
+
+    }
+
+    container.innerHTML = `
+
+<select id="sessionSelector">
+
+${sessions.map(session => `
+
+<option value="${session.id}">
+
+${session.sessionNumber}회기 · ${escapeHtml(session.clientName)}
+
+</option>
+
+`).join("")}
+
+</select>
+
+`;
+
+}

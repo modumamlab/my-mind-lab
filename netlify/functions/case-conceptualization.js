@@ -19,6 +19,8 @@ function buildPrompt(body) {
 사실(내담자가 말한 내용/검사 결과)과 임상적 가설을 구분하고, 가설은 "~일 가능성을 함께 살펴볼 필요가 있습니다"처럼 조건부로 표현하세요.
 위험 관련 자료가 있으면 과장하지 말고 현재 안전 확인과 추가 평가 필요성을 명확히 적으세요.
 쉬운 한국어로 전문적이고 구체적으로 작성하며, 보호요인·강점·환경 맥락을 반드시 포함하세요.
+사례개념화는 현재 문제뿐 아니라 촉발요인, 유지요인, 회복자원, 내담자가 이미 시도한 변화와 다음 상담 방향이 연결되도록 작성하세요.
+기존 사례개념화가 있으면 새 자료로 확인된 내용, 달라진 내용, 여전히 불확실한 내용을 구분하세요.
 
 내담자: ${clean(body.clientName, 100)}
 프로그램: ${clean(body.program, 300)}
@@ -52,7 +54,10 @@ ${clean(JSON.stringify(body.existingFormulation || {}), 5000)}
   "protective": "가족·관계·생활자원·상담동기·안전요인 등 확인되는 보호요인과 추가 확인할 자원을 작성",
   "strength": "내담자의 강점, 대처 노력, 자기이해, 변화 가능성을 구체적 근거와 함께 작성",
   "goal": "단기·중기·장기 상담목표를 구분해 측정 가능한 방향으로 작성",
-  "intervention": "초기 1~2회기, 중기, 종결·사후관리 순서로 상담계획을 작성. 필요한 추가 면담·검사 해석·위험 확인 포함"
+  "intervention": "초기 1~2회기, 중기, 종결·사후관리 순서로 상담계획을 작성. 필요한 추가 면담·검사 해석·위험 확인 포함",
+  "confirmedChanges": "이전 기록과 비교해 새롭게 확인된 변화·실천·회복 신호. 비교자료가 없으면 추가 확인 필요",
+  "uncertainPoints": "근거가 부족하거나 서로 다른 자료가 있어 추가 확인이 필요한 내용",
+  "nextFocus": "다음 회기에서 우선적으로 확인하거나 다룰 주제 1~3개"
 }`;
 }
 
@@ -94,9 +99,9 @@ export const handler = async (event) => {
     let parsed;
     try { parsed = JSON.parse(result.text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim()); }
     catch { return jsonResponse({ error: "AI 사례개념화 형식을 해석하지 못했습니다. 다시 생성해 주세요." }, 502); }
-    const fields = ["complaint","currentProblem","trigger","maintaining","protective","strength","goal","intervention"];
+    const fields = ["complaint","currentProblem","trigger","maintaining","protective","strength","goal","intervention","confirmedChanges","uncertainPoints","nextFocus"];
     const formulation = Object.fromEntries(fields.map(k => [k, clean(parsed[k], 8000)]));
-    return jsonResponse({ formulation, model: result.model, promptVersion: "v1-clinician-review-required" });
+    return jsonResponse({ formulation, model: result.model, promptVersion: "mml-v1-case-formulation-clinician-review" });
   } catch (error) {
     console.error("[CASE CONCEPTUALIZATION]", error.detail || error);
     return jsonResponse({ error: "AI 사례개념화 생성 중 오류가 발생했습니다." }, 500);

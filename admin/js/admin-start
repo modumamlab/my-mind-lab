@@ -1,0 +1,283 @@
+// ============================================
+// Admin Start
+// 관리자 모듈 검사 후 안전하게 시작
+// ============================================
+
+import {
+    verifyAdminModules
+} from "./admin-module-check.js";
+
+import {
+    initializeAdminModules,
+    getAdminBootstrapState
+} from "./admin-bootstrap.js";
+
+// ============================================
+// 시작 상태
+// ============================================
+
+const startState = {
+    started: false,
+    completed: false,
+    moduleCheck: [],
+    bootstrap: null,
+    errors: []
+};
+
+// ============================================
+// 관리자 이벤트 전달
+// ============================================
+
+function dispatch(
+    name,
+    detail = {}
+) {
+    document.dispatchEvent(
+        new CustomEvent(name, {
+            detail
+        })
+    );
+}
+
+// ============================================
+// 오류 메시지 정리
+// ============================================
+
+function getErrorMessage(
+    error
+) {
+    if (
+        error instanceof Error
+    ) {
+        return error.message;
+    }
+
+    return String(error);
+}
+
+// ============================================
+// 모듈 검사 결과 출력
+// ============================================
+
+function printCheckResult(
+    result = []
+) {
+    console.group(
+        "관리자 모듈 검사 결과"
+    );
+
+    result.forEach(item => {
+        if (item.ok) {
+            console.log(
+                `✅ ${item.name}`
+            );
+
+            return;
+        }
+
+        console.error(
+            `❌ ${item.name}`,
+            item
+        );
+    });
+
+    console.groupEnd();
+}
+
+// ============================================
+// 검사 실패 모듈
+// ============================================
+
+function getFailedModules(
+    result = []
+) {
+    return result.filter(
+        item =>
+            item.ok !== true
+    );
+}
+
+// ============================================
+// 관리자 시작
+// ============================================
+
+export async function startAdmin() {
+    if (startState.started) {
+        return getAdminStartState();
+    }
+
+    startState.started = true;
+
+    dispatch(
+        "admin:start"
+    );
+
+    try {
+        // ------------------------------------
+        // 1. 모듈 검사
+        // ------------------------------------
+
+        const moduleCheck =
+            await verifyAdminModules();
+
+        startState.moduleCheck =
+            moduleCheck;
+
+        printCheckResult(
+            moduleCheck
+        );
+
+        const failedModules =
+            getFailedModules(
+                moduleCheck
+            );
+
+        dispatch(
+            "admin:module-check-complete",
+            {
+                result:
+                    moduleCheck,
+
+                failed:
+                    failedModules
+            }
+        );
+
+        // ------------------------------------
+        // 2. 정상 모듈 초기화
+        // ------------------------------------
+
+        const bootstrap =
+            await initializeAdminModules(
+                document
+            );
+
+        startState.bootstrap =
+            bootstrap;
+
+        startState.completed = true;
+
+        const result =
+            getAdminStartState();
+
+        dispatch(
+            "admin:ready",
+            result
+        );
+
+        console.info(
+            "[Admin Start] 관리자 모듈 초기화 완료",
+            result
+        );
+
+        return result;
+
+    } catch (error) {
+        const message =
+            getErrorMessage(
+                error
+            );
+
+        const failure = {
+            message,
+            time:
+                new Date().toISOString()
+        };
+
+        startState.errors.push(
+            failure
+        );
+
+        console.error(
+            "[Admin Start] 관리자 시작 오류",
+            error
+        );
+
+        dispatch(
+            "admin:start-error",
+            failure
+        );
+
+        return getAdminStartState();
+    }
+}
+
+// ============================================
+// 현재 상태 조회
+// ============================================
+
+export function getAdminStartState() {
+    return {
+        started:
+            startState.started,
+
+        completed:
+            startState.completed,
+
+        moduleCheck:
+            [...startState.moduleCheck],
+
+        bootstrap:
+            startState.bootstrap
+                ? {
+                    ...startState.bootstrap
+                }
+                : getAdminBootstrapState(),
+
+        errors:
+            [...startState.errors]
+    };
+}
+
+// ============================================
+// 실패한 모듈 이름 조회
+// ============================================
+
+export function getAdminFailedModules() {
+    return getFailedModules(
+        startState.moduleCheck
+    ).map(
+        item =>
+            item.name
+    );
+}
+
+// ============================================
+// 관리자 준비 여부
+// ============================================
+
+export function isAdminReady() {
+    return Boolean(
+        startState.completed &&
+        startState.errors.length === 0
+    );
+}
+
+// ============================================
+// 자동 시작
+// ============================================
+
+function autoStart() {
+    startAdmin()
+        .catch(error => {
+            console.error(
+                "[Admin Start] 자동 시작 실패",
+                error
+            );
+        });
+}
+
+if (
+    document.readyState ===
+    "loading"
+) {
+    document.addEventListener(
+        "DOMContentLoaded",
+        autoStart,
+        {
+            once: true
+        }
+    );
+} else {
+    autoStart();
+}
