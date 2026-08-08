@@ -98,7 +98,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260808-admin-direct-reservation-ui-v1',
+      src:'./js/modules/operations-workspace.js?v=20260808-ai-24h-booking-v3',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -107,7 +107,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260727-persistence-fix-v2',
+      src:'./js/admin.js?v=20260808-ai-24h-booking-v3',
       required:true
     },
     {

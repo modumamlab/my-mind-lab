@@ -813,6 +813,19 @@ function updateAdminReservationTimeOptions(){
 }
 window.updateAdminReservationTimeOptions=updateAdminReservationTimeOptions;
 
+
+function updateReservationTimeOptions(id){
+  const method=document.getElementById(`reservation-method-${id}`)?.value||'';
+  const select=document.getElementById(`reservation-time-${id}`);
+  if(!select)return;
+  const previous=select.value;
+  const times=counselingTimesForMethod(method);
+  select.innerHTML=times.map(t=>`<option value="${t}">${t}</option>`).join('');
+  if(times.includes(previous)) select.value=previous;
+  else if(times.length) select.value=times[0];
+}
+window.updateReservationTimeOptions=updateReservationTimeOptions;
+
 function approveReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));const caseNumber=r?.caseNumber||findExistingCaseNumber(r||{},state.reservations)||nextCaseNumber(r||{},state.reservations);updateReservation(id,{status:'예약승인',caseNumber,approvedAt:new Date().toLocaleString()});}
 function markPaymentComplete(id){updateReservation(id,{status:'결제완료',paidAt:new Date().toLocaleString()});}
 function sendTestLinks(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]=ts[t]&&ts[t]!=='미발송'?ts[t]:'발송완료');updateReservation(id,{status:'검사발송',testStatuses:ts,testLinksSentAt:new Date().toLocaleString()});}
