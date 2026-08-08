@@ -75,6 +75,20 @@ function dedupeReportText(value,globalSeen=[],options={}){
 function prepareIntegratedSource(source){
   const out={};
   const seen=[];
+  const structuredKeys=new Set([
+    'normalizedEvidence','clinicalSynthesisBlueprint','caseConceptualization',
+    'evidenceConfidence','conflictMap','clinicalReasoning','decisionTrace','revisionFeedback'
+  ]);
+  const compactStructured=(value,max=7000)=>{
+    try{
+      return JSON.parse(JSON.stringify(value,(key,item)=>{
+        if(typeof item==='string')return clean(item,1800);
+        return item;
+      }).slice(0,max));
+    }catch(_){
+      return clean(JSON.stringify(value||{}),max);
+    }
+  };
   for(const [key,value] of Object.entries(source&&typeof source==='object'?source:{})){
     if(key==='sourceInventory'&&Array.isArray(value)){
       out[key]=value.map(row=>{
@@ -89,6 +103,14 @@ function prepareIntegratedSource(source){
           cautions:dedupeReportText(row?.cautions||'',rowSeen,{threshold:.8})
         };
       });
+      continue;
+    }
+    if(structuredKeys.has(key)&&value&&typeof value==='object'){
+      out[key]=compactStructured(value,key==='revisionFeedback'?5000:8000);
+      continue;
+    }
+    if(value&&typeof value==='object'){
+      out[key]=compactStructured(value,6000);
       continue;
     }
     out[key]=dedupeReportText(value,seen,{threshold:.72});
@@ -174,10 +196,13 @@ ${clean(body.program,180)}
 ${clean(body.testNames||body.tests,1000)}
 
 [상담자용 AI 종합해석보고서 근거]
-${clean(prepareIntegratedSource(source),30000)}
+${JSON.stringify(prepareIntegratedSource(source),null,2).slice(0,42000)}
 
 [핵심 목표]
 - 단순 요약이 아니라, 검사 결과를 한 사람의 심리적 흐름으로 재구성합니다.
+- sourceInventory의 검사별 핵심결과를 실제 근거로 사용하고, normalizedEvidence·clinicalReasoning·decisionTrace의 근거 수준을 반영합니다.
+- caseConceptualization은 현재 기능을 설명하는 중심 틀로 사용하고, conflictMap의 차이는 평소 특성·최근 상태·상황별 반응의 관계로 해석합니다.
+- evidenceConfidence가 낮거나 validity에 제한이 있는 내용은 표현 강도를 낮추고 확정적으로 쓰지 않습니다.
 - 각 영역에서 “무엇이 확인되었는지 → 어떤 상황에서 어떻게 나타날 수 있는지 → 생활과 관계에서 어떤 의미가 있는지 → 어떤 보호요인과 주의점이 있는지”를 연결합니다.
 - 충분한 설명을 제공하되 같은 결론을 다른 영역에서 반복하지 않습니다.
 
@@ -202,54 +227,95 @@ ${clean(prepareIntegratedSource(source),30000)}
 - 전문적이되 내담자가 이해할 수 있는 쉬운 문장으로 씁니다.
 - 진단 확정, 낙인, 홍보문, 감성적 위로, 열린 질문, AI 안내문을 넣지 않습니다.
 
-[고정 영역과 최소 완성도]
+[주제별 재작성 원칙 — 가장 중요]
+- 보고서의 어느 영역도 앞에서 생성한 문장을 잘라서 옮기거나, 문단을 분리하거나, 표현만 바꾸어 재사용하지 않습니다.
+- 각 영역을 작성할 때마다 임상추론 프로파일과 sourceInventory로 다시 돌아가 그 영역에 해당하는 근거만 새로 선별합니다.
+- 먼저 영역별로 사용할 근거를 내부적으로 배정한 뒤 문장을 새로 작성합니다. 하나의 근거를 여러 영역의 핵심 결론으로 중복 사용하지 않습니다.
+- 같은 검사결과가 둘 이상의 영역과 관련될 때에는 한 영역을 '주 해석 영역'으로 정하고, 다른 영역에서는 꼭 필요한 연결 의미만 한 문장 이내로 사용합니다.
+- 각 영역은 제목만 읽어도 무엇을 설명하는지 명확해야 하며, 다른 영역의 내용을 대신 설명하지 않습니다.
+- 각 영역은 '핵심 결론 → 해당 주제의 검사 근거 → 그 주제 안에서의 심리적 의미 → 생활에서의 의미/조건' 순서로 하나의 완결된 해석을 만듭니다.
+- 문장 수를 채우기 위해 일반론을 추가하지 않습니다. 근거가 부족하면 짧고 정확하게 작성합니다.
+- 동일 결론을 여러 영역에서 반복하는 것을 금지합니다.
+- 내담자용 종합보고서는 검사 설명서가 아니라 검사결과를 주제별로 재구성한 심리평가 해석이어야 합니다.
+
+[영역별 근거 배정]
 1. clientCoreMind — 현재 마음의 핵심 모습
-   - 2개 문단, 총 5~7문장.
-   - 여러 검사에서 함께 확인된 핵심 흐름, 현재의 부담, 강점과 보호요인을 통합합니다.
-   - 보고서 전체의 결론 역할을 하되 뒤 영역의 세부 설명을 미리 반복하지 않습니다.
+   - 전체 결과에서 가장 설명력이 높은 핵심 심리 주제 2~3개만 선택하여 '이 사람을 전체적으로 어떻게 이해할 것인가'에 답합니다.
+   - 뒤 섹션 내용을 나열하거나 요약하지 않습니다.
+   - 현재 적응 수준, 중심 강점, 핵심 취약성이 서로 어떻게 작용하는지를 하나의 통합된 설명으로 새로 작성합니다.
 
 2. clientMindProfile — 마음 프로파일
-   - 3개 문단, 총 7~9문장.
-   - 기질·성격, 자기조절, 정서반응, 관계방식, 스트레스 대처, 회복자원을 균형 있게 설명합니다.
-   - 평소와 스트레스 상황에서 특성이 어떻게 달라질 수 있는지 연결합니다.
-   - 강점이 과도해질 때 부담이 되는 조건도 함께 설명합니다.
+   - 정서 / 사고 / 관계 / 스트레스 / 자기조절 / 회복자원 6개 영역을 각각 1~2문장의 상위 요약으로 작성합니다.
+   - 05 사고와 관계 방식, 06 스트레스와 일상생활에서 사용할 세부 해석을 여기서 반복하지 않습니다.
+   - '사고 및 자기이해', '관계와 감정표현', '스트레스 반응', '일상생활에서의 의미' 같은 세부 소제목 표현을 마음 프로파일 본문에 쓰지 않습니다.
+   - 각 영역은 핵심 특징 하나와 그 의미 하나만 간결하게 제시합니다.
+   - 같은 검사 근거나 같은 문장을 05·06에 다시 사용할 수 있도록 장문으로 확장하지 않습니다.
 
 3. clientIndividualTests — 개별검사 요약
-   - 실시한 각 검사명을 ‘■ 검사명’ 형식으로 구분합니다.
-   - 각 검사마다 2~4문장: 실제 핵심 결과, 생활 속 의미, 전체 통합해석에 기여한 근거를 작성합니다.
-   - 검사 목적만 설명하거나 모든 검사에 같은 문장을 반복하지 않습니다.
+   - 검사를 절대 합쳐 쓰지 않습니다. 실시한 각 검사명만 한 줄 소제목으로 구분합니다. 검사명 앞에 ■, ●, ▪, ▶ 같은 기호를 붙이지 않으며 [[MML_TEST:...]] 같은 내부 마커도 절대 출력하지 않습니다.
+   - 각 검사마다 '검사명'을 한 줄 제목으로 먼저 쓰고, 다음 줄에 그 검사에서 실제 확인된 핵심 결과와 의미를 3~5문장으로 요약합니다. 검사별 내용을 절대 한 문단으로 합치지 않습니다.
+   - MMPI-2 결과는 MMPI-2 자료만, TCI 결과는 TCI 자료만, PAI 결과는 PAI 자료만 사용합니다.
+   - 다른 검사 결과를 해당 검사 결과인 것처럼 설명하지 않고, 검사 목적·일반론으로 분량을 채우지 않습니다.
 
 4. clientEmotionState — 정서와 심리상태
-   - 2개 문단, 총 5~7문장.
-   - 현재 정서의 전반적 수준, 부담이 커지는 조건, 감정 표현·조절 방식, 신체적 반응 가능성, 일상 기능에 미치는 영향을 연결합니다.
-   - 안정적이라는 결론만 쓰지 말고 안정성을 유지하는 방식과 숨은 부담 가능성을 함께 설명합니다.
+   - 오직 현재 정서상태, 불안·우울·긴장·불편감, 감정 인식·표현·억제, 정서조절과 회복만 다룹니다.
+   - 현재 상태를 직접 측정하는 검사 근거를 우선하고 성향 자료는 정서반응의 배경 설명에 필요한 경우만 제한적으로 사용합니다.
+   - 관계 특성, 사고방식, 일반적인 생활 조언은 넣지 않습니다.
+   - '현재 정서 상태의 결론 → 근거 → 감정을 처리하는 방식 → 부담이 커질 조건과 정서적 의미'의 흐름으로 작성합니다.
 
 5. clientThinkingRelationship — 사고와 관계 방식
-   - 2개 문단, 총 5~7문장.
-   - 판단과 문제해결, 자기평가, 반추, 감정표현, 타인 신뢰, 경계 설정, 갈등대처, 관계유지 방식을 통합합니다.
-   - 강점과 취약점이 실제 관계 장면에서 어떻게 나타날 수 있는지 구체적으로 설명합니다.
+   - 정확히 두 주제로 처음부터 별도 작성합니다.
+   - '사고 및 자기이해:'라는 소제목 다음에 판단, 계획, 예측 가능성 선호, 새로운 정보·경험에 대한 접근, 자기평가, 인지적 유연성 등 사고와 자기이해만 작성합니다.
+   - '관계와 감정표현:'이라는 소제목 다음에 공감, 협력, 친밀감, 독립성, 자기주장, 욕구·감정표현, 경계설정, 갈등대처 등 대인관계만 작성합니다.
+   - 한 문단을 둘로 나누거나 서로의 문장을 재사용하지 않습니다.
 
 6. clientStressDaily — 스트레스와 일상생활
-   - 2개 문단, 총 5~7문장.
-   - 부담이 커지는 조건 → 생각·감정·행동 반응 → 어려움이 이어지는 이유 → 일상 기능의 영향 → 회복을 돕는 자원의 순서로 씁니다.
-   - 막연한 ‘스트레스 관리가 필요함’으로 끝내지 않습니다.
+   - 정확히 두 주제로 처음부터 별도 작성합니다.
+   - '스트레스 반응:'이라는 소제목 다음에 부담이 커지는 조건, 그때 나타날 수 있는 정서·인지·행동 반응, 대처 및 회복 양상만 작성합니다.
+   - '일상생활에서의 의미:'라는 소제목 다음에 앞의 반응과 심리특성이 실제 적응, 업무·학업, 역할 수행, 변화 대응, 생활 유지에 어떤 의미가 있는지만 작성합니다.
+   - 관계 특성이나 자기이해 내용을 다시 설명하지 않습니다.
+   - 두 블록은 '스트레스 상황에서의 반응 → 생활 기능에서의 의미'로 연결합니다.
 
 7. clientExpertRecovery — 전문가 제언 및 회복 방향
-   - 4개 번호 항목.
-   - 각 항목은 ‘제언 제목 → 검사결과와의 연결 이유 → 실제 적용 방법’의 3단계로 작성합니다.
-   - 강점 유지, 부담 누적 예방, 감정 표현·도움 요청, 관계 경계, 전문적 도움이 필요한 상황을 결과에 맞게 선택합니다.
-   - 일반적 생활수칙을 나열하지 않습니다.
+   - 앞의 결과를 다시 요약하지 않습니다.
+   - 실제 검사결과에서 확인된 취약성·부담 조건과 보호요인을 근거로 3~4개의 우선순위 제언을 작성합니다.
+   - 출력 형식은 반드시 “1. 구체적인 제언 제목: 제언 본문”, “2. 구체적인 제언 제목: 제언 본문”처럼 각 항목을 하나의 독립 항목으로 작성합니다.
+   - 각 제언은 서로 다른 목표를 가지며 본문은 '왜 필요한가 → 구체적으로 무엇을 할 것인가 → 기대되는 변화' 순서로 씁니다.
+   - 항목 번호는 1부터 연속으로 사용하며 문장 안에서 추가 번호를 사용하지 않습니다.
+   - 특별한 어려움이 확인되지 않은 영역에는 억지로 문제나 치료과제를 만들지 않습니다.
+   - 일반적인 조언은 개인 결과와 직접 연결되지 않으면 사용하지 않습니다.
 
 8. clientDisclaimer — 보고서 안내
-   - 2~3문장.
-   - 검사 결과만으로 진단을 확정하지 않으며 실제 경험과 상담자의 종합 판단이 필요하다는 안내를 작성합니다.
+   - 2~3문장으로 검사결과의 범위와 해석 한계를 안내합니다.
+   - 앞의 심리특성이나 제언을 다시 요약하지 않습니다.
+
+${source?.revisionFeedback ? `
+
+[이번 재작성에서 반드시 수정할 품질 이슈]
+${JSON.stringify(source.revisionFeedback,null,2).slice(0,6000)}
+` : ''}
+
+[기호 사용 기준]
+- 01~06 본문에는 ■, □, ●, ○, ▪, ▶, ◆ 같은 장식용 기호를 사용하지 않습니다.
+- 03 개별검사 요약은 기호 대신 검사명 자체를 소제목으로 사용합니다.
+- 05와 06은 소제목 뒤에 콜론(:)만 사용하며 대괄호 [ ]를 출력하지 않습니다.
+- 07 전문가 제언에서만 1., 2., 3. 순번을 사용합니다. 화면에서는 01, 02, 03의 동일한 번호 배지로 표시되므로 제목 안에 별도의 번호나 기호를 넣지 않습니다.
+- 문단 끝이나 문장 사이에 단독 기호를 절대 출력하지 않습니다.
 
 [문체 기준]
+- 모든 내담자 지칭은 반드시 '내담자님'으로 통일합니다. '당신', '귀하', '내담자'를 혼용하지 않습니다.
+- 각 영역의 첫 문장은 제목에 직접 답하는 핵심 결론으로 시작합니다.
+- 다음 문장들은 그 결론의 검사 근거 → 일상에서의 표현 → 심리적 의미 → 조건 또는 예외 순으로 자연스럽게 이어갑니다.
+- 문단이 바뀌더라도 앞 문단과 의미가 이어져야 하며, 제목과 무관한 새로운 화제로 갑자기 전환하지 않습니다.
+- 같은 결론을 다른 표현으로 반복하지 말고, 다음 문장은 반드시 새로운 근거·조건·생활 맥락을 더합니다.
 - 결과 → 생활에서의 표현 → 임상적 의미 순서로 연결합니다.
 - 단정 대신 ‘나타날 수 있습니다’, ‘가능성이 있습니다’, ‘함께 살펴볼 필요가 있습니다’를 적절히 사용합니다.
 - 동일한 문장 시작을 반복하지 않습니다.
 - ‘강점입니다’, ‘도움이 됩니다’, ‘중요합니다’로 끝나는 짧은 문장을 연속해서 쓰지 않습니다.
 - 각 영역은 충분히 구체적이고 독립적으로 읽혀야 합니다.
+- 최종 출력 전 01~07 전체를 비교하여 동일한 결론·예시·문장이 다른 영역에 반복되면 주 해석 영역 한 곳만 남기고 나머지는 해당 주제의 다른 근거로 다시 작성합니다.
+- 각 문장이 바로 위 제목에 답하는지 확인하고, 제목을 바꾸어도 그대로 성립하는 일반적인 문장은 삭제하거나 해당 주제에 맞게 다시 씁니다.
+- 전체 흐름은 01 전체 이해 → 02 영역별 프로파일 → 03 검사별 근거 → 04 정서 → 05 사고·관계 → 06 스트레스·생활 → 07 제언으로 점차 구체화되어야 합니다.
 
 JSON만 반환하십시오.`;
 }
@@ -724,7 +790,7 @@ function quality(report,body){
   return [...new Set(issues)];
 }
 
-export const handler=async(event)=>{if(event.httpMethod==='OPTIONS')return jsonResponse({},200);if(event.httpMethod!=='POST')return jsonResponse({error:'POST only'},405);try{const body=JSON.parse(event.body||'{}');if(!clean(body.clientName))return jsonResponse({error:'회원 정보가 없습니다.'},400);if(body.mode==='rewrite-client-from-integrated'){const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';if(!apiKey)return jsonResponse({error:'AI 보고서 생성 환경변수가 설정되지 않았습니다.'},500);if(!body.integratedReport||!clean(body.integratedReport,30000))return jsonResponse({error:'재작성할 통합보고서 내용이 없습니다.'},400);const r=await callFast(apiKey,integratedRewritePrompt(body),CLIENT_REWRITE_SCHEMA);const sanitized=sanitizeClientRewrite(r.data||{});return jsonResponse({report:sanitized,model:r.model,promptVersion:'mml-client-composer-v5.1-balanced-clinical-authoring',rewritten:true,needsReview:true});}if(!Array.isArray(body.tests)||!body.tests.length)return jsonResponse({error:'검사별 분석 자료가 없습니다.'},400);if(body.tests.some(t=>!t.reviewed))return jsonResponse({error:'모든 검사별 분석을 상담자가 검토 완료한 뒤 생성해 주세요.'},400);const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';
+export const handler=async(event)=>{if(event.httpMethod==='OPTIONS')return jsonResponse({},200);if(event.httpMethod!=='POST')return jsonResponse({error:'POST only'},405);try{const body=JSON.parse(event.body||'{}');if(!clean(body.clientName))return jsonResponse({error:'회원 정보가 없습니다.'},400);if(body.mode==='rewrite-client-from-integrated'){const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';if(!apiKey)return jsonResponse({error:'AI 보고서 생성 환경변수가 설정되지 않았습니다.'},500);if(!body.integratedReport||!clean(body.integratedReport,30000))return jsonResponse({error:'재작성할 통합보고서 내용이 없습니다.'},400);const r=await callFast(apiKey,integratedRewritePrompt(body),CLIENT_REWRITE_SCHEMA);const sanitized=sanitizeClientRewrite(r.data||{});return jsonResponse({report:sanitized,model:r.model,promptVersion:'mml-client-composer-v7.0-topic-rewrite-whole-report',rewritten:true,needsReview:true});}if(!Array.isArray(body.tests)||!body.tests.length)return jsonResponse({error:'검사별 분석 자료가 없습니다.'},400);if(body.tests.some(t=>!t.reviewed))return jsonResponse({error:'모든 검사별 분석을 상담자가 검토 완료한 뒤 생성해 주세요.'},400);const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';
   const profile=localClinicalProfile(body);
   let generated=null;let model='local-fallback';
   if(apiKey){try{const r=await callFast(apiKey,reportPrompt(body,profile),REPORT_SCHEMA);generated=r.data;model=r.model;}catch(aiError){console.warn('[MML fast fallback]',aiError?.message||aiError);}}

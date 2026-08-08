@@ -1,4 +1,4 @@
-console.info('[MML] ASSESSMENT-REPORTS-MODULE-V28 loaded');
+console.info('[MML] ASSESSMENT-REPORTS-SIGNATURE-S25 loaded');
 
 function detailedReportTemplate(testType, reportType) {
   const admin = reportType === "관리자용";
@@ -1063,18 +1063,27 @@ function buildClientReportEvidencePackage(source){
       sectionRoles:{
         clientCoreMind:'여러 검사에서 가장 중요한 핵심 2~3가지와 현재 부담·강점의 균형',
         clientMindProfile:'기질·성격, 현재 상태, 자기조절, 관계 및 회복자원을 하나의 흐름으로 통합',
-        clientIndividualTests:'검사별로 핵심 결과 → 일상에서의 의미 → 전체 해석에서의 역할',
+        clientIndividualTests:'각 검사를 서로 합치지 말고 검사별로 독립 요약. 반드시 각 검사명을 소제목으로 쓰고, 해당 검사에서 실제 확인된 핵심 결과만 2~4문장으로 정리. 다른 검사와의 연결·비교·통합적 역할 설명 금지.',
         clientEmotionState:'정서의 수준뿐 아니라 촉발 조건, 표현·조절 방식, 생활 영향',
-        clientThinkingRelationship:'사고 경향과 관계 방식의 장점, 갈등 시 어려움, 균형점',
-        clientStressDaily:'스트레스 상황 → 내적 반응 → 행동·일상 기능 → 회복자원',
-        clientExpertRecovery:'앞선 결과와 직접 연결된 3~5개 제언. 각 제언은 이유와 실제 적용 방법 포함'
+        clientThinkingRelationship:'반드시 [사고 및 자기이해]와 [관계와 감정표현] 두 주제를 각각 독립적으로 작성. 기존 한 문단을 둘로 나누지 말고, 각 주제에 해당하는 검사 근거를 다시 선별해 서로 다른 내용으로 작성.',
+        clientStressDaily:'반드시 [스트레스 반응]과 [일상생활에서의 의미] 두 주제를 각각 독립적으로 작성. 스트레스 반응에는 부담 상황에서의 정서·인지·대처 반응을, 일상생활에는 실제 기능·생활패턴·대처자원을 정리.',
+        clientExpertRecovery:'검사 결과에서 실제로 필요한 회복·적응 과제만 중요도 순으로 2~4개 작성. 각 항목은 반드시 구체적인 주제 제목 + 이 제언이 필요한 검사결과상의 이유 + 일상에서 바로 적용할 수 있는 구체적 방법으로 구성. 모든 내담자에게 같은 개수나 일반적인 자기관리 조언을 기계적으로 제시하지 않는다.'
       },
       rules:[
         '검사명을 나열한 뒤 같은 결론을 반복하지 않는다.',
         '각 영역은 다른 역할을 가지며 동일 문장을 재사용하지 않는다.',
         '근거가 없는 추정, 진단 확정, 과장된 표현을 금지한다.',
         '쉬운 언어를 사용하되 심리평가 보고서의 전문성을 유지한다.',
-        '짧은 결론만 쓰지 말고 근거와 생활 속 의미를 함께 설명한다.'
+        '짧은 결론만 쓰지 말고 근거와 생활 속 의미를 함께 설명한다.',
+        '개별검사 요약에서는 “종합해석에서는”, “근거가 됩니다”, “이해하는 데 도움이 됩니다”, “보완적인 정보를 제공합니다”, “전체 해석에서” 같은 메타 해설을 쓰지 않는다.',
+        '개별검사 요약은 MMPI-2 결과는 MMPI-2 결과만, TCI 결과는 TCI 결과만 쓰는 방식으로 각 검사를 완전히 분리한다.',
+        '사고와 관계 방식 및 스트레스와 일상생활은 문장을 기계적으로 절반으로 분리하지 말고 각 블록 주제에 맞춰 근거부터 다시 구성한다.',
+        '모든 내담자용 문장에서 호칭은 내담자님으로 통일하고 당신·귀하·내담자 혼용을 금지한다.',
+        '각 제목의 첫 문장은 해당 영역의 핵심 결론으로 시작하고, 다음 문장은 그 결론의 근거와 생활 속 의미를 이어 설명하여 제목과 본문이 끊겨 보이지 않게 한다.',
+        '문단 사이에는 같은 결론을 반복하지 말고 앞 문장의 의미를 확장하거나 조건·예외·생활 장면으로 자연스럽게 이어간다.',
+        '전문가 제언의 제목에 실천 방향, 회복 방향, 제언 1처럼 내용이 드러나지 않는 일반 제목을 사용하지 않는다.',
+        '전문가 제언은 검사결과에서 확인된 핵심 어려움·취약요인·보호요인과 직접 연결하고, 항목마다 왜 필요한지와 실제 적용 방법을 함께 제시한다.',
+        '전문가 제언은 실제 필요에 따라 2~4개만 제시하며, 근거 없는 상담 권유나 누구에게나 적용되는 수면·운동·스트레스 관리 같은 상투적 조언을 채우기 위해 추가하지 않는다.'
       ]
     }
   };
@@ -1167,6 +1176,14 @@ function buildClientCaseConceptualizationObject(evidence){
 
 function clientReportClinicalIssues(report,evidence){
   const issues=[];
+  const genericPatterns=[
+    /전반적으로 안정적(?:이|인)/g,
+    /도움이 될 수 있습니다/g,
+    /중요합니다/g,
+    /필요합니다/g,
+    /꾸준히 노력/g,
+    /스트레스 관리/g
+  ];
   const sections=['clientCoreMind','clientMindProfile','clientIndividualTests','clientEmotionState','clientThinkingRelationship','clientStressDaily','clientExpertRecovery'];
   const texts=sections.map(key=>cleanReportText(report?.[key]));
   const joined=texts.join(' ');
@@ -1181,18 +1198,62 @@ function clientReportClinicalIssues(report,evidence){
   if(!/(영향|이어지|지속|완충|보호|회복)/.test(joined))issues.push('스트레스 반응, 유지요인, 보호요인의 흐름이 부족함');
   const recovery=cleanReportText(report?.clientExpertRecovery);
   if(recovery&&!/(1[.)]|①|첫째|우선|구체|실천|방법)/.test(recovery))issues.push('전문가 제언에 구체적인 실행 방법이 부족함');
+  if((recovery.match(/실천\s*방향/g)||[]).length>=2)issues.push('전문가 제언 제목이 실천 방향으로 반복됨');
+  if((recovery.match(/회복\s*방향/g)||[]).length>=2)issues.push('전문가 제언 제목이 회복 방향으로 반복됨');
+  const numbered=(recovery.match(/(?:^|\n)\s*\d{1,2}[.)]\s*/g)||[]).length;
+  if(recovery&&(numbered<2||numbered>4))issues.push('전문가 제언은 검사결과에 따라 필요한 2~4개 항목으로 구성해야 함');
+  if(recovery&&/(?:^|\n)\s*\d{1,2}[.)]\s*(?:실천 방향|회복 방향|전문가 제언|제언)(?:\s|$)/m.test(recovery))issues.push('전문가 제언 제목이 일반적이어서 각 항목의 핵심 주제가 드러나지 않음');
+  const genericCount=genericPatterns.reduce((sum,pattern)=>sum+(joined.match(pattern)||[]).length,0);
+  if(genericCount>=9)issues.push('보고서가 일반적인 표현을 지나치게 반복함');
+  if(/당신(?:은|이|의|에게|을|과)|귀하(?:는|가|의|에게|를|와)|내담자(?:는|가|의|에게|를|와)/.test(joined))issues.push('내담자 호칭이 내담자님으로 통일되지 않음');
+  const coreText=cleanReportText(report?.clientCoreMind);
+  if(coreText&&mmlSentenceParts(coreText).length<4)issues.push('현재 마음의 핵심 모습이 제목과 충분히 연결될 만큼 설명되지 않음');
+  const emotionText=cleanReportText(report?.clientEmotionState);
+  if(emotionText&&mmlSentenceParts(emotionText).length<4)issues.push('정서와 심리상태의 해석 흐름이 짧거나 단절됨');
+  const mindProfileText=cleanReportText(report?.clientMindProfile);
+  if(/\[\[MML_TEST:|\]\]/.test(joined))issues.push('내부 검사 마커가 최종 보고서에 노출됨');
+  if(/사고\s*(?:및|와)\s*자기이해|관계\s*(?:와|및)\s*감정표현|스트레스\s*반응|일상생활에서의\s*의미/.test(mindProfileText))issues.push('마음 프로파일에 05·06 세부 소제목 내용이 중복됨');
+  const individual=cleanReportText(report?.clientIndividualTests);
+  if(testNames.length&&testNames.filter(name=>individual.includes(name)).length<Math.min(testNames.length,2))issues.push('개별검사 요약에 실제 검사별 근거가 충분히 구분되지 않음');
+  if(/종합해석에서는|근거가 됩니다|이해하는 데 도움이|보완적인 정보를 제공|전체 해석에서|종합해석에서의 의미/.test(individual))issues.push('개별검사 요약에 검사결과가 아닌 메타 해설 문장이 포함됨');
+  const thinkingRelationship=cleanReportText(report?.clientThinkingRelationship);
+  if(thinkingRelationship&&!/(사고 및 자기이해|사고와 자기이해)/.test(thinkingRelationship))issues.push('사고와 관계 방식에 사고 및 자기이해 독립 주제가 없음');
+  if(thinkingRelationship&&!/(관계와 감정표현|관계 및 감정표현)/.test(thinkingRelationship))issues.push('사고와 관계 방식에 관계와 감정표현 독립 주제가 없음');
+  const stressDaily=cleanReportText(report?.clientStressDaily);
+  if(stressDaily&&!/스트레스 반응/.test(stressDaily))issues.push('스트레스와 일상생활에 스트레스 반응 독립 주제가 없음');
+  if(stressDaily&&!/일상생활에서의 의미/.test(stressDaily))issues.push('스트레스와 일상생활에 일상생활에서의 의미 독립 주제가 없음');
+  const topicKeys=['clientCoreMind','clientMindProfile','clientEmotionState','clientThinkingRelationship','clientStressDaily'];
+  const topicTexts=topicKeys.map(key=>cleanReportText(report?.[key]));
+  const tokens=s=>new Set(String(s||'').replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(x=>x.length>=3));
+  const overlap=(a,b)=>{
+    const A=tokens(a),B=tokens(b);
+    if(!A.size||!B.size)return 0;
+    let common=0; for(const x of A)if(B.has(x))common++;
+    return common/Math.min(A.size,B.size);
+  };
+  for(let i=0;i<topicTexts.length;i++){
+    for(let j=i+1;j<topicTexts.length;j++){
+      if(topicTexts[i].length>180&&topicTexts[j].length>180&&overlap(topicTexts[i],topicTexts[j])>=0.58){
+        issues.push('보고서 영역 간 동일한 해석과 표현의 반복이 많아 주제별 재작성이 필요함');
+        i=topicTexts.length; break;
+      }
+    }
+  }
+  const core=cleanReportText(report?.clientCoreMind);
+  const formulation=cleanReportText(report?.clientStressDaily);
+  if(core&&formulation&&core.slice(0,90)===formulation.slice(0,90))issues.push('핵심 모습과 스트레스 영역이 같은 결론을 반복함');
   return [...new Set(issues)];
 }
 
 function clientReportQualityIssues(report){
   const fields=[
-    ['clientCoreMind','현재 마음의 핵심 모습',220],
-    ['clientMindProfile','마음 프로파일',360],
-    ['clientIndividualTests','개별검사 요약',360],
-    ['clientEmotionState','정서와 심리상태',260],
-    ['clientThinkingRelationship','사고와 관계 방식',260],
-    ['clientStressDaily','스트레스와 일상생활',260],
-    ['clientExpertRecovery','전문가 제언 및 회복 방향',320]
+    ['clientCoreMind','현재 마음의 핵심 모습',320],
+    ['clientMindProfile','마음 프로파일',480],
+    ['clientIndividualTests','개별검사 요약',520],
+    ['clientEmotionState','정서와 심리상태',360],
+    ['clientThinkingRelationship','사고와 관계 방식',360],
+    ['clientStressDaily','스트레스와 일상생활',360],
+    ['clientExpertRecovery','전문가 제언 및 회복 방향',460]
   ];
   const issues=[];
   for(const [key,label,min] of fields){
@@ -1241,7 +1302,13 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
   const source=integratedReportById(sourceId);
   if(!source){alert('심리평가센터의 AI 종합해석보고서를 찾지 못했습니다. 먼저 AI 해석보고서를 저장해 주세요.');return;}
   const rows=derivedAssessmentReports();
-  const old=rows.find(x=>String(x.sourceIntegratedReportId)===String(sourceId)&&x.audience===audience);
+  const old=rows.find(x=>
+    x.audience===audience &&
+    (
+      String(x.sourceIntegratedReportId)===String(sourceId) ||
+      (String(x.reservationId||'')===String(source.reservationId||'') && audience==='client')
+    )
+  );
 
   // BUILD 20260723-CLIENT-REPORT-COMPOSER-V4.0-RENDER-FIX
   // 생성 버튼은 기존 저장본 열기가 아니라 항상 현재 AI 종합해석보고서로 새 초안을 작성합니다.
@@ -1270,16 +1337,18 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
       rewritten=await requestRewrite(requestBody);
       const qualityIssues=[...clientReportQualityIssues(rewritten),...clientReportClinicalIssues(rewritten,sourcePayload)];
       if(qualityIssues.length){
-        rewritten=await requestRewrite({...requestBody,integratedReport:{...sourcePayload,revisionFeedback:{issues:[...new Set(qualityIssues)],instruction:'아래 품질 문제를 모두 수정하여 보고서 전체를 다시 작성하세요. caseConceptualization을 중심으로 현재 어려움, 안정적인 성격 특성, 최근 상태 변화, 스트레스 반응과 유지요인, 보호요인, 회복 우선순위를 하나의 흐름으로 정리하세요. evidenceConfidence의 신뢰도에 맞춰 표현 강도를 조절하고, conflictMap에 나타난 차이는 평소 특성·최근 상태·상황별 반응의 관계로 설명하세요. 검사별 문장을 이어 붙이지 말고 각 결론을 근거, 심리적 의미, 생활 속 표현, 강점 또는 주의점과 연결하세요. clinicalReasoning의 hypotheses와 clinicalPriorities를 따라 핵심 가설의 근거 수준을 구분하고, decisionTrace의 confidence와 reasoning을 반영하여 우선순위가 높은 문제부터 서술하세요. 전문가 제언에는 이유와 실제 적용 방법을 포함하세요.'}}});
+        rewritten=await requestRewrite({...requestBody,integratedReport:{...sourcePayload,revisionFeedback:{issues:[...new Set(qualityIssues)],instruction:'아래 품질 문제를 수정하여 보고서 전체를 다시 작성하세요. clientIndividualTests는 반드시 검사별 독립 요약으로 작성하십시오. 각 검사명 자체만 소제목으로 두고 ■, ●, ▪, ▶ 같은 기호는 사용하지 마십시오. 그 검사에서 확인된 핵심 결과만 2~4문장으로 요약하며 다른 검사와 합치거나 비교하지 마십시오. “종합해석에서는”, “근거가 됩니다”, “이해하는 데 도움이 됩니다”, “보완적인 정보를 제공합니다”, “전체 해석에서” 같은 메타 문장은 금지합니다. clientThinkingRelationship는 “사고 및 자기이해:”와 “관계와 감정표현:”을 각각 별도 근거와 별도 결론으로 새로 작성하고 한 문단을 반으로 나누지 마십시오. 대괄호나 장식기호는 사용하지 마십시오. clientStressDaily도 “스트레스 반응:”과 “일상생활에서의 의미:”를 각각 독립적으로 작성하고 대괄호나 장식기호는 사용하지 마십시오. 나머지 영역은 근거 수준에 맞게 작성하십시오. clientExpertRecovery는 검사결과에서 실제로 필요한 과제만 중요도 순으로 2~4개 작성하고, 각 항목을 ‘구체적인 주제 제목 → 검사결과에서 확인된 이유 → 일상에서의 실제 적용 방법’으로 구성하십시오. ‘실천 방향’, ‘회복 방향’, ‘제언 1’ 같은 일반 제목은 금지하며 모든 사람에게 같은 개수를 기계적으로 채우지 마십시오.'}}});
       }
     }
     const now=new Date().toISOString();
-    const baseSections=buildDerivedAssessmentSections(source,audience);
+    const baseSections=buildDerivedAssessmentSections(source,audience).map(section=>Array.isArray(section)?[...section]:section);
     const rewrittenMap=rewritten?{
       coreMind:rewritten.clientCoreMind,mindProfile:rewritten.clientMindProfile,individualTests:rewritten.clientIndividualTests,emotionState:rewritten.clientEmotionState,thinkingRelationship:rewritten.clientThinkingRelationship,stressDaily:rewritten.clientStressDaily,expertRecovery:rewritten.clientExpertRecovery,disclaimer:rewritten.clientDisclaimer
     }:{};
     const item={
       id:old?.id||Date.now(),sourceIntegratedReportId:source.id,audience,
+      approved:false,approvedForClient:false,approvedReportHtml:'',approvedReportHtmlVersion:0,approvedAt:'',approvedBy:'',publishedAt:'',
+      generationSessionId:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
       // Sprint 4: 내담자용 종합보고서는 생성 순간부터 canonical report 자체가 됩니다.
       // 승인 시 별도의 공개용 복제 보고서를 만들지 않고 이 동일 ID를 그대로 공개합니다.
       reportType:audience==='client'?'comprehensiveReport':'counselorComprehensiveReport',
@@ -1292,7 +1361,12 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
       userId:source.userId||source.memberId||source.clientId||old?.userId||'',
       program:source.program||'',tests:source.tests||[],
       reservationId:String(source.reservationId||old?.reservationId||''),
-      sections:baseSections.map(([key,label,text])=>({key,label,text:cleanReportText(rewrittenMap[key])||text})),
+      sections:baseSections.map(([key,label,text])=>{
+        const finalText=cleanReportText(rewrittenMap[key])||text;
+        if(key==='individualTests')return {key,label,text:finalText,items:parseIndividualTestItems(finalText)};
+        if(key==='expertRecovery')return {key,label,text:finalText,items:parseExpertRecoveryItems(finalText)};
+        return {key,label,text:finalText};
+      }),
       status:'draft',approved:false,reviewed:false,approvedForClient:false,publishedAt:'',
       version:Number(old?.version||0)+1,sourceVersion:Number(source.version||1),createdAt:old?.createdAt||now,updatedAt:now,
       previousVersion:old?{sections:old.sections||[],status:old.status||'draft',approvedForClient:Boolean(old.approvedForClient),publishedAt:old.publishedAt||'',updatedAt:old.updatedAt||''}:null,
@@ -1303,9 +1377,15 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
       clinicalReasoning:audience==='client'?buildClinicalReasoningEngine(buildClientReportEvidencePackage(source)):null,
       decisionTrace:audience==='client'?buildClinicalDecisionTrace(buildClientReportEvidencePackage(source)):null,
       selfReview:audience==='client'&&rewritten?buildClientReportSelfReview(rewritten,buildClientReportEvidencePackage(source)):null,
-      rewritePromptVersion:audience==='client'?'mml-client-composer-v5.9-decision-trace':''
+      rewritePromptVersion:audience==='client'?'mml-client-composer-v6.0-evidence-grounded-clinical-report':''
     };
-    const next=rows.filter(x=>String(x.id)!==String(item.id));
+    const next=rows.filter(x=>{
+      if(String(x.id)===String(item.id))return false;
+      if(audience==='client' &&
+         String(x.reservationId||'')===String(item.reservationId||'') &&
+         (x.comprehensiveReport===true || x.reportType==='comprehensiveReport' || x.derivedReportType==='clientComprehensiveReport')) return false;
+      return true;
+    });
     next.unshift(item);
     saveDerivedAssessmentReports(next);
 
@@ -1337,19 +1417,179 @@ const MML_TEST_REPORT_NAMES=[
   ['PHQ-9','PHQ-9 우울 선별검사'],
   ['GAD-7','GAD-7 불안 선별검사']
 ];
+
+function parseIndividualTestItems(value){
+  let text=String(value||'')
+    .replace(/\r/g,'\n')
+    .replace(/[■□▪▫◆◇●○▶▷►▸]+\s*/g,'')
+    .replace(/[ \t]+/g,' ')
+    .trim();
+  if(!text)return [];
+
+  // 이전 내부 마커가 있으면 마커를 제목 정보로만 사용합니다.
+  const marked=[];
+  const markerRe=/\[\[MML_TEST:([^\]]+)\]\]/g;
+  let mm;
+  while((mm=markerRe.exec(text)))marked.push({index:mm.index,end:markerRe.lastIndex,title:mm[1].trim()});
+  if(marked.length){
+    return marked.map((m,i)=>{
+      const end=i+1<marked.length?marked[i+1].index:text.length;
+      const body=text.slice(m.end,end).replace(/\[\[MML_TEST:[^\]]+\]\]/g,'').trim();
+      return {title:m.title,body};
+    }).filter(item=>item.body);
+  }
+
+  // 검사명 첫 출현 위치를 찾아 검사별 독립 블록으로 분리합니다.
+  const found=[];
+  for(const [code,title] of MML_TEST_REPORT_NAMES){
+    const aliases=[title,code];
+    let best=null;
+    for(const alias of aliases){
+      const escaped=alias.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      const pattern=new RegExp(`(?:^|\\s)(${escaped})(?=\\s|검사|결과|에서는|에서|[:：-]|$)`,'i');
+      const match=pattern.exec(text);
+      if(match){
+        const actualIndex=match.index+(match[0].length-match[1].length);
+        if(!best||actualIndex<best.index)best={index:actualIndex,end:actualIndex+match[1].length,title};
+      }
+    }
+    if(best)found.push(best);
+  }
+
+  found.sort((a,b)=>a.index-b.index);
+  const unique=found.filter((item,index,rows)=>index===0||item.index!==rows[index-1].index);
+  if(!unique.length)return [{title:'검사 결과 요약',body:text}];
+
+  return unique.map((m,i)=>{
+    const end=i+1<unique.length?unique[i+1].index:text.length;
+    let body=text.slice(m.end,end)
+      .replace(/^\s*(?:검사)?\s*(?:에서는|에서|결과는|결과에서는)?\s*[:：-]?\s*/,'')
+      .trim();
+    if(i===0&&m.index>0){
+      const intro=text.slice(0,m.index).trim();
+      if(intro)body=`${intro} ${body}`.trim();
+    }
+    return {title:m.title,body};
+  }).filter(item=>item.body);
+}
+
+function renderIndividualTestItems(section){
+  const sourceText=String(section?.text||'').trim();
+  const items=parseIndividualTestItems(sourceText||section?.items||[]);
+  return `<div class="mml-test-list">${items.map((item,index)=>`
+    <div class="mml-test-item" data-test-item="${index}">
+      <h4 class="mml-derived-test-title" data-test-title>${esc(item.title)}</h4>
+      <div class="mml-test-item-body" data-test-body>${mmlComposeParagraphs(item.body,{target:155,max:280,maxSentences:3}).map(p=>`<p>${esc(p)}</p>`).join('')}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
 function formatIndividualTestReportText(value){
-  let text=String(value||'').replace(/\r/g,' ').replace(/[ \t]+/g,' ').trim();
+  let text=String(value||'').replace(/\r/g,'\n').replace(/[ \t]+/g,' ').trim();
   if(!text)return '';
-  // 기존 기호와 검사 제목을 정규화하여 각 검사 결과가 독립된 문단으로 시작되게 합니다.
-  text=text.replace(/\s*[■◆▶]\s*/g,'\n\n■ ');
+
+  // 과거 보고서에 남은 장식 기호는 검사 구분 의미만 읽고 화면에는 출력하지 않습니다.
+  text=text
+    .replace(/[■□▪▫◆◇●○▶▷►▸]+\s*/g,' ')
+    .replace(/\n{3,}/g,'\n\n');
+
+  // 검사명은 화면용 기호가 아니라 내부 마커로만 구분합니다.
   for(const [code,title] of MML_TEST_REPORT_NAMES){
     const escaped=code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
     const full=title.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    const pattern=new RegExp(`(?:^|\\s|[,:;])(?:■\\s*)?(?:${full}|${escaped}(?:\\s*(?:기질\\s*및\\s*성격검사|다면적\\s*인성검사|다면적인성검사|성격평가검사|문장완성검사|집[·\\s]*나무[·\\s]*사람(?:\\s*그림검사)?|아동우울검사|양육스트레스검사|부모양육태도검사|우울\\s*선별검사|불안\\s*선별검사))?)(?:\\s*[:：-])?`,'gi');
-    text=text.replace(pattern,`\n\n■ ${title}\n`);
+    const pattern=new RegExp(`(?:^|\\n|\\s)(?:${full}|${escaped}(?:\\s*(?:기질\\s*및\\s*성격검사|다면적\\s*인성검사|다면적인성검사|성격평가검사|문장완성검사|집[·\\s]*나무[·\\s]*사람(?:\\s*그림검사)?|아동우울검사|양육스트레스검사|부모양육태도검사|우울\\s*선별검사|불안\\s*선별검사))?)(?:\\s*[:：-])?`,'i');
+    text=text.replace(pattern,`\n\n[[MML_TEST:${title}]]\n`);
   }
-  return text.replace(/^[\s\n]+/,'').replace(/\n{3,}/g,'\n\n').trim();
+
+  return text
+    .replace(/^[\s\n]+/,'')
+    .replace(/\n{3,}/g,'\n\n')
+    .trim();
 }
+
+function parseExpertRecoveryItems(value){
+  if(Array.isArray(value)){
+    return value.map((item,index)=>({
+      title:String(item?.title||'').replace(/^\s*\d{1,2}\s*[.．)]\s*/,'').trim()||`회복 방향 ${index+1}`,
+      body:String(item?.body||item?.text||'').replace(/^\s*\d{1,2}\s*[.．)]\s*/,'').trim()
+    })).filter(item=>item.body);
+  }
+
+  let text=String(value||'')
+    .replace(/\r/g,'\n')
+    .replace(/[■□▪▫◆◇●○▶▷►▸]+\s*/g,'')
+    .replace(/\[\[MML_TEST:[^\]]+\]\]/g,'')
+    .replace(/[ \t]+/g,' ')
+    .trim();
+  if(!text)return [];
+
+  // 번호는 여기서 단 한 번만 구조화에 사용합니다.
+  const marker=/(\d{1,2})\s*[.．)]\s+/g;
+  const matches=[];
+  let match;
+  while((match=marker.exec(text))){
+    // 1~9 정도의 실제 제언 번호만 사용하고, 문장 속 연도·소수점 등은 제외합니다.
+    const n=Number(match[1]);
+    if(n>=1&&n<=9)matches.push({index:match.index,end:marker.lastIndex,number:n});
+  }
+
+  const chunks=[];
+  if(matches.length){
+    matches.forEach((m,i)=>{
+      const end=i+1<matches.length?matches[i+1].index:text.length;
+      const body=text.slice(m.end,end).trim();
+      if(body)chunks.push(body);
+    });
+  }else{
+    chunks.push(...text.split(/\n\s*\n+/).map(v=>v.trim()).filter(Boolean));
+  }
+
+  const genericTitles=/^(?:실천\s*방향|회복\s*방향|전문가\s*제언|제언|실천|도움\s*방향)$/;
+  const titleFor=(body,index)=>{
+    const explicit=String(body).match(/^(.{3,36}?)(?:[:：]\s+|\s+-\s+)/);
+    if(explicit&&!genericTitles.test(explicit[1].trim()))return explicit[1].trim();
+
+    const first=(mmlSentenceParts(body)[0]||body).trim();
+    const quoted=first.match(/["“'‘]([^"”'’]{4,32})["”'’]/);
+    if(quoted?.[1])return quoted[1].trim();
+
+    const candidates=[
+      [/감정|느낌|표현/, '감정을 알아차리고 표현하기'],
+      [/변화|새로운|도전|유연/, '변화에 유연하게 적응하기'],
+      [/관계|욕구|경계|독립|공감/, '관계에서 균형 있게 표현하기'],
+      [/강점|안정|꾸준|자기조절|계획/, '현재의 강점을 안정적으로 활용하기'],
+      [/도움|상담|지지|요청/, '필요할 때 도움을 요청하기'],
+      [/스트레스|긴장|부담|회복/, '스트레스 신호를 조기에 알아차리기']
+    ];
+    for(const [pattern,title] of candidates)if(pattern.test(body))return title;
+
+    const phrase=first
+      .replace(/^(?:현재|일상에서|평소|검사결과에서|검사 결과에서)\s*/,'')
+      .replace(/[.!?。！？]+$/,'')
+      .trim();
+    return phrase.length>=4&&phrase.length<=32?phrase:`회복 방향 ${index+1}`;
+  };
+
+  return chunks.slice(0,5).map((body,index)=>{
+    let title=titleFor(body,index);
+    let cleaned=body;
+    const prefix=new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\s*[:：-]?\\s*`);
+    if(prefix.test(cleaned))cleaned=cleaned.replace(prefix,'').trim();
+    return {title,body:cleaned||body};
+  }).filter(item=>item.body);
+}
+
+function renderExpertRecoveryItems(section){
+  const sourceText=String(section?.text||'').trim();
+  const items=parseExpertRecoveryItems(sourceText||section?.items||[]);
+  return items.map((item,index)=>`
+    <div class="mml-derived-recovery-item" data-recovery-item="${index}">
+      <h4 class="mml-derived-recovery-title"><span>${String(index+1).padStart(2,'0')}</span><b data-recovery-title>${esc(item.title)}</b></h4>
+      <div data-recovery-body>${mmlComposeParagraphs(item.body,{target:165,max:290,maxSentences:3}).map(p=>`<p>${esc(p)}</p>`).join('')}</div>
+    </div>
+  `).join('');
+}
+
 function formatNumberedRecoveryText(value){
   let text=String(value||'').replace(/\r/g,'\n').replace(/[ \t]+/g,' ').trim();
   if(!text)return '';
@@ -1386,10 +1626,36 @@ function mmlComposeParagraphs(value,{target=170,max=300,maxSentences=3}={}){
   flush();
   return paragraphs;
 }
+
+function mmlNormalizeClientAddress(value,clientName=''){
+  let text=String(value||'');
+  const name=String(clientName||'').trim().replace(/님$/,'');
+  const escaped=name?name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'):'';
+  // 내담자용 전문보고서는 반복 호칭보다 무주어·중립 서술을 우선한다.
+  // 이름/내담자님/귀하/당신을 문장 주어로 반복하지 않고 자연스럽게 제거한다.
+  if(escaped){
+    text=text.replace(new RegExp(`${escaped}님?(?:은|는|이|가|의|에게|을|를|과|와)?\\s*`,'g'),'');
+  }
+  text=text
+    .replace(/내담자님?(?:은|는|이|가|의|에게|을|를|과|와)?\s*/g,'')
+    .replace(/귀하(?:는|가|의|에게|를|와)?\s*/g,'')
+    .replace(/당신(?:은|이|의|에게|을|과)?\s*/g,'')
+    .replace(/(^|[.!?]\s+)(은|는|이|가|을|를|의|에게|과|와)\s+/g,'$1')
+    .replace(/\s{2,}/g,' ')
+    .replace(/\s+([,.!?])/g,'$1')
+    .trim();
+  return text;
+}
+
 function mmlRepairBrokenPhrases(value){
-  return String(value||'')
+  return mmlNormalizeClientAddress(value)
     .replace(/\r/g,'\n')
-    // 따옴표 안이나 조사 앞에서 끊긴 임의 줄바꿈을 공백 하나로 복원합니다.
+    // 장식용 기호는 일반 본문에서 사용하지 않습니다.
+    .replace(/\[\[MML_TEST:[^\]]+\]\]/g,'')
+    .replace(/[■□▪▫◆◇●○▶▷►▸]+\s*/g,'')
+    // AI 내부 주제 표식은 최종 본문에 노출하지 않습니다.
+    .replace(/\[\s*(?:사고\s*(?:및|와)\s*자기이해|관계\s*(?:와|및)\s*감정표현|스트레스\s*반응|일상생활에서의\s*의미)\s*\]\s*[:：]?/g,'')
+    .replace(/(^|\n)\s*[\[\]]\s*(?=\n|$)/g,'$1')
     .replace(/([가-힣A-Za-z0-9'"”’])\s*\n+\s*(?=[가-힣A-Za-z0-9'"“‘])/g,'$1 ')
     .replace(/[ \t]+/g,' ')
     .replace(/\n{3,}/g,'\n\n')
@@ -1407,35 +1673,11 @@ function derivedParagraphHtml(text,key){
   const html=[];
 
   if(key==='individualTests'){
-    const parts=normalized.split(/(?=^■\s*)/m).map(v=>v.trim()).filter(Boolean);
-    for(const part of parts){
-      const lines=part.split(/\n+/).map(v=>v.trim()).filter(Boolean);
-      const heading=String(lines.shift()||'').replace(/^■\s*/,'').trim();
-      if(heading)html.push(`<h4 class="mml-derived-test-title">${esc(heading)}</h4>`);
-      mmlComposeParagraphs(lines.join(' '),{target:155,max:270,maxSentences:3}).forEach(paragraph=>html.push(`<p>${esc(paragraph)}</p>`));
-    }
-    return html.join('');
+    return renderIndividualTestItems({text});
   }
 
   if(key==='expertRecovery'){
-    const chunks=normalized.split(/(?=^\d{1,2}\.\s*)/m).map(v=>v.trim()).filter(Boolean);
-    for(const chunk of chunks){
-      const numbered=chunk.match(/^(\d{1,2})\.\s*(.*)$/s);
-      if(!numbered){mmlComposeParagraphs(chunk,{target:165,max:290,maxSentences:3}).forEach(p=>html.push(`<p>${esc(p)}</p>`));continue;}
-      const number=numbered[1];
-      let body=numbered[2].trim();
-      const sentenceParts=mmlSentenceParts(body);
-      let title='실천 방향';
-      if(sentenceParts.length){
-        const first=sentenceParts[0];
-        const colon=first.match(/^(.{2,34}?)(?:[:：]|\s+-\s+)(.+)$/);
-        if(colon){title=colon[1].trim();body=[colon[2].trim(),...sentenceParts.slice(1)].join(' ');}
-        else if(first.length<=34&&!/[.!?。！？]$/.test(first)){title=first;body=sentenceParts.slice(1).join(' ');}
-      }
-      html.push(`<h4 class="mml-derived-recovery-title"><span>${esc(number)}</span>${esc(title)}</h4>`);
-      mmlComposeParagraphs(body,{target:165,max:290,maxSentences:3}).forEach(paragraph=>html.push(`<p>${esc(paragraph)}</p>`));
-    }
-    return html.join('');
+    return renderExpertRecoveryItems({text});
   }
 
   mmlComposeParagraphs(normalized,{target:175,max:300,maxSentences:3}).forEach(paragraph=>html.push(`<p>${esc(paragraph)}</p>`));
@@ -1446,17 +1688,26 @@ function derivedReportFormSectionHtml(section,index){
   const key=String(section?.key||'');
   const text=derivedParagraphHtml(formatDerivedSectionText(section),key);
   const variant=key==='coreMind'?'hero':key==='mindProfile'?'profile':key==='individualTests'?'tests':key==='expertRecovery'?'recovery':key==='emotionState'?'emotion':key==='thinkingRelationship'?'relation':key==='stressDaily'?'stress':'standard';
+  const subtitles={
+    coreMind:'여러 검사에서 함께 확인된 현재 마음의 핵심 모습',
+    mindProfile:'성격·정서·자기조절·관계 특성을 통합한 마음의 구조',
+    individualTests:'각 검사에서 확인된 핵심 결과 요약',
+    emotionState:'현재 정서 상태와 감정의 표현·조절 방식',
+    thinkingRelationship:'사고 경향과 관계 속에서 나타나는 특징',
+    stressDaily:'부담 상황의 반응과 실제 일상 기능',
+    expertRecovery:'검사 결과와 연결된 현실적인 도움과 회복 방향'
+  };
   return `<section class="mml-derived-form-section mml-derived-form-section--${variant}" data-derived-section="${index}" data-derived-key="${esc(key)}">
     <div class="mml-derived-form-number">${String(index+1).padStart(2,'0')}</div>
     <div class="mml-derived-form-body">
-      <div class="mml-derived-form-title-row"><h3>${label}</h3><span class="mml-derived-form-rule"></span></div>
+      <div class="mml-derived-form-title-row"><div><h3>${label}</h3><small>${esc(subtitles[key]||'심리검사 결과를 통합한 핵심 이해')}</small></div><span class="mml-derived-form-rule"></span></div>
       <div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${text}</div>
     </div>
   </section>`;
 }
 function derivedReportResultPageShell(pageIndex=0){
   return `<article class="mml-derived-form-page mml-derived-form-result-page" data-derived-result-page="${pageIndex}">
-    <div class="mml-derived-form-head"><b>심리검사 종합결과</b><span>모두의 마음연구소</span></div>
+    <div class="mml-derived-form-head"><div><p>MODUMAM SIGNATURE REPORT</p><b>심리검사 종합보고서</b></div><span>모두의 마음연구소</span></div>
     <div class="mml-derived-form-page-body"></div>
     <div class="mml-derived-form-footer"><span>모두의 마음연구소 · 심리검사 종합결과보고서</span><span data-derived-page-number></span></div>
   </article>`;
@@ -1494,6 +1745,14 @@ function canonicalDerivedClientSections(report){
     // 여러 필드를 이어 붙이지 않습니다. 이 규칙이 렌더링 단계의 중복 재발을 막습니다.
     const savedText=cleanReportText(saved.text);
     const text=savedText||firstDerivedFallback(source,definition.fallbackKeys);
+    if(definition.key==='individualTests'){
+      const items=parseIndividualTestItems(savedText||text||saved.items||[]);
+      return {...saved,key:definition.key,label:saved.label||definition.label,text,items};
+    }
+    if(definition.key==='expertRecovery'){
+      const items=parseExpertRecoveryItems(savedText||text||saved.items||[]);
+      return {...saved,key:definition.key,label:saved.label||definition.label,text,items};
+    }
     return {...saved,key:definition.key,label:saved.label||definition.label,text};
   });
 }
@@ -1504,16 +1763,197 @@ function normalizeDerivedClientReport(report){
   return {...report,sections:disclaimer?[...sections,disclaimer]:sections};
 }
 function derivedReportFormPagesHtml(report){
-  // V93: 결과 보고서의 A4 페이지 기본 틀을 사용하지 않습니다.
-  // 01~07 영역을 하나의 연속 문서에 그대로 렌더링하고 화면·인쇄 모두 브라우저 흐름에 맡깁니다.
   const sections=canonicalDerivedClientSections(report);
+  const byKey=new Map(sections.map((section,index)=>[String(section.key||''),{...section,index}]));
+  const source=integratedReportById(report?.sourceIntegratedReportId)||{};
+  const master=source?.masterReport||{};
+  const profile=source?.clinicalProfile||master?.clinicalProfile||{};
+  const tests=Array.isArray(report?.tests)?report.tests.join(' · '):String(report?.tests||source.tests||'통합 심리검사');
+  const issued=String(report?.updatedAt||report?.createdAt||new Date().toISOString()).slice(0,10).replaceAll('-','.');
+  const client=String(report?.clientName||source.clientName||'');
+  const program=programBaseName(report?.program||source.program||'심리검사');
   const disclaimer=(Array.isArray(report?.sections)?report.sections:[]).find(section=>section?.key==='disclaimer');
-  return `<section class="mml-derived-form-document mml-derived-form-result-page" data-derived-result-page="0">
-    <div class="mml-derived-form-head"><b>심리검사 종합결과</b><span>모두의 마음연구소</span></div>
-    <div class="mml-derived-form-page-body">${sections.map((section,index)=>derivedReportFormSectionHtml(section,index)).join('')}
-      <div class="mml-derived-form-note">${esc(cleanReportText(disclaimer?.text)||'이 보고서는 심리검사 결과를 바탕으로 현재 상태와 경향을 이해하기 위한 자료입니다. 최종 공개 전 전문가가 내용과 표현을 검토해야 합니다.')}</div>
+
+  const core=byKey.get('coreMind');
+  const mind=byKey.get('mindProfile');
+  const testsSection=byKey.get('individualTests');
+  const emotion=byKey.get('emotionState');
+  const relation=byKey.get('thinkingRelationship');
+  const stress=byKey.get('stressDaily');
+  const recovery=byKey.get('expertRecovery');
+
+  const sectionText=(item,key)=>{
+    if(!item)return '';
+    if(key==='individualTests')return renderIndividualTestItems(item);
+    if(key==='expertRecovery')return renderExpertRecoveryItems(item);
+    return derivedParagraphHtml(mmlNormalizeClientAddress(formatDerivedSectionText(item),client),key);
+  };
+  const plain=(item)=>mmlNormalizeClientAddress(cleanReportText(formatDerivedSectionText(item||{})),client);
+  const rawPlain=(item)=>mmlNormalizeClientAddress(cleanReportText(item?.text||''),client);
+  const short=(text,max=230)=>{
+    const value=mmlNormalizeClientAddress(cleanReportText(text),client);
+    if(value.length<=max)return value;
+    const cut=value.slice(0,max);
+    const last=Math.max(cut.lastIndexOf('.'),cut.lastIndexOf('다.'),cut.lastIndexOf('요.'));
+    return (last>90?cut.slice(0,last+1):cut).trim();
+  };
+  const splitSentences=(text)=>{
+    const value=cleanReportText(text).replace(/\s+/g,' ');
+    if(!value)return [];
+    return (value.match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g)||[value]).map(x=>x.trim()).filter(Boolean);
+  };
+  const relationSentences=splitSentences(plain(relation));
+  const mindSentences=splitSentences(plain(mind));
+  const stressSentences=splitSentences(plain(stress));
+  const splitBalanced=(sentences)=>{
+    const rows=(sentences||[]).filter(Boolean);
+    if(rows.length<=1)return [rows.join(' '),''];
+    const midpoint=Math.ceil(rows.length/2);
+    return [rows.slice(0,midpoint).join(' '),rows.slice(midpoint).join(' ')];
+  };
+  const extractTopic=(text,startLabel,endLabel='')=>{
+    const raw=cleanReportText(text);
+    const start=raw.indexOf(startLabel);
+    if(start<0)return '';
+    const bodyStart=start+startLabel.length;
+    const end=endLabel?raw.indexOf(endLabel,bodyStart):-1;
+    return raw.slice(bodyStart,end>=0?end:undefined)
+      .replace(/^[\]\s:：-]+/,'')
+      .replace(/[■□▪▫◆◇●○▶▷►▸]+/g,'')
+      .trim();
+  };
+  const explicitThinking=extractTopic(rawPlain(relation),'사고 및 자기이해','관계와 감정표현')||extractTopic(rawPlain(relation),'사고와 자기이해','관계와 감정표현');
+  const explicitRelationship=extractTopic(rawPlain(relation),'관계와 감정표현')||extractTopic(rawPlain(relation),'관계 및 감정표현');
+  const legacyRelation=splitBalanced(relationSentences);
+  const thinkingText=explicitThinking||legacyRelation[0];
+  const relationshipText=explicitRelationship||legacyRelation[1];
+  const explicitStress=extractTopic(rawPlain(stress),'스트레스 반응','일상생활에서의 의미');
+  const explicitDaily=extractTopic(rawPlain(stress),'일상생활에서의 의미');
+  const legacyStress=splitBalanced(stressSentences);
+  const stressText=explicitStress||legacyStress[0];
+  const dailyText=explicitDaily||legacyStress[1];
+
+  const strengthText=short(
+    profile?.strengths ||
+    master?.reportGenerationData?.shared?.clinicalProtectiveFactors ||
+    source?.strength ||
+    mindSentences.slice(-2).join(' '),
+    320
+  );
+  const cautionText=short(
+    profile?.vulnerabilities ||
+    source?.caution ||
+    stressSentences.slice(0,2).join(' ') ||
+    relationSentences.slice(-2).join(' '),
+    320
+  );
+
+  const cleanProfileText=(value)=>mmlNormalizeClientAddress(cleanReportText(value),client)
+    .replace(/\[\[MML_TEST:[^\]]+\]\]/g,'')
+    .replace(/(?:사고\s*(?:및|와)\s*자기이해|관계\s*(?:와|및)\s*감정표현|스트레스\s*반응|일상생활에서의\s*의미)\s*[:：]?/g,'')
+    .replace(/[■□▪▫◆◇●○▶▷►▸]+/g,'')
+    .replace(/\s{2,}/g,' ')
+    .trim();
+
+  const profileSummary=(sourceText,fallback='')=>{
+    const value=cleanProfileText(sourceText||fallback);
+    if(!value)return '';
+    const sentences=splitSentences(value);
+    return short(sentences.slice(0,2).join(' ')||value,180);
+  };
+
+  const domainRows=[
+    ['정서',profileSummary(profile?.emotion||profile?.currentState,plain(emotion))],
+    ['사고',profileSummary(profile?.thinking||profile?.cognition||profile?.stableTraits,mindSentences.slice(0,2).join(' '))],
+    ['관계',profileSummary(profile?.relationship||profile?.interpersonal,relationSentences.slice(-2).join(' '))],
+    ['스트레스',profileSummary(profile?.stress||profile?.coping||profile?.formulation?.presentFunctioning,stressSentences.slice(0,2).join(' '))],
+    ['자기조절',profileSummary(profile?.selfRegulation||profile?.executive||profile?.stableTraits,mindSentences.slice(1,3).join(' '))],
+    ['회복 자원',profileSummary(profile?.strengths||master?.reportGenerationData?.shared?.clinicalProtectiveFactors,strengthText)]
+  ].map(([label,text],index)=>`<div class="mml-domain"><span>${String(index+1).padStart(2,'0')}</span><div><b>${esc(label)}</b><p>${esc(text||'현재 자료 범위에서 상담자와 함께 추가로 확인할 수 있습니다.')}</p></div></div>`).join('');
+
+  const title=(no,label,sub)=>`<div class="mml-section-title"><p>${no}</p><div><h2>${label}</h2><span>${sub}</span></div></div>`;
+
+  const individualSummary=testsSection?`<section class="mml-detail mml-tests-section-v58">
+    ${title('03','개별검사 요약','각 검사에서 확인된 핵심 결과 요약')}
+    <div class="mml-tests-panel-v58" data-derived-key="individualTests">
+      <div class="mml-tests-editor-v58" contenteditable="false" spellcheck="false" data-derived-index="${testsSection.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(testsSection,'individualTests')}</div>
     </div>
-  </section>`;
+  </section>`:'';
+
+  const emotionSection=emotion?`<section class="mml-detail">
+    ${title('04','정서와 심리상태','현재 정서 상태와 감정의 표현·조절 방식')}
+    <div class="mml-text-panel mml-derived-signature-section" data-derived-key="emotionState">
+      <div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${emotion.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(emotion,'emotionState')}</div>
+    </div>
+  </section>`:'';
+
+  const relationSection=relation?`<section class="mml-integration">
+    ${title('05','사고와 관계 방식','검사에서 확인된 자기이해와 관계 특성')}
+    <div class="mml-flow ${relationshipText?'mml-flow-two':'mml-flow-one'} mml-derived-signature-section" data-derived-key="thinkingRelationship">
+      <div><span>사고 및 자기이해</span><div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${relation.index}" data-placeholder="사고와 자기이해 영역">${derivedParagraphHtml(thinkingText,'thinkingRelationship')}</div></div>
+      ${relationshipText?`<i>↔</i><div><span>관계와 감정표현</span><div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${relation.index}" data-placeholder="관계와 감정표현 영역">${derivedParagraphHtml(relationshipText,'thinkingRelationship')}</div></div>`:''}
+    </div>
+  </section>`:'';
+
+  const stressSection=stress?`<section class="mml-integration">
+    ${title('06','스트레스와 일상생활','부담 상황의 변화와 실제 기능의 의미')}
+    <div class="mml-flow ${dailyText?'mml-flow-two':'mml-flow-one'} mml-derived-signature-section" data-derived-key="stressDaily">
+      <div><span>스트레스 반응</span><div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${stress.index}" data-placeholder="스트레스 반응 영역">${derivedParagraphHtml(stressText,'stressDaily')}</div></div>
+      ${dailyText?`<i>↔</i><div><span>일상생활에서의 의미</span><div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${stress.index}" data-placeholder="일상생활 의미 영역">${derivedParagraphHtml(dailyText,'stressDaily')}</div></div>`:''}
+    </div>
+  </section>`:'';
+
+  const recoverySection=recovery?`<section class="mml-direction mml-recovery-section-v58">
+    ${title('07','전문가 제언 및 회복 방향','검사 결과와 연결된 현실적인 도움 방향')}
+    <div class="mml-recovery-panel-v58" data-derived-key="expertRecovery">
+      <div class="mml-recovery-editor-v58" contenteditable="false" spellcheck="false" data-derived-index="${recovery.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(recovery,'expertRecovery')}</div>
+    </div>
+  </section>`:'';
+
+  return `<main class="mml-signature-report mml-comprehensive-signature">
+    <article class="mml-page mml-page-one">
+      <header class="mml-cover-head"><div><p class="mml-kicker">MODUMAM SIGNATURE REPORT</p><h1>심리검사 종합보고서</h1><p class="mml-subtitle">검사 결과를 한 사람의 삶과 마음의 맥락에서 이해하도록 돕는 심리평가 보고서</p></div><div class="mml-logo"><strong>ㅁㄷㅁ</strong><span>모두의 마음연구소</span></div></header>
+      <section class="mml-meta"><div><span>성명</span><b>${esc(client)}</b></div><div><span>실시검사</span><b>${esc(tests)}</b></div><div><span>발행일</span><b>${esc(issued)}</b></div><div><span>작성자</span><b>임상심리사 백인영</b></div></section>
+
+      ${core?`<section class="mml-core-section">
+        ${title('01','현재 마음의 핵심 모습','여러 검사에서 함께 확인된 현재 마음의 중심 흐름')}
+        <div class="mml-core-panel-v60 mml-derived-signature-section" data-derived-key="coreMind"><div class="mml-core-editor-v60" contenteditable="false" spellcheck="false" data-derived-index="${core.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(core,'coreMind')}</div></div>
+      </section>`:''}
+
+      <section class="mml-purpose">
+        <div><span>검사 목적</span><p>${esc(program)}에서 실시한 여러 심리검사 결과를 함께 살펴 현재의 심리적 특성과 적응 방식을 통합적으로 이해합니다.</p></div>
+        <div><span>결과 해석 기준</span><p>각 검사는 서로 다른 심리영역을 측정하므로 공통점과 차이를 함께 살펴 해석하며, 결과는 현재 생활 맥락과 상담자 검토를 통해 최종적으로 이해합니다.</p></div>
+      </section>
+
+      <section class="mml-key-grid">
+        <div class="mml-key-card resource"><h3>강점과 심리적 자원</h3><p>${esc(mmlNormalizeClientAddress(strengthText||'검사자료에서 확인된 적응 자원과 강점을 현재 생활 맥락에서 활용할 수 있습니다.',client))}</p></div>
+        <div class="mml-key-card focus"><h3>살펴볼 부분</h3><p>${esc(mmlNormalizeClientAddress(cautionText||'현재 자료에서 부담이 커질 수 있는 조건과 주의할 부분을 상담 과정에서 함께 확인합니다.',client))}</p></div>
+      </section>
+
+      <section class="mml-domain-section">
+        ${title('02','마음 프로파일','검사 결과에서 근거가 충분한 핵심 영역')}
+        <div class="mml-domain-grid">${domainRows}</div>
+      </section>
+      <footer class="mml-page-footer"><span>MODUMAMLAB</span><b>1 / 3</b></footer>
+    </article>
+
+    <article class="mml-page mml-page-two">
+      <header class="mml-inner-head"><div><p>MODUMAM SIGNATURE REPORT</p><h2>심리검사 결과 세부 이해</h2></div><span>${esc(client)}</span></header>
+      ${individualSummary}
+      ${emotionSection}
+      ${relationSection}
+      ${stressSection}
+      <footer class="mml-page-footer"><span>모두의 마음연구소 · 심리검사 종합결과보고서</span><b>2 / 3</b></footer>
+    </article>
+
+    <article class="mml-page mml-page-three">
+      <header class="mml-inner-head"><div><p>MODUMAM SIGNATURE REPORT</p><h2>전문가 제언과 회복 방향</h2></div><span>${esc(client)}</span></header>
+      ${recoverySection}
+      <section class="mml-note mml-note-compact"><h3>보고서를 읽을 때 기억할 점</h3><p>${esc((cleanReportText(disclaimer?.text)||'심리검사 결과는 개인을 규정하는 결론이 아니라, 현재의 마음과 적응 방식을 이해하기 위한 하나의 자료입니다. 여러 검사에서 확인된 공통점과 차이는 최근의 경험, 환경, 관계 맥락과 함께 살펴볼 때 가장 의미가 있습니다.').replace(/\s*\n+\s*/g,' '))}</p></section>
+      <section class="mml-closing"><span>마음을 알아차리고, 이해하고, 연결합니다.</span><p>이번 검사에서 확인된 특성은 어려움만을 의미하지 않습니다. 자신을 이해하는 언어가 생길 때, 강점은 더 잘 활용되고 부담은 보다 현실적으로 다룰 수 있습니다.</p></section>
+      <footer class="mml-page-footer"><span>본 보고서는 AI 분석을 바탕으로 임상심리사 백인영이 원자료를 확인하고 수정하여 작성한 심리평가 결과보고서입니다.</span><b>3 / 3</b></footer>
+    </article>
+  </main>`;
 }
 function repaginateDerivedAssessmentReport(editor){
   // V91: 화면의 보고서 DOM을 다시 조립하지 않습니다.
@@ -1545,6 +1985,7 @@ function normalizedDerivedReportTitle(report){
   const isCounselor=report?.audience==='counselor'||String(report?.title||'').includes('상담자용');
   return isCounselor?'상담자용 종합보고서':'심리검사 종합보고서';
 }
+
 function openDerivedAssessmentReportForm(id){
   const report=derivedAssessmentReportById(id);if(!report)return;
   report.title=normalizedDerivedReportTitle(report);
@@ -1556,35 +1997,237 @@ function openDerivedAssessmentReportForm(id){
   wrap.id='mml-derived-report-editor';
   wrap.dataset.reportId=String(report.id);
   wrap.className='fixed inset-0 z-[100] overflow-y-auto bg-slate-950/75 p-2 sm:p-6';
-  wrap.innerHTML=`<style>
+  wrap.innerHTML=`<style>${typeof individualAssessmentReportCss==='function'?individualAssessmentReportCss():''}
     #mml-derived-report-editor *{box-sizing:border-box}
-    .mml-derived-form-shell{max-width:1040px;margin:0 auto 40px}
-    .mml-derived-form-document{position:relative;width:min(100%,920px);margin:0 auto 18px;padding:34px 42px;background:#fff;color:#253b35;font-family:'Pretendard','Noto Sans KR',Arial,sans-serif;box-shadow:0 18px 55px rgba(15,23,42,.28);overflow:visible}
-    .mml-derived-cover-block{padding-top:46px;padding-bottom:34px}.mml-derived-cover-block:before,.mml-derived-form-result-page:before{content:'';position:absolute;left:0;right:0;top:0;height:10px;background:linear-gradient(90deg,#174d3e 0 64%,#c99556 64% 76%,#eef3f0 76% 100%)}
+    .mml-derived-form-shell{width:min(100%,210mm);max-width:210mm;margin:0 auto 40px}
+    .mml-derived-form-document{position:relative;width:210mm;margin:0 auto 18px;padding:16mm 15mm;background:#fff;color:#20322d;font-family:'Pretendard','Noto Sans KR',Arial,sans-serif;box-shadow:0 18px 55px rgba(24,61,49,.14);overflow:visible}
+    .mml-derived-cover-block{padding-top:23mm;padding-bottom:13mm}.mml-derived-cover-block:before,.mml-derived-form-result-page:before{content:'';position:absolute;left:0;right:0;top:0;height:7mm;background:linear-gradient(90deg,#123f33 0 60%,#d9a56a 60% 72%,#edf2ef 72% 100%)}
     .mml-derived-form-toolbar{position:sticky;top:8px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;padding:14px 16px;border:1px solid #dbe6e1;border-radius:18px;background:rgba(255,255,255,.96);box-shadow:0 12px 35px rgba(15,23,42,.2);backdrop-filter:blur(8px)}
     .mml-derived-form-toolbar h2{margin:0;color:#173d33;font-size:17px;font-weight:900}.mml-derived-form-toolbar p{margin:4px 0 0;color:#64748b;font-size:11px}
     .mml-derived-form-actions{display:flex;flex-wrap:wrap;gap:8px}.mml-derived-form-actions button{border-radius:11px;padding:10px 14px;font-size:12px;font-weight:900;cursor:pointer}
     .mml-derived-form-page{position:relative;width:210mm;min-height:297mm;height:auto;margin:0 auto 18px;padding:18mm 17mm 17mm;background:#fff;box-shadow:0 18px 55px rgba(15,23,42,.28);color:#253b35;font-family:'Pretendard','Noto Sans KR',Arial,sans-serif;overflow:visible}
     .mml-derived-form-page:before{content:'';position:absolute;left:0;right:0;top:0;height:7mm;background:linear-gradient(90deg,#174d3e 0 64%,#c99556 64% 76%,#eef3f0 76% 100%)}
     .mml-derived-form-cover{position:relative;display:flex;flex-direction:column;justify-content:space-between}
-    .mml-derived-cover-brand{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}.mml-derived-cover-brand-main{max-width:600px}.mml-derived-cover-logo{display:flex;align-items:center;gap:10px;margin-top:2px}.mml-derived-cover-logo-mark{width:54px;height:54px;border:1.8px solid #174d3e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#174d3e;font-size:13px;font-weight:900;letter-spacing:.08em}.mml-derived-cover-logo span{font-size:10px;font-weight:800;color:#315a4e;white-space:nowrap}
-    .mml-derived-form-kicker{font-size:11px;font-weight:900;letter-spacing:.22em;color:#b07842}.mml-derived-form-title{margin:16px 0 0;font-size:36px;line-height:1.28;letter-spacing:-.035em;color:#123f34;font-weight:900}
-    .mml-derived-form-sub{max-width:640px;margin-top:16px;font-size:13px;line-height:1.85;color:#6a7d76}.mml-derived-form-meta{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #cfddd7;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 8px 24px rgba(23,77,62,.06)}.mml-derived-form-meta div{background:#fff;padding:16px 18px;border-right:1px solid #e1e9e5;border-bottom:1px solid #e1e9e5}.mml-derived-form-meta div:nth-child(2n){border-right:0}.mml-derived-form-meta div:nth-last-child(-n+2){border-bottom:0}.mml-derived-form-meta b{display:block;margin-bottom:7px;font-size:10px;letter-spacing:.04em;color:#91a29b}.mml-derived-form-meta span{font-size:13px;font-weight:850;line-height:1.5;color:#223e35}
-    .mml-derived-form-result-page{display:block;min-height:0;height:auto;overflow:visible}.mml-derived-form-continuous-page{min-height:0;height:auto;overflow:visible}.mml-derived-form-page-body{display:block;min-height:0;height:auto;overflow:visible}.mml-derived-form-result-page .mml-derived-form-footer{margin-top:24px}.mml-derived-form-head{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #174d3e;padding:10mm 0 12px;margin-bottom:18px}.mml-derived-form-head b{font-size:19px;letter-spacing:-.02em;color:#123f34}.mml-derived-form-head span{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;color:#6f837b}.mml-derived-form-head span:before{content:'ㅁㄷㅁ';width:30px;height:30px;border:1px solid #174d3e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#174d3e;font-size:8px;font-weight:900}
-    .mml-derived-form-section{position:relative;display:grid;grid-template-columns:54px 1fr;gap:16px;padding:17px 0 19px;border-bottom:1px solid #dfe8e4;break-inside:auto;page-break-inside:auto}
-    .mml-derived-form-number{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#174d3e;color:#fff;font-size:11px;font-weight:900;letter-spacing:.04em;box-shadow:0 8px 18px rgba(23,77,62,.16)}
-    .mml-derived-form-title-row{display:flex;align-items:center;gap:13px;margin:1px 0 11px}.mml-derived-form-body h3{margin:0;color:#153f35;font-size:17px;letter-spacing:-.025em;font-weight:900}.mml-derived-form-rule{height:1px;flex:1;background:linear-gradient(90deg,#b9cec5,transparent)}
-    .mml-derived-form-editable{min-height:76px;padding:17px 18px;border:1px solid #d7e3de;border-radius:16px;background:#fbfdfc;white-space:pre-wrap;font-size:12.5px;line-height:1.92;color:#334b43;outline:none;transition:.15s;box-shadow:0 8px 24px rgba(23,77,62,.045)}.mml-derived-form-editable p{margin:0 0 16px;line-height:1.9;word-break:keep-all;overflow-wrap:break-word;text-wrap:pretty}.mml-derived-form-editable p:last-child{margin-bottom:0}.mml-derived-test-title{margin:20px 0 10px;padding-top:2px;font-size:13px;line-height:1.55;color:#174d3e;font-weight:900}.mml-derived-test-title:first-child{margin-top:0}.mml-derived-recovery-title{display:flex;align-items:center;gap:9px;margin:20px 0 10px;font-size:13px;line-height:1.55;color:#80552f;font-weight:900}.mml-derived-recovery-title:first-child{margin-top:0}.mml-derived-recovery-title span{display:inline-flex;width:23px;height:23px;align-items:center;justify-content:center;border-radius:8px;background:#b07842;color:#fff;font-size:10px;flex:0 0 auto}
+    .mml-derived-cover-brand{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}.mml-derived-cover-brand-main{max-width:600px}.mml-derived-cover-logo{display:flex;align-items:center;gap:10px;margin-top:2px}.mml-derived-cover-logo-mark{width:48px;height:48px;border:1px solid #123f33;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#123f33;font-size:14px;font-weight:900;letter-spacing:-.12em}.mml-derived-cover-logo span{font-size:9px;font-weight:700;color:#123f33;white-space:nowrap}
+    .mml-derived-form-kicker{font-size:9px;font-weight:800;letter-spacing:.18em;color:#b4783d}.mml-derived-form-title{margin:10px 0 0;font-size:27px;line-height:1.25;letter-spacing:-.04em;color:#123f33;font-weight:900}
+    .mml-derived-form-sub{max-width:640px;margin-top:8px;font-size:10.5px;line-height:1.7;color:#71817a}.mml-derived-form-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #d9e2de;border-radius:10px;overflow:hidden;background:#fff;box-shadow:none;margin-top:13px}.mml-derived-form-meta div{background:#f8faf9;padding:9px 11px;border-right:1px solid #d9e2de}.mml-derived-form-meta div:last-child{border-right:0}.mml-derived-form-meta b{display:block;margin-bottom:4px;font-size:8px;letter-spacing:0;color:#88968f}.mml-derived-form-meta span{font-size:10.5px;font-weight:800;line-height:1.45;color:#20322d}
+    .mml-derived-form-result-page{display:block;min-height:0;height:auto;overflow:visible}.mml-derived-form-continuous-page{min-height:0;height:auto;overflow:visible}.mml-derived-form-page-body{display:block;min-height:0;height:auto;overflow:visible}.mml-derived-form-result-page .mml-derived-form-footer{margin-top:24px}.mml-derived-form-head{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid #cad8d2;padding:7mm 0 10px;margin-bottom:8px}.mml-derived-form-head p{margin:0 0 7px;font-size:9px;font-weight:800;letter-spacing:.18em;color:#b4783d}.mml-derived-form-head b{font-size:20px;letter-spacing:-.03em;color:#123f33}.mml-derived-form-head span{display:flex;align-items:center;gap:8px;font-size:9px;font-weight:700;color:#71817a}.mml-derived-form-head span:before{content:'ㅁㄷㅁ';width:30px;height:30px;border:1px solid #174d3e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#174d3e;font-size:8px;font-weight:900}
+    .mml-derived-form-section{position:relative;display:grid;grid-template-columns:34px 1fr;gap:12px;padding:15px 0;border-bottom:1px solid #dfe7e3;break-inside:auto;page-break-inside:auto}
+    .mml-derived-form-number{width:auto;height:auto;border-radius:0;display:block;background:transparent;color:#b4783d;font-family:Georgia,serif;font-size:19px;font-weight:400;letter-spacing:0;box-shadow:none;padding-top:1px}
+    .mml-derived-form-title-row{display:flex;align-items:flex-start;gap:12px;margin:0 0 10px}.mml-derived-form-body h3{margin:0;color:#123f33;font-size:15px;letter-spacing:-.02em;font-weight:900}.mml-derived-form-title-row small{display:block;margin-top:3px;font-size:8.5px;line-height:1.4;color:#87948e}.mml-derived-form-rule{height:1px;flex:1;margin-top:9px;background:linear-gradient(90deg,#d7e1dc,transparent)}
+    .mml-derived-form-editable{min-height:64px;padding:13px 15px;border:1px solid #dde6e2;border-radius:12px;background:#f8faf9;white-space:pre-wrap;font-size:10.2px;line-height:1.78;color:#596a63;outline:none;transition:.15s;box-shadow:none}.mml-derived-form-editable p{margin:0 0 9px;line-height:1.78;word-break:keep-all;overflow-wrap:break-word;text-wrap:pretty}.mml-derived-form-editable p:last-child{margin-bottom:0}
+    .mml-comprehensive-signature .mml-text-panel .mml-derived-form-editable p,
+    .mml-comprehensive-signature .mml-opening .mml-derived-form-editable p,
+    .mml-comprehensive-signature .mml-flow .mml-derived-form-editable p{margin-bottom:7px}
+    .mml-comprehensive-signature .mml-text-panel .mml-derived-form-editable p:last-child,
+    .mml-comprehensive-signature .mml-opening .mml-derived-form-editable p:last-child,
+    .mml-comprehensive-signature .mml-flow .mml-derived-form-editable p:last-child{margin-bottom:0}
+    .mml-comprehensive-signature .mml-note-compact p{white-space:normal!important;margin:0!important;line-height:1.65!important}
+.mml-derived-test-title{margin:12px 0 6px;padding-top:1px;font-size:10.5px;line-height:1.55;color:#123f33;font-weight:900}.mml-derived-test-title:first-child{margin-top:0}.mml-derived-recovery-title{display:flex;align-items:center;gap:7px;margin:12px 0 6px;font-size:10.5px;line-height:1.55;color:#80552f;font-weight:900}.mml-derived-recovery-title:first-child{margin-top:0}.mml-derived-recovery-title span{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border-radius:7px;background:#b4783d;color:#fff;font-size:9px;flex:0 0 auto}
     .mml-derived-form-editable:hover{border-color:#87aa9d;background:#fff}.mml-derived-form-editable:focus{border:1px solid #b07842;background:#fff;box-shadow:0 0 0 4px rgba(176,120,66,.12)}.mml-derived-form-editable:empty:before{content:attr(data-placeholder);color:#a7b3ae}
-    .mml-derived-form-section--hero{grid-template-columns:54px 1fr;padding-top:9px}.mml-derived-form-section--hero .mml-derived-form-number{background:#c99556;color:#fff}.mml-derived-form-section--hero .mml-derived-form-title-row{margin-bottom:12px}.mml-derived-form-section--hero .mml-derived-form-editable{padding:20px 22px;border:0;border-radius:18px;background:#174d3e;color:#fff;font-size:13px;line-height:1.95;box-shadow:0 14px 32px rgba(23,77,62,.2)}
-    .mml-derived-form-section--profile .mml-derived-form-editable{background:linear-gradient(135deg,#f0f7f4,#fbfdfc);border-left:5px solid #7fa899}
-    .mml-derived-form-section--tests .mml-derived-form-editable{background:#f7faf9;border-color:#cbdcd5;padding:18px 20px;line-height:2}.mml-derived-form-section--tests .mml-derived-form-number{background:#285f4e}
-    .mml-derived-form-section--emotion .mml-derived-form-editable{background:#f4f8fb;border-left:5px solid #8aa7b7}
-    .mml-derived-form-section--relation .mml-derived-form-editable{background:#f6f5fb;border-left:5px solid #9c95b4}
-    .mml-derived-form-section--stress .mml-derived-form-editable{background:#fff9f1;border-left:5px solid #d0a56d}
-    .mml-derived-form-section--recovery{padding-bottom:10px;border-bottom:0}.mml-derived-form-section--recovery .mml-derived-form-number{background:#b07842}.mml-derived-form-section--recovery .mml-derived-form-editable{background:linear-gradient(135deg,#fff8ef,#f9f3e9);border:1px solid #dec6a7;padding:19px 21px;box-shadow:0 10px 26px rgba(176,120,66,.08)}
-    .mml-derived-form-continuation .mml-derived-form-number{visibility:hidden}.mml-derived-form-continuation{padding-top:8px}.mml-derived-form-note{margin-top:24px;padding:15px 17px;border-left:4px solid #b07842;background:#f8f4ee;font-size:11px;line-height:1.7;color:#6b6259}.mml-derived-print-meta{display:none}.mml-derived-form-footer{margin-top:auto;padding-top:10px;border-top:1px solid #dfe8e4;display:flex;justify-content:space-between;gap:12px;font-size:9px;color:#96a29d}
-    @media(max-width:900px){.mml-derived-form-document{width:100%;padding:28px 20px}.mml-derived-form-page{width:100%;min-height:auto;padding:28px 20px}.mml-derived-form-cover{min-height:720px}.mml-derived-form-title{font-size:27px}.mml-derived-form-meta{grid-template-columns:1fr}.mml-derived-form-section{grid-template-columns:38px 1fr;gap:8px}}
+    .mml-derived-form-section--hero{grid-template-columns:34px 1fr;padding-top:12px}.mml-derived-form-section--hero .mml-derived-form-number{background:transparent;color:#d6a369}.mml-derived-form-section--hero .mml-derived-form-title-row{margin-bottom:9px}.mml-derived-form-section--hero .mml-derived-form-editable{padding:17px 18px;border:0;border-radius:14px;background:#123f33;color:#fff;font-size:11.5px;line-height:1.8;box-shadow:none}
+    .mml-derived-form-section--profile .mml-derived-form-editable{background:#eef6f2;border:1px solid #cfe3d9}
+    .mml-derived-form-section--tests .mml-derived-form-editable{background:#fff;border-color:#dbe5e0;padding:13px 15px;line-height:1.78}.mml-derived-form-section--tests .mml-derived-form-number{background:transparent;color:#b4783d}
+    .mml-derived-form-section--emotion .mml-derived-form-editable{background:#f7f9f8;border-left:3px solid #b4783d}
+    .mml-derived-form-section--relation .mml-derived-form-editable{background:#fff;border:1px solid #dbe5e0}
+    .mml-derived-form-section--stress .mml-derived-form-editable{background:#fbf3e9;border:1px solid #ead5b8}
+    .mml-derived-form-section--recovery{padding-bottom:10px;border-bottom:0}.mml-derived-form-section--recovery .mml-derived-form-number{background:transparent;color:#b4783d}.mml-derived-form-section--recovery .mml-derived-form-editable{background:#eef6f2;border:1px solid #cfe3d9;padding:14px 16px;box-shadow:none}
+    .mml-derived-form-continuation .mml-derived-form-number{visibility:hidden}.mml-derived-form-continuation{padding-top:8px}.mml-derived-form-note{margin-top:13px;padding:12px 14px;border:1px solid #e2e8e5;border-radius:11px;background:#fff;font-size:9.5px;line-height:1.7;color:#66766f}.mml-derived-print-meta{display:none}.mml-derived-form-footer{margin-top:auto;padding-top:10px;border-top:1px solid #dfe8e4;display:flex;justify-content:space-between;gap:12px;font-size:9px;color:#96a29d}
+
+    #mml-derived-report-editor .mml-comprehensive-signature{padding:0}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page{width:210mm;min-height:297mm;margin:0 auto 18px;padding:16mm 15mm 16mm;background:#fff}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-derived-form-editable{min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;font-size:inherit;line-height:inherit;white-space:pre-wrap;outline:none}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-derived-form-editable p{margin:0 0 8px;font-size:inherit;line-height:inherit;color:inherit}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-derived-form-editable p:last-child{margin-bottom:0}
+    /* 01은 제목 번호만 공통 section-title을 사용하고, 본문 박스는 반드시 한 열 전체폭으로 렌더링한다. */
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-meta{margin-bottom:14px!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-section{display:block;width:100%;margin:0 0 14px}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-section>.mml-section-title{width:100%}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-opening{
+      display:block!important;
+      width:100%!important;
+      box-sizing:border-box!important;
+      margin-top:10px!important;
+      padding:18px 20px!important;
+      border-radius:14px!important;
+      background:#123f33!important;
+      color:#fff!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-opening>div{
+      display:block!important;
+      width:100%!important;
+      min-width:0!important;
+      max-width:none!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-opening .mml-derived-form-editable{
+      display:block!important;
+      width:100%!important;
+      min-width:0!important;
+      max-width:none!important;
+      box-sizing:border-box!important;
+      color:#fff;font-size:11.5px;line-height:1.8;
+      white-space:normal!important;
+      word-break:keep-all!important;
+      overflow-wrap:break-word!important;
+    }
+    /* Sprint60: 01 핵심 모습도 공통 .mml-opening/.mml-derived-form-editable 규칙에서 완전히 분리한다.
+       외부/이전 CSS가 direct-child div 폭을 좁히거나 흰 배경을 주는 충돌을 원천 차단한다. */
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-panel-v60{
+      display:block!important;position:relative!important;width:100%!important;min-width:0!important;max-width:none!important;
+      height:auto!important;min-height:0!important;margin:10px 0 0!important;padding:18px 20px!important;
+      border:0!important;border-radius:14px!important;background:#123f33!important;color:#fff!important;overflow:visible!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60{
+      display:block!important;position:static!important;width:100%!important;min-width:0!important;max-width:none!important;
+      height:auto!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;
+      background:transparent!important;color:#fff!important;box-shadow:none!important;overflow:visible!important;
+      font-size:11.5px!important;line-height:1.8!important;white-space:normal!important;word-break:keep-all!important;overflow-wrap:break-word!important;
+      writing-mode:horizontal-tb!important;text-orientation:mixed!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 p,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 div,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 span{
+      display:block!important;position:static!important;width:auto!important;min-width:0!important;max-width:none!important;
+      height:auto!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;
+      color:inherit!important;white-space:normal!important;word-break:keep-all!important;overflow-wrap:break-word!important;
+      writing-mode:horizontal-tb!important;text-orientation:mixed!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 p+p,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 div+div{margin-top:8px!important}
+
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-text-panel .mml-derived-form-editable,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-direction-box .mml-derived-form-editable{font-size:10.2px;line-height:1.78}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-flow .mml-derived-form-editable{font-size:9px;line-height:1.6}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-text-panel{padding:11px 13px}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-derived-test-title{margin:8px 0 4px;padding-top:0;font-size:9.5px;color:#123f33}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-derived-test-title:first-child{margin-top:0}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] p{font-size:8.8px;line-height:1.58;margin-bottom:5px}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-list{display:block!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item{display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding:9px 0 10px!important;border-bottom:1px solid #e3ebe7!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item:first-child{padding-top:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item:last-child{border-bottom:0!important;padding-bottom:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item-body{display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important}
+
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-title{margin:8px 0 4px;font-size:9.6px}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-title span{width:18px;height:18px;font-size:8px;border-radius:6px}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] p{font-size:9.2px;line-height:1.62;margin-bottom:5px}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-form-editable{display:block!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-item{display:block!important;margin:0 0 12px!important;padding:0!important;min-height:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-item:last-child{margin-bottom:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-title{display:flex!important;align-items:center!important;gap:7px!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-section{display:block!important;height:auto!important;min-height:0!important;margin-bottom:0!important;padding-bottom:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-panel{display:block!important;height:auto!important;min-height:0!important;margin-top:9px!important;padding:14px 16px!important;border:1px solid #cfe3d9!important;border-radius:12px!important;background:#eef6f2!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor{display:block!important;height:auto!important;min-height:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor .mml-derived-recovery-item{display:block!important;height:auto!important;min-height:0!important;margin:0 0 14px!important;padding:0 0 12px!important;border-bottom:1px solid #d4e5dd!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor .mml-derived-recovery-item:last-child{margin-bottom:0!important;padding-bottom:0!important;border-bottom:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor [data-recovery-body]{display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important}
+
+    /* Sprint56: 공통 개별보고서 CSS의 A4 높이 분배 규칙이 종합보고서 2페이지에 상속되어
+       03 검사 항목과 07 제언 항목이 페이지 높이에 맞춰 강제로 늘어나던 문제를 차단한다. */
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-three{display:block!important;height:auto!important;min-height:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-detail,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-integration,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-direction,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-note,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-closing{display:block!important;flex:none!important;height:auto!important;min-height:0!important;margin-top:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-detail,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-integration,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-direction{margin-bottom:14px!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"]{display:block!important;flex:none!important;height:auto!important;min-height:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"]>.mml-derived-form-editable{display:block!important;flex:none!important;height:auto!important;min-height:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-list>*{flex:none!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"]{display:block!important;flex:none!important;height:auto!important;min-height:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-item>*{flex:none!important}
+
+
+    /* Sprint58: 03/07은 개별보고서 공통 레이아웃 클래스를 아예 사용하지 않는다.
+       과거 CSS의 flex/grid/고정높이 규칙과 분리된 전용 래퍼로 내용 높이만 사용한다. */
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-section-v58,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-section-v58{
+      display:block!important;position:relative!important;flex:none!important;
+      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
+      margin:0 0 14px!important;padding:0!important;overflow:visible!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-panel-v58{
+      display:block!important;position:relative!important;flex:none!important;
+      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
+      margin:9px 0 0!important;padding:11px 13px!important;overflow:visible!important;
+      border:0!important;border-left:3px solid #b4783d!important;border-radius:0!important;background:#f7f9f8!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58{
+      display:block!important;position:static!important;flex:none!important;
+      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
+      margin:0!important;padding:0!important;overflow:visible!important;background:transparent!important;border:0!important;
+      color:#596a63!important;font-size:8.8px!important;line-height:1.58!important;white-space:normal!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-list{
+      display:block!important;position:static!important;width:100%!important;height:auto!important;min-height:0!important;
+      margin:0!important;padding:0!important;overflow:visible!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item{
+      display:block!important;position:static!important;flex:none!important;width:100%!important;
+      height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:10px 0!important;
+      overflow:visible!important;border:0!important;border-bottom:1px solid #e3ebe7!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item:first-child{padding-top:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item:last-child{padding-bottom:0!important;border-bottom:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-derived-test-title{
+      display:block!important;height:auto!important;min-height:0!important;margin:0 0 5px!important;padding:0!important;
+      font-size:9.5px!important;line-height:1.5!important;color:#123f33!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item-body,
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item-body p{
+      display:block!important;position:static!important;height:auto!important;min-height:0!important;max-height:none!important;
+      margin:0!important;padding:0!important;overflow:visible!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item-body p+p{margin-top:5px!important}
+
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-panel-v58{
+      display:block!important;position:relative!important;flex:none!important;
+      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
+      margin:9px 0 0!important;padding:14px 16px!important;overflow:visible!important;
+      border:1px solid #cfe3d9!important;border-radius:12px!important;background:#eef6f2!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58{
+      display:block!important;position:static!important;flex:none!important;
+      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
+      margin:0!important;padding:0!important;overflow:visible!important;background:transparent!important;border:0!important;
+      color:#596a63!important;font-size:9.2px!important;line-height:1.62!important;white-space:normal!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-item{
+      display:block!important;position:static!important;flex:none!important;width:100%!important;
+      height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0 0 12px!important;
+      overflow:visible!important;border:0!important;border-bottom:1px solid #d4e5dd!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-item+.mml-derived-recovery-item{padding-top:12px!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-item:last-child{padding-bottom:0!important;border-bottom:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-title{
+      display:flex!important;position:static!important;align-items:center!important;gap:7px!important;
+      height:auto!important;min-height:0!important;margin:0 0 5px!important;padding:0!important;font-size:9.6px!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 [data-recovery-body],
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 [data-recovery-body] p{
+      display:block!important;position:static!important;height:auto!important;min-height:0!important;max-height:none!important;
+      margin:0!important;padding:0!important;overflow:visible!important;
+    }
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 [data-recovery-body] p+p{margin-top:5px!important}
+
+
+    #mml-derived-report-editor.mml-derived-editing .mml-comprehensive-signature [contenteditable="true"]{border:1px dashed #b4783d!important;border-radius:8px!important;background:#fff!important;color:#20322d!important;padding:8px!important;box-shadow:0 0 0 3px rgba(180,120,61,.12)!important}
+    @media print{
+      #mml-derived-report-editor .mml-comprehensive-signature{padding:0!important}
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page{width:210mm!important;min-height:297mm!important;height:297mm!important;margin:0!important;padding:14mm 15mm 12mm!important;box-shadow:none!important;overflow:hidden!important;break-after:page!important;page-break-after:always!important}
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page:last-child{break-after:auto!important;page-break-after:auto!important}
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-one>section,
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>section,
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-three>section{break-inside:avoid!important;page-break-inside:avoid!important}
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two .mml-tests-section-v58,
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two .mml-detail,
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two .mml-integration,
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-three .mml-recovery-section-v58{break-inside:avoid!important;page-break-inside:avoid!important}
+    }
+    @media(max-width:900px){.mml-derived-form-shell{width:100%;max-width:100%;overflow:auto}.mml-derived-form-document{width:760px;padding:16mm 15mm}.mml-derived-form-page{width:760px;min-height:auto;padding:16mm 15mm}.mml-derived-form-title{font-size:27px}.mml-derived-form-meta{grid-template-columns:repeat(4,1fr)}.mml-derived-form-section{grid-template-columns:34px 1fr;gap:10px}}
     @media print{
       @page{size:A4;margin:0}
       html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
@@ -1592,12 +2235,12 @@ function openDerivedAssessmentReportForm(id){
       #mml-derived-report-editor{position:static!important;inset:auto!important;display:block!important;overflow:visible!important;background:#fff!important;padding:0!important}
       #mml-derived-report-editor .mml-derived-form-shell{width:210mm!important;max-width:none!important;margin:0!important}
       #mml-derived-report-editor .mml-derived-form-toolbar{display:none!important}
-      #mml-derived-report-editor .mml-derived-form-document{width:auto!important;max-width:none!important;margin:0!important;padding:14mm 14mm!important;box-shadow:none!important;overflow:visible!important;background:#fff!important}
-      #mml-derived-report-editor .mml-derived-cover-block{padding-top:16mm!important;padding-bottom:10mm!important;break-after:auto!important;page-break-after:auto!important}
+      #mml-derived-report-editor .mml-derived-form-document{width:210mm!important;max-width:210mm!important;margin:0!important;padding:16mm 15mm 14mm!important;box-shadow:none!important;overflow:visible!important;background:#fff!important}
+      #mml-derived-report-editor .mml-derived-cover-block{padding-top:23mm!important;padding-bottom:13mm!important;break-after:auto!important;page-break-after:auto!important}
       /* 화면 작성 폼 자체를 PDF 원본으로 사용한다. 표지·여백·글자·카드 크기를 변경하지 않는다. */
       #mml-derived-report-editor .mml-derived-form-page{width:auto!important;min-height:0!important;height:auto!important;margin:0!important;padding:14mm!important;box-shadow:none!important;overflow:visible!important;break-after:auto!important;page-break-after:auto!important}
       #mml-derived-report-editor .mml-derived-form-page:last-child{break-after:auto;page-break-after:auto}
-      #mml-derived-report-editor .mml-derived-form-section{break-inside:auto;page-break-inside:auto}#mml-derived-report-editor .mml-derived-form-title-row{break-after:avoid;page-break-after:avoid}#mml-derived-report-editor .mml-derived-form-editable{overflow:visible!important}
+      #mml-derived-report-editor .mml-derived-form-section{break-inside:avoid;page-break-inside:avoid}#mml-derived-report-editor .mml-derived-form-title-row{break-after:avoid;page-break-after:avoid}#mml-derived-report-editor .mml-derived-form-editable{overflow:visible!important}
       #mml-derived-report-editor .mml-derived-form-page-body{overflow:visible!important}
       #mml-derived-report-editor .mml-derived-print-meta{display:none!important}
       #mml-derived-report-editor [contenteditable="true"]{caret-color:transparent!important}
@@ -1605,7 +2248,7 @@ function openDerivedAssessmentReportForm(id){
   </style>
   <div class="mml-derived-form-shell">
     <div class="mml-derived-form-toolbar">
-      <div><h2>${report?.audience==='counselor'?'상담자용 종합보고서 작성':'심리검사 종합보고서 작성'}</h2><p>AI 종합해석보고서를 바탕으로 생성된 정식 보고서를 검토·수정한 뒤 저장하세요. <span class="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-extrabold text-indigo-700">Composer V5.9D</span></p><div style="margin-top:8px"><span style="display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;background:${report.approvedForClient?'#dcfce7':'#f1f5f9'};color:${report.approvedForClient?'#166534':'#475569'}">${report.approvedForClient?'승인완료 · 사용자 열람 가능':report.status==='saved'?'저장완료 · 승인대기':'작성 중'}</span></div></div>
+      <div><h2>${report?.audience==='counselor'?'상담자용 종합보고서 작성':'심리검사 종합보고서 작성'}</h2><p>검사별 분석과 AI 통합해석을 바탕으로 생성된 정식 종합보고서를 검토·수정한 뒤 저장하세요. <span class="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-extrabold text-indigo-700">Signature S25</span></p><div style="margin-top:8px"><span data-derived-status style="display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;background:${report.approvedForClient?'#dcfce7':'#f1f5f9'};color:${report.approvedForClient?'#166534':'#475569'}">${report.approvedForClient?'승인완료 · 사용자 열람 가능':report.status==='saved'?'저장완료 · 승인대기':'작성 중'}</span></div></div>
       <div class="mml-derived-form-actions">
         <button id="mml-derived-edit-toggle" onclick="toggleDerivedAssessmentReportEdit(true)" style="border:1px solid #9bb8ad;background:#fff;color:#245244">수정</button>
         <button onclick="saveDerivedAssessmentReportFromForm(${report.id},false)" style="border:0;background:#285f4e;color:#fff">저장</button>
@@ -1614,10 +2257,6 @@ function openDerivedAssessmentReportForm(id){
         <button onclick="document.getElementById('mml-derived-report-editor')?.remove()" style="border:1px solid #cbd5e1;background:#fff;color:#475569">닫기</button>
       </div>
     </div>
-    <section class="mml-derived-form-document mml-derived-cover-block">
-      <div class="mml-derived-cover-brand"><div class="mml-derived-cover-brand-main"><div class="mml-derived-form-kicker">MODUMAM LAB PSYCHOLOGICAL REPORT</div><h1 class="mml-derived-form-title" contenteditable="false" data-derived-title="true" spellcheck="false">${esc(normalizedDerivedReportTitle(report))}</h1><p class="mml-derived-form-sub">심리검사 결과를 통합하여 현재 마음의 특징과 회복 방향을 이해하기 쉽게 정리한 보고서입니다.</p></div><div class="mml-derived-cover-logo"><div class="mml-derived-cover-logo-mark">ㅁㄷㅁ</div><span>모두의 마음연구소</span></div></div>
-      <div class="mml-derived-form-meta"><div><b>프로그램</b><span>${esc(programBaseName(report.program||source.program||'-'))}</span></div><div><b>실시 검사</b><span>${esc(tests||'-')}</span></div><div><b>작성일</b><span>${esc(issued)}</span></div><div><b>작성</b><span>임상심리사 백인영</span></div></div>
-    </section>
     ${derivedReportFormPagesHtml(report)}
   </div>`;
   document.body.appendChild(wrap);
@@ -1629,23 +2268,21 @@ function printDerivedAssessmentReportForm(){
   const editor=document.getElementById('mml-derived-report-editor');
   if(!editor)return;
   const report=derivedAssessmentReportById(editor.dataset.reportId);
-  if(report?.audience!=='counselor'){
-    const required=['coreMind','mindProfile','individualTests','emotionState','thinkingRelationship','stressDaily','expertRecovery'];
-    const missing=required.filter(key=>{
-      const node=editor.querySelector(`[data-derived-key="${key}"] [data-derived-index]`);
-      return !node||!String(node.innerText||node.textContent||'').trim();
-    });
-    if(missing.length){
-      alert(`PDF 생성이 중단되었습니다. 내용이 없는 보고서 영역: ${missing.join(', ')}`);
-      return;
-    }
+  if(!report)return;
+
+  // Sprint60: PDF는 about:blank 복제창을 만들지 않고 현재 보고서 DOM을 그대로 인쇄한다.
+  // 팝업에 clone.outerHTML을 복제하면 원본 페이지의 CSS 컨텍스트/폰트/레이아웃이 끊겨
+  // 빈 미리보기 또는 본문이 한 글자씩 세로로 출력되는 문제가 발생했다.
+  if(report.audience!=='counselor'){
+    saveDerivedAssessmentReportFromForm(report.id,false,true);
   }
   document.documentElement.classList.add('mml-derived-printing');
   const cleanup=()=>document.documentElement.classList.remove('mml-derived-printing');
   window.addEventListener('afterprint',cleanup,{once:true});
   requestAnimationFrame(()=>requestAnimationFrame(()=>window.print()));
-  setTimeout(cleanup,2000);
+  setTimeout(cleanup,3000);
 }
+
 function saveDerivedAssessmentReportFromForm(id,openPdf=false,silent=false){
   const rows=derivedAssessmentReports();const idx=rows.findIndex(x=>String(x.id)===String(id));if(idx<0)return;
   const editor=document.getElementById('mml-derived-report-editor');if(!editor)return;
@@ -1657,8 +2294,30 @@ function saveDerivedAssessmentReportFromForm(id,openPdf=false,silent=false){
   const disclaimer=(Array.isArray(rows[idx].sections)?rows[idx].sections:[]).find(section=>section?.key==='disclaimer');
   rows[idx].sections=canonical.map(section=>{
     const key=String(section?.key||'');
-    const parts=[...editor.querySelectorAll(`[data-derived-key="${key}"] [data-derived-index]`)].map(el=>(el.innerText||el.textContent||'').trim()).filter(Boolean);
-    return {...section,text:parts.length?parts.join('\n\n'):String(section?.text||'')};
+    const roots=[...editor.querySelectorAll(`[data-derived-key="${key}"] [data-derived-index]`)];
+    if(key==='individualTests'){
+      const itemNodes=roots.flatMap(root=>[...root.querySelectorAll('[data-test-item]')]);
+      const items=itemNodes.map(node=>({
+        title:String(node.querySelector('[data-test-title]')?.innerText||node.querySelector('[data-test-title]')?.textContent||'').trim(),
+        body:String(node.querySelector('[data-test-body]')?.innerText||node.querySelector('[data-test-body]')?.textContent||'').trim()
+      })).filter(item=>item.title&&item.body);
+      if(items.length){
+        return {...section,items,text:items.map(item=>`${item.title}\n${item.body}`).join('\n\n')};
+      }
+    }
+    if(key==='expertRecovery'){
+      const itemNodes=roots.flatMap(root=>[...root.querySelectorAll('[data-recovery-item]')]);
+      const items=itemNodes.map(node=>({
+        title:String(node.querySelector('[data-recovery-title]')?.innerText||node.querySelector('[data-recovery-title]')?.textContent||'').trim(),
+        body:String(node.querySelector('[data-recovery-body]')?.innerText||node.querySelector('[data-recovery-body]')?.textContent||'').trim()
+      })).filter(item=>item.title&&item.body);
+      if(items.length){
+        return {...section,items,text:items.map((item,i)=>`${i+1}. ${item.title}: ${item.body}`).join('\n\n')};
+      }
+    }
+    const parts=roots.map(el=>(el.innerText||el.textContent||'').trim()).filter(Boolean);
+    const preserved=String(section?.text||'').trim();
+    return {...section,text:parts.length?parts.join('\n\n'):preserved};
   });
   if(disclaimer)rows[idx].sections.push(disclaimer);
   const savedAt=new Date().toISOString();
@@ -1675,11 +2334,15 @@ function saveDerivedAssessmentReportFromForm(id,openPdf=false,silent=false){
   saveDerivedAssessmentReports(rows);
   try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-saved'});}catch(_){}
   toggleDerivedAssessmentReportEdit(false);
-  if(openPdf){
-    printDerivedAssessmentReportForm();
-  }else if(!silent){
-    alert('종합보고서를 저장했습니다.');
+  const statusNode=editor.querySelector('[data-derived-status]');
+  if(statusNode){
+    statusNode.textContent='저장완료 · 승인대기';
+    statusNode.style.background='#fef3c7';
+    statusNode.style.color='#92400e';
   }
+  if(openPdf)printDerivedAssessmentReportForm();
+  if(!silent)alert('종합보고서를 저장했습니다.');
+  try{render();}catch(_){}
   return true;
 }
 function toggleDerivedAssessmentReportEdit(editing){
@@ -1773,9 +2436,9 @@ async function previewDerivedAssessmentReport(id,printNow=false){
     const disclaimer=firstReportText(getSection('disclaimer'),'이 보고서는 심리검사 결과를 바탕으로 현재의 상태와 경향을 이해하기 위한 참고자료이며, 검사 결과만으로 진단을 확정하지 않습니다.');
     const section=(no,title,text,kind='panel')=>`<section class="signature-section"><div class="signature-title"><b>${no}</b><h2>${title}</h2></div><div class="${kind}"><p>${esc(text||'통합보고서 내용을 검토해 주세요.').replace(/\n/g,'<br>')}</p></div></section>`;
     win.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(report.title)}</title><style>${mmlDerivedReportCss('#0f4b3c')}</style></head><body><main class="report-wrap">
-      <article class="page signature-page"><div class="topbar"></div><header><div class="eyebrow">MODUMAM INTERNAL SUMMARY REPORT</div><h1 class="title">개인 마음이음 종합보고서</h1><p class="subtitle">심리검사 결과를 바탕으로 현재의 마음과 성격 특성을 이해하고, 회복과 상담에 도움이 되는 방향을 정리한 보고서입니다.</p><div class="logo"><div class="logo-mark">ㅁㄷㅁ</div><span>모두의 마음연구소</span></div></header><div class="meta"><div><small>성명</small><b>${esc(report.clientName||'')}</b></div><div><small>프로그램</small><b>${esc(report.program||'')}</b></div><div><small>발행일</small><b>${issued}</b></div><div><small>실시검사</small><b>${esc(tests||'통합 심리검사')}</b></div></div><section class="glance numbered-hero"><div class="hero-no">01</div><div><small>MY MIND AT A GLANCE</small><h2>현재 마음의 핵심 모습</h2><p>${esc(core||'통합검사 결과를 바탕으로 현재 마음의 핵심 모습을 정리했습니다.').replace(/\n/g,'<br>')}</p></div></section>${section('02','마음 프로파일',profile,'profile-card')}<div class="page-footer">MODUMAM INTERNAL SUMMARY REPORT <span>1 / 3</span></div></article>
-      <article class="page signature-page"><div class="topbar"></div><header class="inner-header"><div><div class="eyebrow">UNDERSTANDING MY RESULTS</div><h1 class="inner-title">검사 결과로 나를 이해하기</h1></div><span>${esc(report.clientName||'')}</span></header>${section('03','개별검사 요약',individual,'test-card')}${section('04','정서와 심리상태',emotion,'soft-card')}<div class="page-footer">MODUMAM INTERNAL SUMMARY REPORT <span>2 / 3</span></div></article>
-      <article class="page signature-page"><div class="topbar"></div><header class="inner-header"><div><div class="eyebrow">INTEGRATED UNDERSTANDING</div><h1 class="inner-title">통합적 이해와 회복 방향</h1></div><span>${esc(report.clientName||'')}</span></header>${section('05','사고와 관계 방식',thinking,'plain-card')}${section('06','스트레스와 일상생활',stress,'soft-card')}${section('07','전문가 제언 및 회복 방향',recovery,'recovery-card')}<div class="report-notice"><h3>보고서 안내</h3><p>${esc(disclaimer).replace(/\n/g,'<br>')}</p></div><div class="page-footer">MODUMAM INTERNAL SUMMARY REPORT <span>3 / 3</span></div></article>
+      <article class="page signature-page"><div class="topbar"></div><header><div class="eyebrow">MODUMAM INTERNAL SUMMARY REPORT</div><h1 class="title">개인 마음이음 종합보고서</h1><p class="subtitle">심리검사 결과를 바탕으로 현재의 마음과 성격 특성을 이해하고, 회복과 상담에 도움이 되는 방향을 정리한 보고서입니다.</p><div class="logo"><div class="logo-mark">ㅁㄷㅁ</div><span>모두의 마음연구소</span></div></header><div class="meta"><div><small>성명</small><b>${esc(report.clientName||'')}</b></div><div><small>프로그램</small><b>${esc(report.program||'')}</b></div><div><small>발행일</small><b>${issued}</b></div><div><small>실시검사</small><b>${esc(tests||'통합 심리검사')}</b></div></div><section class="glance numbered-hero"><div class="hero-no">01</div><div><small>MY MIND AT A GLANCE</small><h2>현재 마음의 핵심 모습</h2><p>${esc(core||'통합검사 결과를 바탕으로 현재 마음의 핵심 모습을 정리했습니다.').replace(/\n/g,'<br>')}</p></div></section>${section('02','마음 프로파일',profile,'profile-card')}<div class="page-footer">MODUMAM INTERNAL SUMMARY REPORT <span>1 / 2+</span></div></article>
+      <article class="page signature-page"><div class="topbar"></div><header class="inner-header"><div><div class="eyebrow">UNDERSTANDING MY RESULTS</div><h1 class="inner-title">검사 결과로 나를 이해하기</h1></div><span>${esc(report.clientName||'')}</span></header>${section('03','개별검사 요약',individual,'test-card')}${section('04','정서와 심리상태',emotion,'soft-card')}<div class="page-footer">MODUMAM INTERNAL SUMMARY REPORT <span>2 / 2+</span></div></article>
+      <article class="page signature-page"><div class="topbar"></div><header class="inner-header"><div><div class="eyebrow">INTEGRATED UNDERSTANDING</div><h1 class="inner-title">통합적 이해와 회복 방향</h1></div><span>${esc(report.clientName||'')}</span></header>${section('05','사고와 관계 방식',thinking,'plain-card')}${section('06','스트레스와 일상생활',stress,'soft-card')}${section('07','전문가 제언 및 회복 방향',recovery,'recovery-card')}<div class="report-notice"><h3>보고서 안내</h3><p>${esc(disclaimer).replace(/\n/g,'<br>')}</p></div><div class="page-footer">MODUMAM INTERNAL SUMMARY REPORT <span>2 / 2+</span></div></article>
     </main></body></html>`);
   }
   win.document.close();if(printNow)setTimeout(()=>win.print(),350);
@@ -2261,3 +2924,102 @@ function memberAssessmentSection(c){
 
   return `<section class="rounded-[2rem] border border-emerald-100 bg-white p-5 shadow-sm sm:p-6"><div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold text-emerald-600">PSYCHOLOGICAL ASSESSMENT</p><h3 class="mt-1 text-lg font-extrabold">심리평가 보고서</h3><p class="mt-1 text-xs text-slate-500">전자차트에서는 보고서만 조회합니다. 생성·수정·승인은 심리평가센터에서 관리합니다.</p></div><button onclick="setMenu('interpretation')" class="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-xs font-extrabold text-emerald-700">심리평가센터 바로가기</button></div><div class="space-y-5"><div><div class="mb-3 flex items-center justify-between"><h4 class="text-sm font-extrabold text-emerald-950">개별 심리검사 보고서</h4><span class="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700">${individualReports.length}건</span></div><div class="space-y-3">${individualHtml}</div></div><div><div class="mb-3 flex items-center justify-between"><h4 class="text-sm font-extrabold text-indigo-950">심리검사 종합보고서</h4><span class="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-bold text-indigo-700">${comprehensiveReports.length}건</span></div><div class="space-y-3">${comprehensiveHtml}</div></div></div></section>`;
 }
+
+/* =========================================================
+   Sprint62: 개별 심리검사 보고서 미리보기 기본 접기
+   - 종합보고서 저장 카드처럼 개별보고서도 기본은 compact 상태
+   - 기존 1180px iframe 미리보기는 숨기고 '열기' 버튼으로만 펼침
+   - 저장/수정/승인/PDF 기능은 그대로 유지
+========================================================= */
+(function installMmlIndividualReportCollapseS62(){
+  if(window.__MML_INDIVIDUAL_REPORT_COLLAPSE_S62__)return;
+  window.__MML_INDIVIDUAL_REPORT_COLLAPSE_S62__=true;
+
+  const normalizeText=value=>String(value||'').replace(/\s+/g,' ').trim();
+
+  function isIndividualPreviewFrame(frame){
+    if(!frame||frame.tagName!=='IFRAME')return false;
+    const title=normalizeText(frame.getAttribute('title'));
+    if(/개별\s*심리검사\s*보고서/.test(title))return true;
+    const card=frame.closest('section, article, div.rounded-2xl, div[class*="rounded-"]');
+    if(!card)return false;
+    const text=normalizeText(card.textContent);
+    return text.includes('생성된 결과보고서 저장') && !text.includes('심리검사 종합보고서 작성');
+  }
+
+  function findCard(frame){
+    let node=frame.parentElement;
+    while(node&&node!==document.body){
+      const text=normalizeText(node.textContent);
+      if(text.includes('생성된 결과보고서 저장') &&
+         (text.includes('개별 심리검사 보고서') || /TCI|MMPI|PAI|SCT|HTP|K-CDI|STS|PAT|PHQ-9|GAD-7/.test(text))){
+        return node;
+      }
+      node=node.parentElement;
+    }
+    return frame.parentElement?.parentElement||frame.parentElement;
+  }
+
+  function findActionRow(card){
+    if(!card)return null;
+    const buttons=[...card.querySelectorAll('button')];
+    const saveButton=buttons.find(btn=>normalizeText(btn.textContent)==='생성된 결과보고서 저장');
+    if(!saveButton)return null;
+    return saveButton.closest('.grid')||saveButton.parentElement;
+  }
+
+  function applyOne(frame){
+    if(!isIndividualPreviewFrame(frame))return;
+    const previewWrap=frame.parentElement;
+    const card=findCard(frame);
+    const actionRow=findActionRow(card);
+    if(!previewWrap||!card||!actionRow)return;
+
+    card.dataset.mmlIndividualCompact='s62';
+    previewWrap.dataset.mmlIndividualPreview='s62';
+
+    let toggle=actionRow.querySelector('[data-mml-individual-toggle="s62"]');
+    if(!toggle){
+      toggle=document.createElement('button');
+      toggle.type='button';
+      toggle.dataset.mmlIndividualToggle='s62';
+      toggle.className='rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800';
+      toggle.textContent='열기';
+      actionRow.insertBefore(toggle,actionRow.firstChild);
+      toggle.addEventListener('click',()=>{
+        const expanded=previewWrap.dataset.mmlExpanded==='true';
+        previewWrap.dataset.mmlExpanded=expanded?'false':'true';
+        previewWrap.style.display=expanded?'none':'';
+        toggle.textContent=expanded?'열기':'접기';
+        if(!expanded){
+          requestAnimationFrame(()=>frame.scrollIntoView({block:'nearest',behavior:'smooth'}));
+        }
+      });
+    }
+
+    if(!previewWrap.dataset.mmlExpanded){
+      previewWrap.dataset.mmlExpanded='false';
+      previewWrap.style.display='none';
+      toggle.textContent='열기';
+    }else if(previewWrap.dataset.mmlExpanded==='false'){
+      previewWrap.style.display='none';
+      toggle.textContent='열기';
+    }else{
+      previewWrap.style.display='';
+      toggle.textContent='접기';
+    }
+  }
+
+  function applyAll(){
+    document.querySelectorAll('iframe').forEach(applyOne);
+  }
+
+  const start=()=>{
+    applyAll();
+    const observer=new MutationObserver(()=>requestAnimationFrame(applyAll));
+    observer.observe(document.documentElement,{childList:true,subtree:true});
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
+  else start();
+})();

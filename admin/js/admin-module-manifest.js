@@ -9,7 +9,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     location.hostname.endsWith('.local');
 
   const mode = isLocal ? 'development' : 'production';
-  const build = '20260808-report-actions-s11';
+  const build = '20260808-direct-comprehensive-s20-fix2';
 
   const core = [
     {
@@ -92,7 +92,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260727-persistence-fix-v2',
+      src:'./js/modules/assessment-reports.js?v=20260809-individual-compact-s62',
       required:true,
       dependsOn:['data-store','print-engine']
     },
