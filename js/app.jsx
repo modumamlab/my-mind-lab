@@ -2687,6 +2687,39 @@ const userText = pendingInput;
                 </style></head><body><main class="report"><div class="top"><h1>심리검사 종합결과</h1><span>모두의 마음연구소</span></div>${meta}${body}<div class="foot">모두의 마음연구소 · 심리검사 종합결과보고서</div></main></body></html>`;
             };
 
+            /* [MML-20260808-CLIENT-REPORT-EXACT-SNAPSHOT-S5]
+               관리자 승인 시 저장한 approvedReportHtml을 사용자 열람/PDF의 유일한 화면 원본으로 사용합니다.
+               완전한 HTML 문서를 다시 wrapper 안에 넣지 않아 관리자 보고서 폼·페이지·인쇄 CSS가 변형되지 않습니다. */
+            const isCompleteApprovedReportDocument = (html) => {
+                const value = String(html || '').trim();
+                return /^<!doctype\s+html/i.test(value) || /^<html[\s>]/i.test(value);
+            };
+
+            const withClientReportToolbar = (html, { autoPrint = false } = {}) => {
+                const value = String(html || '').trim();
+                if (!isCompleteApprovedReportDocument(value)) return value;
+                const toolbar = `
+<style id="mml-client-approved-report-toolbar-style">
+#mml-client-approved-report-toolbar{position:fixed;right:18px;top:18px;z-index:2147483647;display:flex;gap:8px;padding:8px;border:1px solid #cbd5e1;border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 8px 25px rgba(15,23,42,.16);font-family:Pretendard,"Noto Sans KR",sans-serif}
+#mml-client-approved-report-toolbar button{border:0;border-radius:10px;padding:10px 15px;cursor:pointer;font:800 13px/1.2 inherit}
+#mml-client-approved-report-toolbar .mml-client-print{background:#0f172a;color:#fff}
+#mml-client-approved-report-toolbar .mml-client-close{background:#e2e8f0;color:#334155}
+@media print{#mml-client-approved-report-toolbar{display:none!important}}
+</style>
+<div id="mml-client-approved-report-toolbar" data-no-print="true"><button class="mml-client-print" type="button" onclick="window.print()">PDF·인쇄</button><button class="mml-client-close" type="button" onclick="window.close()">닫기</button></div>
+${autoPrint ? '<script id="mml-client-approved-report-autoprint">window.addEventListener("load",async()=>{try{if(document.fonts&&document.fonts.ready)await document.fonts.ready}catch(e){}setTimeout(()=>window.print(),220)},{once:true})<\/script>' : ''}`;
+                return /<\/body>/i.test(value) ? value.replace(/<\/body>/i, `${toolbar}</body>`) : `${value}${toolbar}`;
+            };
+
+            const openExactApprovedReportDocument = (html, printImmediately = false) => {
+                const popup = window.open('', '_blank', 'width=960,height=900');
+                if (!popup) throw new Error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해 주세요.');
+                popup.document.open();
+                popup.document.write(withClientReportToolbar(html, { autoPrint: printImmediately }));
+                popup.document.close();
+                return popup;
+            };
+
             const openApprovedAssessmentReport = async (report, printImmediately = false) => {
                 try {
                     const reportId = String(report?.id || report?.reportId || '').trim();
@@ -2694,14 +2727,35 @@ const userText = pendingInput;
                         alert('보고서 원본 ID를 찾지 못했습니다.');
                         return;
                     }
-                    if (window.MMLReportViewer?.open) {
-                        await window.MMLReportViewer.open(report, { printImmediately, toolbar: true });
+
+                    let source = report || null;
+                    let approvedHtml = String(source?.approvedReportHtml || '').trim();
+
+                    // 카드가 compact snapshot인 경우 IndexedDB의 canonical 원본을 우선 복구합니다.
+                    if (!approvedHtml && window.MMLReportViewer?.getByIdAsync) {
+                        try { source = await window.MMLReportViewer.getByIdAsync(reportId) || source; } catch (e) {}
+                        approvedHtml = String(source?.approvedReportHtml || '').trim();
+                    }
+                    if (!approvedHtml) {
+                        const reports = getStoredAssessmentReports();
+                        source = reports.find((item) => String(item?.id || '') === reportId) || source;
+                        approvedHtml = String(source?.approvedReportHtml || '').trim();
+                    }
+
+                    // 승인된 완전한 문서는 관리자 승인 당시 문서 그대로 연다.
+                    // 열람과 PDF가 동일 DOM/CSS를 사용하므로 별도 사용자용 보고서 양식을 생성하지 않는다.
+                    if (approvedHtml && isCompleteApprovedReportDocument(approvedHtml)) {
+                        openExactApprovedReportDocument(approvedHtml, printImmediately);
                         return;
                     }
-                    const reports = safeParse(localStorage.getItem('modumam_reports'), []);
-                    const source = reports.find((item) => String(item?.id || '') === reportId);
-                    const html = String(source?.approvedReportHtml || source?.reportHtml || source?.renderedHtml || source?.previewHtml || '').trim();
-                    if (!html) {
+
+                    // 구버전 fragment 보고서만 공통 viewer/fallback을 사용합니다.
+                    if (window.MMLReportViewer?.open) {
+                        await window.MMLReportViewer.open(source || report, { printImmediately, toolbar: true });
+                        return;
+                    }
+                    const legacyHtml = String(approvedHtml || source?.reportHtml || source?.renderedHtml || source?.previewHtml || source?.html || '').trim();
+                    if (!legacyHtml) {
                         alert('저장된 보고서 원본을 찾지 못했습니다.');
                         return;
                     }
@@ -2711,11 +2765,10 @@ const userText = pendingInput;
                         return;
                     }
                     popup.document.open();
-                    popup.document.write(html);
+                    popup.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>심리검사 보고서</title><style>body{margin:0;background:#fff;font-family:Pretendard,"Noto Sans KR",sans-serif}@media print{body{background:#fff}}</style></head><body>${legacyHtml}${printImmediately ? '<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),220),{once:true})<\/script>' : ''}</body></html>`);
                     popup.document.close();
-                    if (printImmediately) popup.addEventListener('load', () => setTimeout(() => popup.print(), 180), { once: true });
                 } catch (error) {
-                    console.error('[MML] 보고서 원본 열람 실패', error);
+                    console.error('[MML] 보고서 승인 원본 열람 실패', error);
                     alert(error?.message || '보고서를 열지 못했습니다.');
                 }
             };
