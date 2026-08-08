@@ -11,8 +11,8 @@ function copyLegacyRuntimeFiles() {
         ['admin/js', 'admin/js'],
         ['ai', 'ai'],
         ['client', 'client'],
-        ['js/app.jsx', 'js/app.jsx'],
-        ['js/report-viewer.js', 'js/report-viewer.js']
+        ['js/report-viewer.js', 'js/report-viewer.js'],
+        ['js/app.jsx', 'js/app.jsx']
       ];
 
       for (const [source, target] of copies) {

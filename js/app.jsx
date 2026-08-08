@@ -536,6 +536,11 @@ async function submitSignup(userData) {
             const [bookingProgram, setBookingProgram] = useState('개별 심리검사');
             const [selectedTests, setSelectedTests] = useState([]);
             const [bookingAlert, setBookingAlert] = useState(null);
+            const [bookingTestsOpen, setBookingTestsOpen] = useState(true);
+            const [bookingMethodOpen, setBookingMethodOpen] = useState(false);
+            const [bookingInfoOpen, setBookingInfoOpen] = useState(false);
+            const [bookingConsentOpen, setBookingConsentOpen] = useState(false);
+            const bookingCollapseVersion = 's68';
 
             const getBookingMethodGuide = (type) => {
                 const guides = {
@@ -2687,39 +2692,6 @@ const userText = pendingInput;
                 </style></head><body><main class="report"><div class="top"><h1>심리검사 종합결과</h1><span>모두의 마음연구소</span></div>${meta}${body}<div class="foot">모두의 마음연구소 · 심리검사 종합결과보고서</div></main></body></html>`;
             };
 
-            /* [MML-20260808-CLIENT-REPORT-EXACT-SNAPSHOT-S5]
-               관리자 승인 시 저장한 approvedReportHtml을 사용자 열람/PDF의 유일한 화면 원본으로 사용합니다.
-               완전한 HTML 문서를 다시 wrapper 안에 넣지 않아 관리자 보고서 폼·페이지·인쇄 CSS가 변형되지 않습니다. */
-            const isCompleteApprovedReportDocument = (html) => {
-                const value = String(html || '').trim();
-                return /^<!doctype\s+html/i.test(value) || /^<html[\s>]/i.test(value);
-            };
-
-            const withClientReportToolbar = (html, { autoPrint = false } = {}) => {
-                const value = String(html || '').trim();
-                if (!isCompleteApprovedReportDocument(value)) return value;
-                const toolbar = `
-<style id="mml-client-approved-report-toolbar-style">
-#mml-client-approved-report-toolbar{position:fixed;right:18px;top:18px;z-index:2147483647;display:flex;gap:8px;padding:8px;border:1px solid #cbd5e1;border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 8px 25px rgba(15,23,42,.16);font-family:Pretendard,"Noto Sans KR",sans-serif}
-#mml-client-approved-report-toolbar button{border:0;border-radius:10px;padding:10px 15px;cursor:pointer;font:800 13px/1.2 inherit}
-#mml-client-approved-report-toolbar .mml-client-print{background:#0f172a;color:#fff}
-#mml-client-approved-report-toolbar .mml-client-close{background:#e2e8f0;color:#334155}
-@media print{#mml-client-approved-report-toolbar{display:none!important}}
-</style>
-<div id="mml-client-approved-report-toolbar" data-no-print="true"><button class="mml-client-print" type="button" onclick="window.print()">PDF·인쇄</button><button class="mml-client-close" type="button" onclick="window.close()">닫기</button></div>
-${autoPrint ? '<script id="mml-client-approved-report-autoprint">window.addEventListener("load",async()=>{try{if(document.fonts&&document.fonts.ready)await document.fonts.ready}catch(e){}setTimeout(()=>window.print(),220)},{once:true})<\/script>' : ''}`;
-                return /<\/body>/i.test(value) ? value.replace(/<\/body>/i, `${toolbar}</body>`) : `${value}${toolbar}`;
-            };
-
-            const openExactApprovedReportDocument = (html, printImmediately = false) => {
-                const popup = window.open('', '_blank', 'width=960,height=900');
-                if (!popup) throw new Error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해 주세요.');
-                popup.document.open();
-                popup.document.write(withClientReportToolbar(html, { autoPrint: printImmediately }));
-                popup.document.close();
-                return popup;
-            };
-
             const openApprovedAssessmentReport = async (report, printImmediately = false) => {
                 try {
                     const reportId = String(report?.id || report?.reportId || '').trim();
@@ -2727,35 +2699,14 @@ ${autoPrint ? '<script id="mml-client-approved-report-autoprint">window.addEvent
                         alert('보고서 원본 ID를 찾지 못했습니다.');
                         return;
                     }
-
-                    let source = report || null;
-                    let approvedHtml = String(source?.approvedReportHtml || '').trim();
-
-                    // 카드가 compact snapshot인 경우 IndexedDB의 canonical 원본을 우선 복구합니다.
-                    if (!approvedHtml && window.MMLReportViewer?.getByIdAsync) {
-                        try { source = await window.MMLReportViewer.getByIdAsync(reportId) || source; } catch (e) {}
-                        approvedHtml = String(source?.approvedReportHtml || '').trim();
-                    }
-                    if (!approvedHtml) {
-                        const reports = getStoredAssessmentReports();
-                        source = reports.find((item) => String(item?.id || '') === reportId) || source;
-                        approvedHtml = String(source?.approvedReportHtml || '').trim();
-                    }
-
-                    // 승인된 완전한 문서는 관리자 승인 당시 문서 그대로 연다.
-                    // 열람과 PDF가 동일 DOM/CSS를 사용하므로 별도 사용자용 보고서 양식을 생성하지 않는다.
-                    if (approvedHtml && isCompleteApprovedReportDocument(approvedHtml)) {
-                        openExactApprovedReportDocument(approvedHtml, printImmediately);
-                        return;
-                    }
-
-                    // 구버전 fragment 보고서만 공통 viewer/fallback을 사용합니다.
                     if (window.MMLReportViewer?.open) {
-                        await window.MMLReportViewer.open(source || report, { printImmediately, toolbar: true });
+                        await window.MMLReportViewer.open(report, { printImmediately, toolbar: true });
                         return;
                     }
-                    const legacyHtml = String(approvedHtml || source?.reportHtml || source?.renderedHtml || source?.previewHtml || source?.html || '').trim();
-                    if (!legacyHtml) {
+                    const reports = safeParse(localStorage.getItem('modumam_reports'), []);
+                    const source = reports.find((item) => String(item?.id || '') === reportId);
+                    const html = String(source?.approvedReportHtml || source?.reportHtml || source?.renderedHtml || source?.previewHtml || '').trim();
+                    if (!html) {
                         alert('저장된 보고서 원본을 찾지 못했습니다.');
                         return;
                     }
@@ -2765,10 +2716,11 @@ ${autoPrint ? '<script id="mml-client-approved-report-autoprint">window.addEvent
                         return;
                     }
                     popup.document.open();
-                    popup.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>심리검사 보고서</title><style>body{margin:0;background:#fff;font-family:Pretendard,"Noto Sans KR",sans-serif}@media print{body{background:#fff}}</style></head><body>${legacyHtml}${printImmediately ? '<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),220),{once:true})<\/script>' : ''}</body></html>`);
+                    popup.document.write(html);
                     popup.document.close();
+                    if (printImmediately) popup.addEventListener('load', () => setTimeout(() => popup.print(), 180), { once: true });
                 } catch (error) {
-                    console.error('[MML] 보고서 승인 원본 열람 실패', error);
+                    console.error('[MML] 보고서 원본 열람 실패', error);
                     alert(error?.message || '보고서를 열지 못했습니다.');
                 }
             };
@@ -4429,11 +4381,22 @@ const generateIntakeSummary = () => {
 };
 
 const toggleTest = (test) => {
-  setSelectedTests(prev =>
-    prev.includes(test)
-      ? prev.filter(item => item !== test)
-      : [...prev, test]
-  );
+  setSelectedTests(prev => {
+    const isAdding = !prev.includes(test);
+    const next = isAdding
+      ? [...prev, test]
+      : prev.filter(item => item !== test);
+
+    // Sprint68: 신청 프로그램을 고른 뒤에는 검사 선택 영역만 열어두고,
+    // 실제 검사를 하나 선택하는 순간 나머지 예약 영역을 한 번에 펼칩니다.
+    if (isAdding) {
+      setBookingMethodOpen(true);
+      setBookingInfoOpen(true);
+      setBookingConsentOpen(true);
+    }
+
+    return next;
+  });
 }; 
             const handleAddBooking = async (e) => {
                 e.preventDefault();
@@ -6825,6 +6788,12 @@ if (userAge === 'parent') {
             const program = e.target.value;
             setBookingProgram(program);
             setSelectedTests([]);
+            // Sprint68: 프로그램 선택 직후에는 검사 선택만 열고,
+            // 상담방식·예약정보·필수동의는 검사 선택 전까지 접어둡니다.
+            setBookingTestsOpen(true);
+            setBookingMethodOpen(false);
+            setBookingInfoOpen(false);
+            setBookingConsentOpen(false);
             // [MOD-20260712-PARENT-BOOKING-009]
             // 행동관찰을 새로 선택하기 전에는 찾아가는(대면)을 사용할 수 없습니다.
             if (bookingType === '찾아가는(대면)') {
@@ -6853,7 +6822,12 @@ if (userAge === 'parent') {
     </div>
 </div>
             
-           {/* 2. 추가 검사 선택 (조건부) */}
+           {/* 2. 검사 선택 - React 상태 접기 */}
+            <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+              <button type="button" onClick={() => setBookingTestsOpen(!bookingTestsOpen)} aria-expanded={bookingTestsOpen} className="flex w-full items-center justify-between px-4 py-4 text-sm font-extrabold text-slate-900">
+                <span>검사 선택</span><span className={`text-slate-400 transition-transform ${bookingTestsOpen ? 'rotate-180' : ''}`}>⌄</span>
+              </button>
+              {bookingTestsOpen && <div className="border-t border-slate-100 px-4 pb-4">
 
 {/* 개인 마음이음 */}
 {bookingProgram.includes("개인 마음이음") && (
@@ -7080,6 +7054,15 @@ if (userAge === 'parent') {
   </div>
 )}
 
+              </div>}
+            </section>
+
+            {/* 3. 상담 방식 선택 - React 상태 접기 */}
+            <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+              <button type="button" onClick={() => setBookingMethodOpen(!bookingMethodOpen)} aria-expanded={bookingMethodOpen} className="flex w-full items-center justify-between px-4 py-4 text-sm font-extrabold text-slate-900">
+                <span>상담 방식 · 결제 예정 금액</span><span className={`text-slate-400 transition-transform ${bookingMethodOpen ? 'rotate-180' : ''}`}>⌄</span>
+              </button>
+              {bookingMethodOpen && <div className="border-t border-slate-100 p-4 space-y-4">
             {/* 3. 상담 방식 선택 */}
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상담 방식 선택</label>
@@ -7177,6 +7160,15 @@ if (userAge === 'parent') {
     })()}
 </div>
 
+              </div>}
+            </section>
+
+            {/* 4~6. 예약 정보 - React 상태 접기 */}
+            <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+              <button type="button" onClick={() => setBookingInfoOpen(!bookingInfoOpen)} aria-expanded={bookingInfoOpen} className="flex w-full items-center justify-between px-4 py-4 text-sm font-extrabold text-slate-900">
+                <span>예약 정보</span><span className={`text-slate-400 transition-transform ${bookingInfoOpen ? 'rotate-180' : ''}`}>⌄</span>
+              </button>
+              {bookingInfoOpen && <div className="border-t border-slate-100 p-4 space-y-4">
             {/* 4. 개인 정보 입력 (성함) */}
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">성함</label>
@@ -7233,6 +7225,9 @@ if (userAge === 'parent') {
                 </div>
             </div>
 
+              </div>}
+            </section>
+
             {/* 7. 상담신청서 · 동의서 입력 */}
             <div style={{display:'none'}} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4" id="bookingApplicationForm">
                 <div>
@@ -7276,7 +7271,16 @@ if (userAge === 'parent') {
                 </div>
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-3" id="bookingConsentBox">
+            <section className="rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+              <button type="button" onClick={() => setBookingConsentOpen(!bookingConsentOpen)} aria-expanded={bookingConsentOpen} className="flex w-full items-center justify-between px-4 py-4 text-sm font-extrabold text-slate-900">
+                <span>예약 필수 동의</span>
+                <span className="flex items-center gap-2">
+                  <span className={`text-[10px] font-black rounded-full px-3 py-1 ${bookingAllConsentChecked ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 border border-emerald-200'}`}>{bookingAllConsentChecked ? '동의 완료' : '확인 필요'}</span>
+                  <span className={`text-emerald-600 transition-transform ${bookingConsentOpen ? 'rotate-180' : ''}`}>⌄</span>
+                </span>
+              </button>
+              {bookingConsentOpen && <div className="border-t border-emerald-100 p-4">
+<div className="space-y-3" id="bookingConsentBox">
                 <div className="flex items-start justify-between gap-3">
                     <div>
                         <p className="text-sm font-extrabold text-slate-900">예약 필수 동의</p>
@@ -7312,6 +7316,9 @@ if (userAge === 'parent') {
 
                 <input value={bookingSignature} onChange={(e) => setBookingSignature(e.target.value)} placeholder="전자서명: 신청인 성함을 입력해 주세요" className="w-full bg-white border border-emerald-200 px-4 py-3 rounded-xl text-sm" />
             </div>
+
+              </div>}
+            </section>
 
             {/* 7. 최종 제출 버튼 */}
             <button 

@@ -49,7 +49,7 @@
       const errorBox = document.getElementById('startup-error');
 
       try {
-        const response = await fetch('./js/app.jsx', { cache: 'no-store' });
+        const response = await fetch('./js/app.jsx?v=20260809-s68-test-first-flow', { cache: 'no-store' });
         if (!response.ok) {
           throw new Error('app.jsx를 불러오지 못했습니다. HTTP ' + response.status);
         }
@@ -58,7 +58,7 @@
         const transformed = Babel.transform(source, {
           presets: [['react', { runtime: 'classic' }]],
           sourceType: 'script',
-          filename: 'app.jsx'
+          filename: 'app.jsx?v=20260809-s68-test-first-flow'
         }).code;
 
         const script = document.createElement('script');
