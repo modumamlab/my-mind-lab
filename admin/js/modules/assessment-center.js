@@ -107,30 +107,14 @@ async function analyzeAssessmentFiles(files){
   }
   alert(`${list.length}개 검사파일 분석 요청을 완료했습니다. 검사명과 신뢰도를 확인해 주세요.`);
 }
-async function requestProfessionalReportV4(payload){
-  const callPhase=async phase=>{
-    const response=await fetch('/.netlify/functions/mml-clinician-integrated-report',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({...payload,mode:'individual',phase})
-    });
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||`전문보고서 ${phase} 생성에 실패했습니다.`);
-    return data;
-  };
-  const core=await callPhase('core');
-  const detail=await callPhase('detail');
-  return {
-    analysis:{
-      ...(core.analysis||{}),...(detail.analysis||{}),
-      clientReport:{...(core.analysis?.clientReport||{}),...(detail.analysis?.clientReport||{})},
-      counselorReport:{...(core.analysis?.counselorReport||{}),...(detail.analysis?.counselorReport||{})},
-      professionalProfile:{...(core.analysis?.professionalProfile||{}),...(detail.analysis?.professionalProfile||{})},
-      reportEngineVersion:detail.engineVersion||core.engineVersion||'MML-PRO-REPORT-V4.1-TWO-PHASE',
-      reportGenerationRequired:false
-    },
-    engineVersion:detail.engineVersion||core.engineVersion||'MML-PRO-REPORT-V4.1-TWO-PHASE',
-    model:detail.model||core.model||''
-  };
+async function requestCanonicalAssessmentInterpretation(payload){
+  const response=await fetch('/.netlify/functions/mml-assessment-file-analysis',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+  });
+  const data=await response.json().catch(async()=>({error:(await response.text().catch(()=>''))||''}));
+  if(!response.ok)throw new Error(data.error||`심리검사 AI 결과 해석 실패 (${response.status})`);
+  if(!data.analysis)throw new Error('AI 결과 해석 본문을 생성하지 못했습니다.');
+  return data;
 }
 
 async function analyzeAssessmentFile(reservationId,testType,file,silent=false){
@@ -159,34 +143,13 @@ async function analyzeAssessmentFile(reservationId,testType,file,silent=false){
       throw new Error('검사결과에서 분석 가능한 사실을 추출하지 못했습니다. 결과표와 프로파일이 보이는 파일인지 확인해 주세요.');
     }
 
-    // 2단계: 추출된 사실만 임상적으로 해석합니다. 원본 파일은 다시 전송하지 않습니다.
-    const response=await fetch('/.netlify/functions/mml-assessment-file-analysis',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({...commonBody,extractedFacts})
-    });
-    const data=await response.json().catch(async()=>({error:(await response.text().catch(()=>''))||''}));
-    if(!response.ok){
-      throw new Error(data.error||`검사결과 해석 실패 (${response.status})`);
-    }
+    // 2단계: 단일 AI 해석 엔진에서 임상 해석 + 내담자용 개별보고서 + 상담자용 검토자료를 함께 생성합니다.
+    // 원본 파일은 다시 보내지 않고 1단계에서 추출된 사실만 전달합니다.
+    const data=await requestCanonicalAssessmentInterpretation({...commonBody,extractedFacts,mode:'interpret-and-report'});
     const confidenceScore=Number(data.analysis?.confidenceScore||0);const needsReview=Boolean(data.analysis?.needsReview)||confidenceScore<80;
+    const enrichedAnalysis={...data.analysis,reportEngineVersion:data.engineVersion||data.analysis?.engineVersion||'MML-CLINICAL-INTERPRETATION-1.0-CANONICAL',reportGenerationRequired:false};
 
-    // [MML-REPORT-V3] 1단계 원자료 추출이 끝나면 텍스트 자료만 사용하여
-    // 모든 검사에 공통 적용되는 완성형 내담자용 개별보고서를 별도 함수에서 생성합니다.
-    // PDF 전체를 다시 보내지 않으므로 로컬 Netlify 30초 제한 안에서 처리하기 쉽습니다.
-    let enrichedAnalysis={...data.analysis};
-    try{
-      const reportData=await requestProfessionalReportV4({
-        clientName:r.name,program:programBaseName(r.program),testType,analysis:data.analysis
-      });
-      enrichedAnalysis={
-        ...enrichedAnalysis,...(reportData.analysis||{}),
-        clientReport:{...(enrichedAnalysis.clientReport||{}),...(reportData.analysis?.clientReport||{})},
-        counselorReport:{...(enrichedAnalysis.counselorReport||{}),...(reportData.analysis?.counselorReport||{})},
-        professionalProfile:{...(enrichedAnalysis.professionalProfile||{}),...(reportData.analysis?.professionalProfile||{})}
-      };
-    }catch(reportError){console.warn('[MML REPORT V4.1] 전문보고서 자동 생성 실패',reportError);}
-
-    const item={id:Date.now()+Math.random(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),testType,fileName:file.name,mimeType:file.type,status:'분석완료 · 상담자 검토 필요',reviewed:false,visibleToClient:false,createdAt:new Date().toLocaleString('ko-KR'),model:data.model||'',...enrichedAnalysis,confidenceScore,needsReview};
+    const item={id:Date.now()+Math.random(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),testType,fileName:file.name,mimeType:file.type,status:'AI 결과 해석 완료 · 상담자 검토 필요',reviewed:false,visibleToClient:false,createdAt:new Date().toLocaleString('ko-KR'),model:data.model||'',...enrichedAnalysis,confidenceScore,needsReview};
     state.assessmentAnalyses=[item,...state.assessmentAnalyses.filter(x=>!(String(x.reservationId)===String(r.id)&&String(x.testType)===String(testType)))];
     save('modumam_assessment_analyses',state.assessmentAnalyses);
     syncClinicalAssessmentRecord(r.id);
@@ -531,7 +494,7 @@ function saveGeneratedAssessmentReport(id){
 }
 window.saveGeneratedAssessmentReport=saveGeneratedAssessmentReport;
 
-// [MML-PRO-REPORT-V4] 기존 원자료 분석을 유지한 채 전문보고서만 다시 생성합니다.
+// [MML-CANONICAL-INTERPRETATION] 기존 원자료 분석을 유지한 채 같은 AI 해석 엔진으로 전문보고서를 다시 생성합니다.
 // 이미 업로드한 검사파일을 다시 올릴 필요가 없습니다.
 async function regenerateProfessionalIndividualReport(analysisId,button){
   const index=(state.assessmentAnalyses||[]).findIndex(x=>String(x.id)===String(analysisId));
@@ -540,15 +503,16 @@ async function regenerateProfessionalIndividualReport(analysisId,button){
   const reservation=(state.reservations||[]).find(r=>String(r.id)===String(original.reservationId))||{};
   if(button){button.disabled=true;button.textContent='전문보고서 작성 중...';}
   try{
-    const data=await requestProfessionalReportV4({
+    const data=await requestCanonicalAssessmentInterpretation({
       clientName:original.clientName||reservation.name||'',
       program:original.program||programBaseName(reservation.program||''),
-      testType:original.testType,analysis:original
+      testType:original.testType,mode:'report-refresh',
+      extractedFacts:original.rawFacts||{},analysisSnapshot:original
     });
     if(!data.analysis)throw new Error('전문보고서를 생성하지 못했습니다.');
     const now=new Date().toLocaleString('ko-KR');
     state.assessmentAnalyses[index]={...original,...data.analysis,status:'보고서 생성완료 · 상담자 검토 필요',
-      reportEngineVersion:data.engineVersion||'MML-PRO-REPORT-V4.1-TWO-PHASE',
+      reportEngineVersion:data.engineVersion||data.analysis?.engineVersion||'MML-CLINICAL-INTERPRETATION-1.0-CANONICAL',
       reportGeneratedAt:now,reviewed:false,needsReview:true,updatedAt:now};
     save('modumam_assessment_analyses',state.assessmentAnalyses);
     syncClinicalAssessmentRecord(original.reservationId);
