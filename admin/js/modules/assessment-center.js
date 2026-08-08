@@ -668,10 +668,28 @@ async function generateIntegratedAssessmentReport(){
   try{
     const response=await fetch('/.netlify/functions/mml-clinician-integrated-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:r.name,program:testGroups.program,basicTests:testGroups.basicTests,additionalTests:testGroups.additionalTests,tests:reviewedAnalyses.map(x=>({testType:x.testType,subjectRole:(String(x.testType).includes('신청자')?'신청자':String(x.testType).includes('배우자')?'배우자':String(x.testType).includes('K-CDI')?'자녀':String(x.testType).includes('PAT')?'양육자':''),sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,rawFacts:x.rawFacts||null,counselorReport:x.counselorReport||null,clientReport:x.clientReport||null,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview})),crossAnalysis:cross||null})});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'심리검사 종합해석보고서를 생성하지 못했습니다.');
-    const clinicianSections=clinicianIntegratedSource(data.report||{},data.masterReport||null);
+    const generatedCross=(data.crossAnalysis&&typeof data.crossAnalysis==='object')?data.crossAnalysis:null;
+    if(generatedCross){
+      const now=new Date().toLocaleString('ko-KR');
+      const crossItem={
+        id:cross?.id||Date.now(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),
+        tests:reviewedAnalyses.map(x=>x.testType),
+        commonPatterns:String(generatedCross.commonPatterns||'').trim(),differences:String(generatedCross.differences||'').trim(),
+        stateTrait:String(generatedCross.stateTrait||'').trim(),responseContext:String(generatedCross.responseContext||'').trim(),
+        riskProtection:String(generatedCross.riskProtection||'').trim(),followUpQuestions:String(generatedCross.followUpQuestions||'').trim(),
+        counselingImplications:String(generatedCross.counselingImplications||'').trim(),caseIntegration:String(generatedCross.caseIntegration||'').trim(),
+        limitations:String(generatedCross.limitations||'').trim(),reviewed:false,status:'AI 자동 교차분석 · 상담자 검토 필요',
+        model:data.model||'',promptVersion:data.promptVersion||'',createdAt:cross?.createdAt||now,updatedAt:now
+      };
+      state.assessmentCrossAnalyses=[crossItem,...state.assessmentCrossAnalyses.filter(x=>String(x.reservationId)!==String(r.id))];
+      state.assessmentCrossDraft={...crossItem};
+      save('modumam_assessment_cross_analyses',state.assessmentCrossAnalyses);
+    }
+    const clinicianSections=clinicianIntegratedSource(data.report||{},data.masterReport||null,generatedCross||cross||null);
     const hasBody=['clinicalJudgment','convergentEvidence','caseFormulation','professionalSummary'].some(k=>String(clinicianSections[k]||'').trim());
     if(!hasBody)throw new Error('AI가 보고서 본문을 반환하지 않았습니다. 다시 생성해 주세요.');
-    state.integratedReportDraft={...clinicianSections,masterReport:data.masterReport||null,clinicalProfile:data.clinicalProfile||null,clientReport:null,model:data.model||'',promptVersion:data.promptVersion||'',qualityChecked:Boolean(data.qualityChecked),qualityIssues:Array.isArray(data.qualityIssues)?data.qualityIssues:[],generatedAt:new Date().toLocaleString('ko-KR'),updatedAt:new Date().toLocaleString('ko-KR'),reservationId:r.id,tests:reviewedAnalyses.map(x=>x.testType)};persistIntegratedReportDraft(state.integratedReportDraft);
+    state.integratedReportDraft={...clinicianSections,crossAnalysis:generatedCross||cross||null,masterReport:data.masterReport||null,clinicalProfile:data.clinicalProfile||null,clientReport:null,model:data.model||'',promptVersion:data.promptVersion||'',qualityChecked:Boolean(data.qualityChecked),qualityIssues:Array.isArray(data.qualityIssues)?data.qualityIssues:[],generatedAt:new Date().toLocaleString('ko-KR'),updatedAt:new Date().toLocaleString('ko-KR'),reservationId:r.id,tests:reviewedAnalyses.map(x=>x.testType)};persistIntegratedReportDraft(state.integratedReportDraft);
+    syncClinicalAssessmentRecord(r.id);
   }catch(error){alert(error.message||'심리보고서 생성 중 오류가 발생했습니다.');}
   finally{state.integratedReportLoading=false;render();}
 }

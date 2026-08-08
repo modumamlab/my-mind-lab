@@ -38,13 +38,25 @@ const SCHEMA = {
     monitoringPoints: { type: 'STRING' },
     professionalSummary: { type: 'STRING' },
     supervisorNote: { type: 'STRING' },
-    limitations: { type: 'STRING' }
+    limitations: { type: 'STRING' },
+    crossCommonPatterns: { type: 'STRING' },
+    crossDifferences: { type: 'STRING' },
+    crossStateTrait: { type: 'STRING' },
+    crossResponseContext: { type: 'STRING' },
+    crossRiskProtection: { type: 'STRING' },
+    crossFollowUpQuestions: { type: 'STRING' },
+    crossCounselingImplications: { type: 'STRING' },
+    crossCaseIntegration: { type: 'STRING' },
+    crossLimitations: { type: 'STRING' }
   },
   required: [
     'title', 'subtitle', 'clinicalJudgment', 'convergentEvidence', 'discrepancies',
     'caseFormulation', 'coreProblems', 'strengthsProtection', 'riskFactors',
     'counselingPriorities', 'counselingStrategies', 'followUpQuestions',
-    'monitoringPoints', 'professionalSummary', 'supervisorNote', 'limitations'
+    'monitoringPoints', 'professionalSummary', 'supervisorNote', 'limitations',
+    'crossCommonPatterns', 'crossDifferences', 'crossStateTrait', 'crossResponseContext',
+    'crossRiskProtection', 'crossFollowUpQuestions', 'crossCounselingImplications',
+    'crossCaseIntegration', 'crossLimitations'
   ]
 };
 
@@ -76,7 +88,7 @@ function makePrompt(body) {
   const tests = body.tests.slice(0, 10).map(compactTest).join('\n\n');
   const cross = clean(JSON.stringify(body.crossAnalysis || {}), 2500) || '제공되지 않음';
 
-  return `당신은 임상심리사 1급 수준의 심리평가 전문가입니다. 제공된 자료만 근거로 상담자 검토용 AI 종합해석보고서를 작성하십시오. 내담자용 설명문이 아닙니다.\n\n프로그램: ${clean(body.program, 120)}\n\n검사별 자료:\n${tests}\n\n교차분석:\n${cross}\n\n원칙:\n1) 진단을 확정하지 말고 가설과 근거를 구분합니다.\n2) 검사 간 일치·차이는 검사명을 밝혀 구체적으로 씁니다.\n3) 사례개념화는 취약·촉발·유지·보호·현재 기능을 연결합니다.\n4) 위험 근거가 없으면 면담 재확인이 필요하다고 씁니다.\n5) 각 필드는 핵심 문장 2~5개로 작성하고 중복을 피합니다.\n6) 개인정보, 점수 나열, 위로 문구, AI 안내문은 넣지 않습니다.\n7) JSON만 반환합니다.`;
+  return `당신은 임상심리사 1급 수준의 심리평가 전문가입니다. 제공된 자료만 근거로 상담자 검토용 AI 종합해석보고서를 작성하십시오. 내담자용 설명문이 아닙니다.\n\n프로그램: ${clean(body.program, 120)}\n\n검사별 자료:\n${tests}\n\n교차분석:\n${cross}\n\n원칙:\n1) 진단을 확정하지 말고 가설과 근거를 구분합니다.\n2) 검사 간 일치·차이는 검사명을 밝혀 구체적으로 씁니다.\n3) 사례개념화는 취약·촉발·유지·보호·현재 기능을 연결합니다.\n4) 위험 근거가 없으면 면담 재확인이 필요하다고 씁니다.\n5) 각 필드는 핵심 문장 2~5개로 작성하고 중복을 피합니다.\n6) 개인정보, 점수 나열, 위로 문구, AI 안내문은 넣지 않습니다.\n7) cross* 필드는 같은 검사자료를 바탕으로 한 구조화된 검사 간 교차분석입니다. 단순 반복이 아니라 공통 패턴, 차이, 상태-특성, 응답 맥락, 위험·보호요인, 추가 확인 질문, 상담 시사점, 통합 가설, 한계를 각각 구분합니다.\n8) SCT·HTP 등 투사적·개방형 자료는 단독 결론으로 사용하지 않고 가설 생성 근거로만 다룹니다. MMPI-2·PAI 등 자기보고 검사는 타당도와 응답 특성을 우선 고려합니다.\n9) JSON만 반환합니다.`;
 }
 
 function fallbackReport(body, reason = '') {
@@ -116,7 +128,16 @@ function fallbackReport(body, reason = '') {
     monitoringPoints: '기분 및 불안 변화, 수면·식사·집중, 회피 또는 충동행동, 관계 갈등, 학업·직업 기능, 자해·자살사고와 같은 안전 관련 변화를 지속적으로 확인합니다.',
     professionalSummary: evidenceText,
     supervisorNote: `이 보고서는 AI 호출 지연으로 검사별 저장 분석을 기반으로 즉시 구성된 초안입니다${reason ? ` (${clean(reason, 180)})` : ''}. 상담자는 원자료, 타당도, 임상 면담과 행동관찰을 대조하여 문구를 수정한 뒤 사용해야 합니다.`,
-    limitations: '심리검사는 현재 심리상태를 이해하기 위한 하나의 자료이며 단독으로 진단이나 치료 결정을 확정하지 않습니다. 입력되지 않은 원자료, 생활사, 면담 및 행동관찰 정보는 반영되지 않았습니다.'
+    limitations: '심리검사는 현재 심리상태를 이해하기 위한 하나의 자료이며 단독으로 진단이나 치료 결정을 확정하지 않습니다. 입력되지 않은 원자료, 생활사, 면담 및 행동관찰 정보는 반영되지 않았습니다.',
+    crossCommonPatterns: findings.length > 1 ? '여러 검사에서 반복되는 핵심 특징은 상담자가 원자료와 함께 교차확인해야 합니다.' : '교차분석을 위한 검사 수가 제한적입니다.',
+    crossDifferences: '검사별 측정영역과 응답방식 차이를 고려하여 차이를 해석하고 단순 모순으로 간주하지 않습니다.',
+    crossStateTrait: '현재 상태 반응과 비교적 지속적인 성격·기질 특성을 면담과 검사 특성에 따라 구분하여 확인해야 합니다.',
+    crossResponseContext: '검사 시점의 스트레스, 응답 태도, 방어·과장 가능성 및 각 검사의 측정 목적을 함께 검토해야 합니다.',
+    crossRiskProtection: risks.length ? risks.map((v, i) => `${i + 1}. ${clean(v, 600)}`).join('\n') : '명확한 고위험 근거가 없더라도 안전 관련 항목과 보호요인을 면담에서 재확인해야 합니다.',
+    crossFollowUpQuestions: '최근 가장 힘든 상황, 반복되는 생각·감정·행동, 일상 기능 변화, 관계 갈등, 회복에 도움이 된 자원, 안전 관련 위험 신호를 구체적으로 확인합니다.',
+    crossCounselingImplications: '검사 간 반복되는 패턴을 초기 상담의 우선 가설로 사용하되 내담자의 실제 경험과 맞는지 공동 검토하고 단계적으로 개입합니다.',
+    crossCaseIntegration: evidenceText,
+    crossLimitations: '검사 간 통합은 입력된 검사자료 범위 안에서만 가능하며 생활사·면담·행동관찰과 함께 최종 판단해야 합니다.'
   };
 }
 
@@ -157,6 +178,26 @@ async function callGemini(apiKey, text) {
   }
 }
 
+function crossAnalysisFromReport(report = {}) {
+  return {
+    commonPatterns: clean(report.crossCommonPatterns, 16000),
+    differences: clean(report.crossDifferences, 16000),
+    stateTrait: clean(report.crossStateTrait, 16000),
+    responseContext: clean(report.crossResponseContext, 16000),
+    riskProtection: clean(report.crossRiskProtection, 16000),
+    followUpQuestions: clean(report.crossFollowUpQuestions, 16000),
+    counselingImplications: clean(report.crossCounselingImplications, 16000),
+    caseIntegration: clean(report.crossCaseIntegration, 16000),
+    limitations: clean(report.crossLimitations, 16000)
+  };
+}
+
+function stripCrossFields(report = {}) {
+  const cleaned = { ...report };
+  ['crossCommonPatterns','crossDifferences','crossStateTrait','crossResponseContext','crossRiskProtection','crossFollowUpQuestions','crossCounselingImplications','crossCaseIntegration','crossLimitations'].forEach(key => delete cleaned[key]);
+  return cleaned;
+}
+
 export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return json({}, 200);
   if (event.httpMethod !== 'POST') return json({ error: 'POST 요청만 지원합니다.' }, 405);
@@ -174,10 +215,12 @@ export const handler = async (event) => {
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
   if (!apiKey) {
+    const fallback = fallbackReport(body, 'API 키 미설정');
     return json({
-      report: fallbackReport(body, 'API 키 미설정'),
+      report: stripCrossFields(fallback),
+      crossAnalysis: crossAnalysisFromReport(fallback),
       model: 'local-fallback',
-      promptVersion: 'mml-clinician-integrated-v2',
+      promptVersion: 'mml-clinician-integrated-v3',
       qualityChecked: false,
       qualityIssues: ['GEMINI_API_KEY가 없어 저장된 검사별 분석으로 초안을 구성했습니다.'],
       fallback: true
@@ -185,11 +228,12 @@ export const handler = async (event) => {
   }
 
   try {
-    const report = await callGemini(apiKey, makePrompt(body));
+    const generated = await callGemini(apiKey, makePrompt(body));
     return json({
-      report,
+      report: stripCrossFields(generated),
+      crossAnalysis: crossAnalysisFromReport(generated),
       model: MODEL,
-      promptVersion: 'mml-clinician-integrated-v2',
+      promptVersion: 'mml-clinician-integrated-v3',
       qualityChecked: true,
       qualityIssues: [],
       fallback: false
@@ -197,10 +241,12 @@ export const handler = async (event) => {
   } catch (error) {
     console.error('[MML CLINICIAN INTEGRATED]', error);
     // AI 지연·일시 오류가 있어도 화면에는 본문이 있는 초안을 반환합니다.
+    const fallback = fallbackReport(body, error?.name === 'AbortError' ? 'AI 응답 시간 초과' : clean(error?.message, 220));
     return json({
-      report: fallbackReport(body, error?.name === 'AbortError' ? 'AI 응답 시간 초과' : clean(error?.message, 220)),
+      report: stripCrossFields(fallback),
+      crossAnalysis: crossAnalysisFromReport(fallback),
       model: 'local-fallback',
-      promptVersion: 'mml-clinician-integrated-v2',
+      promptVersion: 'mml-clinician-integrated-v3',
       qualityChecked: false,
       qualityIssues: [error?.name === 'AbortError'
         ? 'AI 응답이 22초를 초과하여 저장된 검사별 분석으로 초안을 구성했습니다.'
