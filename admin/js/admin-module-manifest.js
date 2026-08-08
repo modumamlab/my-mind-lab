@@ -9,7 +9,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     location.hostname.endsWith('.local');
 
   const mode = isLocal ? 'development' : 'production';
-  const build = '20260808-ai-interpretation-pipeline-s1';
+  const build = '20260808-admin-direct-reservation-ui-v1';
 
   const core = [
     {
@@ -92,13 +92,13 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260808-sprint4-canonical-publication',
+      src:'./js/modules/assessment-reports.js?v=20260727-persistence-fix-v2',
       required:true,
       dependsOn:['data-store','print-engine']
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260724-modular-v29',
+      src:'./js/modules/operations-workspace.js?v=20260808-admin-direct-reservation-ui-v1',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -107,7 +107,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260808-ai-interpretation-pipeline-s1',
+      src:'./js/admin.js?v=20260727-persistence-fix-v2',
       required:true
     },
     {
@@ -124,7 +124,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'client-report-publication',
-      src:'./js/modules/client-report-publication.js?v=20260808-ai-interpretation-pipeline-s1',
+      src:'./js/modules/client-report-publication.js?v=20260727-persistence-fix-v2',
       required:true,
       dependsOn:['data-store','chart-sync-manager','report-viewer','admin-main']
     },

@@ -164,6 +164,53 @@ function reservationSyncStatus(){
   const inbox=load('modumam_reservation_inbox',[]).length;
   return `<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3"><div><p class="text-xs font-extrabold text-sky-900">예약 저장소 확인</p><p class="mt-1 text-[11px] text-sky-700">IndexedDB ${state.reservationDbCount||0}건 · 기본 저장소 ${primary}건 · 예약 수신함 ${inbox}건 · 현재 표시 ${state.reservations.length}건</p>${state.reservationSyncError?`<p class="mt-1 text-[11px] font-bold text-rose-600">저장소 오류: ${esc(state.reservationSyncError)}</p>`:''}</div><button onclick="refreshSharedOperatingData(true)" class="rounded-xl bg-sky-700 px-4 py-2 text-xs font-extrabold text-white">예약 새로 불러오기</button></div>`;
 }
+function adminReservationCreatePanel(){
+  const today=new Date().toISOString().slice(0,10);
+  const defaultMethod=COUNSELING_METHODS[0]||'장소 조율(대면)';
+  const defaultTimes=counselingTimesForMethod(defaultMethod);
+  const defaultTests=(OPERATING_SETTINGS.programDefaultTests?.['개인 마음이음']||['TCI 기질 및 성격검사']).join(', ');
+  return `<section class="rounded-[2rem] border border-indigo-100 bg-white p-5 shadow-sm sm:p-6">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div>
+        <p class="text-xs font-extrabold text-indigo-600">ADMIN DIRECT RESERVATION</p>
+        <h3 class="mt-1 text-xl font-extrabold text-slate-950">관리자 직접 예약등록</h3>
+        <p class="mt-1 text-xs leading-relaxed text-slate-500">전화·현장·테스트 예약을 관리자가 직접 등록합니다. 저장 즉시 예약관리와 심리평가센터에서 같은 예약을 사용합니다.</p>
+      </div>
+      <span class="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-[11px] font-extrabold text-indigo-700">기존 저장 로직 복구</span>
+    </div>
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <label class="text-xs font-extrabold text-slate-500">내담자 이름
+        <input id="admin-reservation-name" type="text" placeholder="홍길동" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+      </label>
+      <label class="text-xs font-extrabold text-slate-500">연락처
+        <input id="admin-reservation-phone" type="tel" placeholder="010-0000-0000" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+      </label>
+      <label class="text-xs font-extrabold text-slate-500">예약일
+        <input id="admin-reservation-date" type="date" value="${today}" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+      </label>
+      <label class="text-xs font-extrabold text-slate-500">예약시간
+        <select id="admin-reservation-time" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">${defaultTimes.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+      </label>
+      <label class="text-xs font-extrabold text-slate-500">상담방식
+        <select id="admin-reservation-method" onchange="updateAdminReservationTimeOptions()" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">${COUNSELING_METHODS.map(method=>`<option value="${esc(method)}">${esc(counselingMethodLabel(method))}</option>`).join('')}</select>
+      </label>
+      <label class="text-xs font-extrabold text-slate-500">서비스 / 프로그램
+        <select id="admin-reservation-program" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+          <option value="개별 심리검사">개별 심리검사</option>
+          <option value="개인 마음이음">개인 마음이음</option>
+          <option value="부부 마음이음">부부 마음이음</option>
+          <option value="부모-자녀 마음이음">부모-자녀 마음이음</option>
+        </select>
+      </label>
+      <label class="text-xs font-extrabold text-slate-500 md:col-span-2">신청 검사 <span class="font-medium text-slate-400">(쉼표로 구분)</span>
+        <input id="admin-reservation-tests" type="text" value="${esc(defaultTests)}" placeholder="TCI, MMPI-2" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+      </label>
+    </div>
+    <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+      <button type="button" onclick="createAdminReservation()" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-indigo-700">예약 등록</button>
+    </div>
+  </section>`;
+}
 function reservationView(){
   return layout(`${reservationSyncStatus()}<div class="space-y-5">
     <div class="rounded-[2rem] bg-slate-950 p-6 text-white">
@@ -171,6 +218,7 @@ function reservationView(){
       <h2 class="mt-2 text-2xl font-extrabold">예약·검사 운영</h2>
       <p class="mt-2 text-sm text-slate-300">예약 진행상태와 AI 결과상담 활성화를 한 화면에서 관리합니다. 검사결과 분석과 보고서 작성은 심리평가센터에서 진행합니다.</p>
     </div>
+    ${adminReservationCreatePanel()}
     ${state.reservations.map(r=>{const p=progress(r),tests=requestedTests(r),st=normalizeStatus(r.status),terminal=['종결','예약취소'].includes(st);return `<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
       <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div><div class="flex flex-wrap items-center gap-2"><h3 class="text-xl font-extrabold">${esc(r.name)}님</h3><span class="rounded-full px-3 py-1 text-xs font-bold ${statusClass(st)}">${esc(st)}</span>${p.ai?'<span class="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-700">AI체크인 완료</span>':''}</div><p class="mt-1 text-xs text-slate-400">${esc(r.phone||'연락처 없음')}</p></div>
