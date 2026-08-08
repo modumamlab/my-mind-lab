@@ -45,7 +45,7 @@ console.info('[MML] CLIENT-REPORT-PUBLICATION-STEP4 loaded');
       id:item.id,reportId:item.reportId,reservationId:item.reservationId,clientId:item.clientId,
       clientName:item.clientName,clientPhone:item.clientPhone,reportType:item.reportType,testType:item.testType,
       title:item.title,status:item.status,visible:item.visible===true,approvedForClient:item.approvedForClient===true,
-      approvedAt:item.apvedAt||item.approvedAt,updatedAt:item.updatedAt,version:item.version,
+      approvedAt:item.approvedAt,updatedAt:item.updatedAt,version:item.version,
       sourceStore:item.sourceStore,sourceVersion:item.sourceVersion
     })):value;
     try{
@@ -239,15 +239,29 @@ console.info('[MML] CLIENT-REPORT-PUBLICATION-STEP4 loaded');
       return {ok:false,reason:'report-not-found',reportId};
     }
 
-    report.approvedForClient=false;
-    report.clientVisible=false;
-    report.published=false;
-    if(['approved','published','승인','승인완료','공개','내담자 열람 가능'].includes(text(report.status))){
-      report.status='draft';
-    }
-    report.updatedAt=new Date().toISOString();
+    const now=new Date().toISOString();
+    const patch={
+      approved:false,
+      approvedForClient:false,
+      clientVisible:false,
+      published:false,
+      approvedReportHtml:'',
+      approvedAt:'',
+      approvedBy:'',
+      publishedAt:'',
+      reviewStatus:'saved',
+      status:'저장완료 · 승인대기',
+      updatedAt:now
+    };
 
-    write(KEYS.reports,reports,`보고서 ${reportId} 승인 취소`);
+    // 승인취소도 반드시 canonical report store를 통과시켜 IndexedDB 원본과
+    // localStorage 공개 인덱스가 서로 다른 상태가 되지 않도록 합니다.
+    if(global.MMLReportStore?.updateReport){
+      global.MMLReportStore.updateReport(reportId,patch);
+    }else{
+      Object.assign(report,patch);
+      write(KEYS.reports,reports,`보고서 ${reportId} 승인 취소`);
+    }
     return sync({force:true,reason:'revoke'});
   }
 

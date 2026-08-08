@@ -137,13 +137,11 @@ function appendAuditLog(action,key,detail=''){
 function save(k,v){
   try{
     if(k==='modumam_reports'&&window.MMLReportStore?.saveAll){
-      const previous=window.MMLDataStore?.read?.(k,[])||[];
+      // 보고서 본문은 MMLReportStore(IndexedDB)의 단일 경로로만 저장합니다.
+      // MMLDataStore/localStorage에 전체 본문을 다시 쓰면 compact index가 덮여
+      // QuotaExceeded 및 저장 후 본문 소실의 원인이 됩니다.
       const savedReports=window.MMLReportStore.saveAll(v);
-      if(window.MMLDataStore){
-        window.MMLDataStore.write(k,savedReports,{action:'보고서 저장',detail:`${Array.isArray(savedReports)?savedReports.length:0}건`});
-      }else{
-        appendAuditLog('저장',k);
-      }
+      appendAuditLog('보고서 저장',k,`${Array.isArray(savedReports)?savedReports.length:0}건 · canonical store`);
       if(state&&Array.isArray(savedReports))state.reports=savedReports;
     }else if(window.MMLDataStore){
       window.MMLDataStore.write(k,v,{action:'저장',detail:Array.isArray(v)?`${v.length}건`:''});
@@ -171,11 +169,9 @@ function persistReports(rows){
   }else{
     state.reports=next;
   }
-  if(window.MMLDataStore){
-    window.MMLDataStore.write('modumam_reports',state.reports,{action:'보고서 저장',detail:`${state.reports.length}건`});
-  }else{
-    localStorage.setItem('modumam_reports',JSON.stringify(state.reports));
-  }
+  // MMLReportStore.saveAll/commit이 IndexedDB 전체 본문 + localStorage compact index를
+  // 이미 함께 갱신합니다. 여기서 다른 저장소에 전체 보고서를 재저장하지 않습니다.
+  appendAuditLog('보고서 저장','modumam_reports',`${state.reports.length}건 · canonical store`);
   return state.reports;
 }
 
