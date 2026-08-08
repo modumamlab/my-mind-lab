@@ -1280,11 +1280,20 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
     }:{};
     const item={
       id:old?.id||Date.now(),sourceIntegratedReportId:source.id,audience,
+      // Sprint 4: 내담자용 종합보고서는 생성 순간부터 canonical report 자체가 됩니다.
+      // 승인 시 별도의 공개용 복제 보고서를 만들지 않고 이 동일 ID를 그대로 공개합니다.
+      reportType:audience==='client'?'comprehensiveReport':'counselorComprehensiveReport',
+      comprehensiveReport:audience==='client',assessmentReport:audience==='client',
+      integratedAssessmentReport:audience==='counselor',derivedReportType:audience==='client'?'clientComprehensiveReport':'counselorComprehensiveReport',
       title:audience==='counselor'?'상담자용 종합보고서':'심리검사 종합보고서',
-      clientName:source.clientName||source.name||'',program:source.program||'',tests:source.tests||[],
+      clientName:source.clientName||source.name||'',phone:source.phone||source.clientPhone||old?.phone||'',
+      clientId:source.clientId||source.memberId||source.userId||old?.clientId||'',
+      memberId:source.memberId||source.clientId||source.userId||old?.memberId||'',
+      userId:source.userId||source.memberId||source.clientId||old?.userId||'',
+      program:source.program||'',tests:source.tests||[],
       reservationId:String(source.reservationId||old?.reservationId||''),
       sections:baseSections.map(([key,label,text])=>({key,label,text:cleanReportText(rewrittenMap[key])||text})),
-      status:'draft',approvedForClient:false,publishedAt:'',
+      status:'draft',approved:false,reviewed:false,approvedForClient:false,publishedAt:'',
       version:Number(old?.version||0)+1,sourceVersion:Number(source.version||1),createdAt:old?.createdAt||now,updatedAt:now,
       previousVersion:old?{sections:old.sections||[],status:old.status||'draft',approvedForClient:Boolean(old.approvedForClient),publishedAt:old.publishedAt||'',updatedAt:old.updatedAt||''}:null,
       normalizedEvidence:audience==='client'?buildNormalizedClinicalEvidence(buildClientReportEvidencePackage(source)):null,
@@ -1652,9 +1661,19 @@ function saveDerivedAssessmentReportFromForm(id,openPdf=false,silent=false){
     return {...section,text:parts.length?parts.join('\n\n'):String(section?.text||'')};
   });
   if(disclaimer)rows[idx].sections.push(disclaimer);
-  rows[idx].status='saved';rows[idx].approvedForClient=false;rows[idx].updatedAt=new Date().toISOString();
+  const savedAt=new Date().toISOString();
+  rows[idx]={
+    ...rows[idx],
+    reportType:isCounselor?'counselorComprehensiveReport':'comprehensiveReport',
+    comprehensiveReport:!isCounselor,assessmentReport:!isCounselor,
+    integratedAssessmentReport:isCounselor,
+    status:'saved',reviewStatus:'saved',approved:false,reviewed:false,approvedForClient:false,
+    approvedReportHtml:'',approvedReportHtmlVersion:0,approvedAt:'',approvedBy:'',publishedAt:'',
+    updatedAt:savedAt
+  };
   rows[idx]=normalizeDerivedClientReport(rows[idx]);
   saveDerivedAssessmentReports(rows);
+  try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-saved'});}catch(_){}
   toggleDerivedAssessmentReportEdit(false);
   if(openPdf){
     printDerivedAssessmentReportForm();
@@ -2090,6 +2109,8 @@ async function publishDerivedAssessmentReport(id){
   rows[idx]={
     ...report,
     reservationId,
+    reportType:'comprehensiveReport',comprehensiveReport:true,assessmentReport:true,integratedAssessmentReport:false,
+    derivedReportType:'clientComprehensiveReport',
     sections:canonicalApprovedSections,
     status:'approved',
     reviewStatus:'approved',
@@ -2104,35 +2125,13 @@ async function publishDerivedAssessmentReport(id){
     approvalUpdatedAt:now,
     updatedAt:now
   };
+  // Sprint 4: 승인한 바로 그 보고서가 canonical 공개 원본입니다.
+  // 과거 코드처럼 사용자용 publicItem을 새 ID로 복제하지 않습니다.
   saveDerivedAssessmentReports(rows);
-  let publicReports=[];
-  // 홈페이지 마음기록은 modumam_reports를 읽으므로 동일 저장소에 공개본을 저장합니다.
-  try{publicReports=JSON.parse(localStorage.getItem('modumam_reports')||'[]')||[]}catch(e){publicReports=[]}
-  const publicItem={
-    id:Number(report.publicReportId||Date.now()),
-    derivedReportId:report.id,
-    sourceIntegratedReportId:report.sourceIntegratedReportId,
-    reservationId,
-    assessmentReport:true,
-    reportKind:'client-derived-summary',
-    title:'심리검사 종합보고서',
-    testType:'심리검사 종합보고서',
-    clientName:report.clientName||source.clientName||'',
-    phone:report.phone||source.phone||'',
-    program:report.program||source.program||'',
-    tests:report.tests||[],
-    sections:Object.fromEntries(canonicalApprovedSections.map(section=>[section.key,section.text])),
-    derivedSections:canonicalApprovedSections.map(section=>({key:section.key,label:section.label,text:section.text})),
-    approvedReportHtml,
-    approvedForClient:true,
-    approvedAt:now,
-    publishedAt:now,
-    createdAt:report.createdAt||now,
-    updatedAt:now
-  };
-  const oldIndex=publicReports.findIndex(x=>String(x.derivedReportId)===String(report.id));
-  if(oldIndex>=0)publicItem.id=publicReports[oldIndex].id;
-  saveCanonicalPublishedReport(publicItem);
+  // 이전 버전에서 생성된 공개용 복제본이 있으면 제거하여 사용자 화면의 중복/불일치를 정리합니다.
+  removeCanonicalPublishedReportByDerivedId(report.id);
+  try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-approved'});}catch(error){console.warn('[MML] 종합보고서 공개 인덱스 즉시 갱신 실패',error);}
+  try{window.MMLSyncEngine?.exportClientSnapshot?.({publish:true});}catch(error){console.warn('[MML] 종합보고서 사용자 스냅샷 갱신 실패',error);}
   mmlDerivedApprovalLocks.delete(lockKey);
   alert('관리자 승인이 완료되어 심리검사 종합보고서를 홈페이지에서 열람할 수 있습니다.');
   render();
@@ -2165,6 +2164,8 @@ function toggleDerivedAssessmentReportApproval(id){
   };
   saveDerivedAssessmentReports(rows);
   removeCanonicalPublishedReportByDerivedId(id);
+  try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-revoked'});}catch(error){console.warn('[MML] 종합보고서 승인취소 공개 인덱스 갱신 실패',error);}
+  try{window.MMLSyncEngine?.exportClientSnapshot?.({publish:true});}catch(_){}
   mmlDerivedApprovalLocks.delete(lockKey);
   alert('승인을 취소했습니다. 홈페이지에서는 더 이상 보고서를 열람할 수 없습니다.');
   render();

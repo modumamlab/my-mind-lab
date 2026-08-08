@@ -92,7 +92,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260727-persistence-fix-v2',
+      src:'./js/modules/assessment-reports.js?v=20260808-sprint4-canonical-publication',
       required:true,
       dependsOn:['data-store','print-engine']
     },
