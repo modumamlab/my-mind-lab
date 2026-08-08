@@ -1380,10 +1380,19 @@ function saveIndividualAssessmentReportFromChart(reportId,analysisId){
   const history=Array.isArray(report.versionHistory)?report.versionHistory:[];
   const snapshot={version:Number(report.version||1),savedAt:report.updatedAt||report.createdAt||now,title:report.title||'',summary:old.coreFindings||old.sourceSummary||'',individualFields:Object.fromEntries(keys.map(k=>[k,old[k]||'']))};
   const nextSections={...(report.sections||{}),sourceSummary:next.sourceSummary,validity:next.validity,coreFindings:next.coreFindings,strengths:next.strengths,vulnerabilities:next.vulnerabilities,helpfulDirections:next.helpfulDirections,counselingQuestions:next.counselingQuestions,emotionalPattern:next.emotionalPattern,thinkingPattern:next.thinkingPattern,relationshipPattern:next.relationshipPattern,stressPattern:next.stressPattern,dailyMeaning:next.dailyMeaning,cautions:next.cautions,summary:next.coreFindings||next.sourceSummary||''};
-  state.reports=state.reports.map(x=>String(x.id)===String(reportId)?{...x,sections:nextSections,summary:nextSections.summary,strength:nextSections.strengths,caution:nextSections.vulnerabilities,plan:nextSections.helpfulDirections,status:'상담자 승인 완료 · 공개 전',updatedAt:now,version:Number(x.version||1)+1,approvedForClient:false,publishedAt:'',approvalUpdatedAt:now,versionHistory:[snapshot,...history].slice(0,10)}:x);
+  state.reports=state.reports.map(x=>String(x.id)===String(reportId)?{...x,
+    sections:nextSections,summary:nextSections.summary,strength:nextSections.strengths,caution:nextSections.vulnerabilities,plan:nextSections.helpfulDirections,
+    // [MML-20260808-INDIVIDUAL-APPROVAL-LIFECYCLE-S13]
+    // 전문가가 한 글자라도 수정·저장하면 승인 당시 문서와 현재 문서가 달라지므로 승인을 자동 해제합니다.
+    approved:false,approvedForClient:false,clientVisible:false,published:false,
+    approvedReportHtml:'',approvedReportHtmlVersion:0,approvedAt:'',approvedBy:'',publishedAt:'',
+    reviewStatus:'saved',status:'저장완료 · 승인대기',approvalUpdatedAt:now,
+    updatedAt:now,version:Number(x.version||1)+1,versionHistory:[snapshot,...history].slice(0,10)
+  }:x);
   persistReports(state.reports);
+  try{window.MMLClientReportPublication?.sync?.({force:true,reason:'individual-report-edited'});}catch(error){console.warn('[MML] 개별보고서 수정 후 공개상태 갱신 실패',error);}
   closeIndividualAssessmentReportEditor();
-  alert('생성된 결과보고서를 저장했습니다.');
+  alert('수정된 결과보고서를 저장했습니다. 내용이 변경되어 기존 승인은 해제되었습니다. 다시 승인하면 사용자에게 공개됩니다.');
   render();
 }
 window.editIndividualAssessmentReport=editIndividualAssessmentReport;

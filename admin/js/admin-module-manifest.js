@@ -107,7 +107,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260808-report-actions-s11',
+      src:'./js/admin.js?v=20260808-individual-approval-lifecycle-s13',
       required:true
     },
     {

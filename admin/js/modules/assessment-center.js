@@ -461,16 +461,21 @@ function saveGeneratedAssessmentReport(id){
     strength:analysis.strengths||'',caution:analysis.vulnerabilities||'',plan:analysis.helpfulDirections||'',
     sections:assessmentCenterReportSections(analysis),analysisSnapshot:{...analysis},
     individualAssessmentReport:true,assessmentCenterDirect:true,reportType:'내담자용 개별보고서',
-    approvedForClient:existing?.approvedForClient===true,approvedReportHtml:existing?.approvedReportHtml||'',
-    status:existing?.approvedForClient?'승인완료 · 열람가능':'승인 대기',
+    // [MML-20260808-INDIVIDUAL-APPROVAL-LIFECYCLE-S13]
+    // 생성 결과를 다시 저장하면 보고서 버전이 바뀐 것이므로 이전 승인 스냅샷을 재사용하지 않습니다.
+    approved:false,approvedForClient:false,clientVisible:false,published:false,
+    approvedReportHtml:'',approvedReportHtmlVersion:0,approvedAt:'',approvedBy:'',publishedAt:'',
+    reviewStatus:'saved',status:'저장완료 · 승인대기',approvalUpdatedAt:now,
     version:existing?Number(existing.version||1)+1:1,createdAt:existing?.createdAt||now,updatedAt:now
   };
   const canonicalReport=persistCanonicalAssessmentReport(nextReport);
   state.reports=[canonicalReport,...(state.reports||[]).filter(r=>String(r.id)!==String(reportId))];
   save('modumam_assessment_analyses',state.assessmentAnalyses);
   commitAssessmentReports(state.reports);
+  // 이전 버전이 승인되어 있었더라도 새 저장본은 다시 전문가 승인을 받아야 사용자에게 공개됩니다.
+  try{window.MMLClientReportPublication?.sync?.({force:true,reason:'individual-report-resaved'});}catch(error){console.warn('[MML] 개별보고서 재저장 공개상태 갱신 실패',error);}
   syncClinicalAssessmentRecord(analysis.reservationId);
-  alert('생성된 결과보고서를 저장했습니다. 이제 수정·승인·PDF 기능을 사용할 수 있습니다.');
+  alert('생성된 결과보고서를 저장했습니다. 내용이 변경된 보고서는 다시 승인해야 사용자에게 공개됩니다.');
   render();
 }
 window.saveGeneratedAssessmentReport=saveGeneratedAssessmentReport;
