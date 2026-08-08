@@ -1298,9 +1298,23 @@ function resolveIndividualReportAnalysis(report){
   }
   return analysis||null;
 }
+function resolveAdminReportActionTarget(id){
+  const key=String(id||'');
+  let report=(state.reports||[]).find(x=>String(x?.id)===key)||null;
+  if(report)return report;
+  const pools=[];
+  try{const rows=window.MMLReportStore?.read?.();if(Array.isArray(rows))pools.push(...rows)}catch(_){ }
+  try{const rows=window.MMLCanonicalReportStore?.read?.();if(Array.isArray(rows))pools.push(...rows)}catch(_){ }
+  report=pools.find(x=>String(x?.id)===key)||null;
+  if(report){
+    state.reports=[report,...(state.reports||[]).filter(x=>String(x?.id)!==key)];
+    try{persistReports(state.reports)}catch(_){ }
+  }
+  return report;
+}
 function editIndividualAssessmentReport(id){
-  const report=state.reports.find(x=>String(x.id)===String(id));
-  if(!report||!report.individualAssessmentReport)return;
+  const report=resolveAdminReportActionTarget(id);
+  if(!report||!report.individualAssessmentReport){alert('개별 심리검사 보고서 원본을 찾지 못했습니다. 보고서 저장 후 다시 시도해 주세요.');return;}
   const analysis=resolveIndividualReportAnalysis(report);
   if(!analysis){alert('개별검사 보고서 자료를 복원하지 못했습니다. 심리평가센터에서 해당 검사를 다시 확인해 주세요.');return;}
   if(typeof buildIndividualAssessmentReportHtml!=='function'||typeof individualAssessmentReportCss!=='function'){
@@ -1439,8 +1453,8 @@ async function createApprovedReportHtmlSnapshot(report){
   return '';
 }
 async function toggleReportApproval(id){
-  const report=state.reports.find(r=>String(r.id)===String(id));
-  if(!report){alert('보고서를 찾지 못했습니다.');return;}
+  const report=resolveAdminReportActionTarget(id);
+  if(!report){alert('보고서 원본을 찾지 못했습니다. 보고서를 저장한 뒤 다시 시도해 주세요.');return;}
   const next=!report.approvedForClient;
   // 보고서 승인 여부는 사용자 신청 상태가 아니라 저장된 보고서 원본을 기준으로 판단합니다.
   if(!confirm(next?'이 보고서를 승인하여 내담자가 열람할 수 있게 할까요?':'승인을 취소하여 내담자 열람을 중단할까요?'))return;
@@ -1539,7 +1553,7 @@ ${r.title}
 감사합니다.
 모두의 마음연구소`)}
 async function printReport(id,autoPrint=true){
-  const r=state.reports.find(x=>String(x.id)===String(id));if(!r)return;
+  const r=resolveAdminReportActionTarget(id);if(!r){alert('보고서 원본을 찾지 못했습니다. 보고서를 저장한 뒤 다시 시도해 주세요.');return;}
   if(r.individualAssessmentReport){
     const analysis=resolveIndividualReportAnalysis(r);
     if(analysis){
@@ -3374,3 +3388,18 @@ syncIndexedReservationData().then(changed=>{if(changed||state.reservationDbCount
     if(raw!==lastRequestRaw){lastRequestRaw=raw;try{typeof render==='function'&&render()}catch(_){ }}
   },1200);
 })();
+
+
+// MML-20260808-S11: 보고서 관리현황 액션을 명시적으로 전역에 노출합니다.
+// 동적 렌더링된 inline handler가 브라우저 스코프/로드순서에 영향받지 않게 합니다.
+window.resolveAdminReportActionTarget=resolveAdminReportActionTarget;
+window.toggleReportApproval=toggleReportApproval;
+window.printReport=printReport;
+window.openReportPreview=openReportPreview;
+window.MMLAssessmentReportActions={
+  preview(id){return window.printReport(String(id),false)},
+  edit(id){return window.editIndividualAssessmentReport(String(id))},
+  revoke(id){return window.toggleReportApproval(String(id))},
+  approve(id){return window.toggleReportApproval(String(id))},
+  pdf(id){return window.printReport(String(id),true)}
+};

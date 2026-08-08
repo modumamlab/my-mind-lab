@@ -9,7 +9,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     location.hostname.endsWith('.local');
 
   const mode = isLocal ? 'development' : 'production';
-  const build = '20260808-admin-direct-reservation-ui-v1';
+  const build = '20260808-report-actions-s11';
 
   const core = [
     {
@@ -107,7 +107,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260808-ai-24h-booking-v3',
+      src:'./js/admin.js?v=20260808-report-actions-s11',
       required:true
     },
     {

@@ -56,75 +56,6 @@ function syncClinicalAssessmentRecord(reservationId){
 function assessmentTestLabel(v){return String(v||'검사 미지정').replace('KCDI','K-CDI')}
 function setAssessmentReservation(id){state.assessmentReservationId=String(id||'');const savedDraft=window.MMLReportStore?.getDraftByReservationId?.(id)|| (state.assessmentReportDrafts||[]).find(x=>String(x.reservationId)===String(id));state.integratedReportDraft=savedDraft?{...savedDraft}:null;state.assessmentCrossDraft=null;const saved=state.assessmentCrossAnalyses.find(x=>String(x.reservationId)===String(id));if(saved)state.assessmentCrossDraft={...saved};render()}
 function assessmentReservation(){return state.reservations.find(r=>String(r.id)===String(state.assessmentReservationId))||null}
-
-// [SPRINT6-20260808] 심리평가센터에서 예약을 직접 다시 불러옵니다.
-// localStorage / 예약 inbox / IndexedDB / 서버 저장소를 순차 확인하여
-// 관리자 예약관리 화면과 심리평가센터의 예약 목록이 어긋나지 않게 합니다.
-async function refreshAssessmentReservations(){
-  const beforeCount=Array.isArray(state.reservations)?state.reservations.length:0;
-  const selectedBefore=String(state.assessmentReservationId||'');
-  let serverResult=null;
-  let serverError='';
-  try{
-    if(window.MMLServerStore?.hydrate){
-      serverResult=await window.MMLServerStore.hydrate(['modumam_reservations']);
-    }
-  }catch(error){serverError=String(error?.message||error||'');}
-
-  try{
-    if(typeof window.syncSharedOperatingData==='function') window.syncSharedOperatingData();
-  }catch(_){ }
-  try{
-    if(typeof window.syncIndexedReservationData==='function') await window.syncIndexedReservationData();
-  }catch(_){ }
-
-  const rows=[];
-  const pushRows=(items)=>{
-    (Array.isArray(items)?items:[]).forEach(item=>{
-      if(!item)return;
-      const id=String(item.id||item.reservationId||'').trim();
-      if(!id)return;
-      const prevIndex=rows.findIndex(row=>String(row.id||row.reservationId||'')===id);
-      if(prevIndex>=0) rows[prevIndex]={...rows[prevIndex],...item,id};
-      else rows.push({...item,id});
-    });
-  };
-  pushRows(state.reservations||[]);
-  try{pushRows(JSON.parse(localStorage.getItem('modumam_reservations')||'[]'));}catch(_){ }
-  try{pushRows(JSON.parse(localStorage.getItem('modumam_reservation_inbox')||'[]'));}catch(_){ }
-  try{
-    if(typeof window.getIndexedReservations==='function') pushRows(await window.getIndexedReservations());
-  }catch(_){ }
-
-  rows.sort((a,b)=>{
-    const ad=String(a.date||a.reservationDate||'')+' '+String(a.time||'');
-    const bd=String(b.date||b.reservationDate||'')+' '+String(b.time||'');
-    return bd.localeCompare(ad,'ko');
-  });
-  state.reservations=rows;
-  try{localStorage.setItem('modumam_reservations',JSON.stringify(rows));}catch(_){ }
-
-  if(selectedBefore && rows.some(row=>String(row.id)===selectedBefore)){
-    state.assessmentReservationId=selectedBefore;
-  }else if(rows.length){
-    state.assessmentReservationId=String(rows[0].id);
-    const savedDraft=window.MMLReportStore?.getDraftByReservationId?.(rows[0].id)||
-      (state.assessmentReportDrafts||[]).find(x=>String(x.reservationId)===String(rows[0].id));
-    state.integratedReportDraft=savedDraft?{...savedDraft}:null;
-    state.assessmentCrossDraft=(state.assessmentCrossAnalyses||[]).find(x=>String(x.reservationId)===String(rows[0].id))||null;
-  }else{
-    state.assessmentReservationId='';
-  }
-
-  render();
-  const added=Math.max(0,rows.length-beforeCount);
-  if(rows.length){
-    alert(`예약 ${rows.length}건을 확인했습니다.${added?` 새로 확인된 예약 ${added}건을 반영했습니다.`:''}`);
-  }else{
-    const serverNote=serverError?`\n서버 확인: ${serverError}`:(serverResult?.reason?`\n서버 확인: ${serverResult.reason}`:'');
-    alert(`불러올 예약이 없습니다.\n\n로컬 관리자에서 테스트 중이라면 운영 홈페이지에서 만든 예약은 브라우저 출처가 달라 localStorage만으로 보이지 않을 수 있습니다. 예약관리에서 테스트 예약 1건을 만들거나 서버 저장소 연결 상태를 확인해 주세요.${serverNote}`);
-  }
-}
 function assessmentRequestedTests(r){
   if(!r)return[];
   const items=typeof requestedTests==='function'?requestedTests(r):[];
@@ -176,30 +107,14 @@ async function analyzeAssessmentFiles(files){
   }
   alert(`${list.length}개 검사파일 분석 요청을 완료했습니다. 검사명과 신뢰도를 확인해 주세요.`);
 }
-async function requestProfessionalReportV4(payload){
-  const callPhase=async phase=>{
-    const response=await fetch('/.netlify/functions/mml-clinician-integrated-report',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({...payload,mode:'individual',phase})
-    });
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||`전문보고서 ${phase} 생성에 실패했습니다.`);
-    return data;
-  };
-  const core=await callPhase('core');
-  const detail=await callPhase('detail');
-  return {
-    analysis:{
-      ...(core.analysis||{}),...(detail.analysis||{}),
-      clientReport:{...(core.analysis?.clientReport||{}),...(detail.analysis?.clientReport||{})},
-      counselorReport:{...(core.analysis?.counselorReport||{}),...(detail.analysis?.counselorReport||{})},
-      professionalProfile:{...(core.analysis?.professionalProfile||{}),...(detail.analysis?.professionalProfile||{})},
-      reportEngineVersion:detail.engineVersion||core.engineVersion||'MML-PRO-REPORT-V4.1-TWO-PHASE',
-      reportGenerationRequired:false
-    },
-    engineVersion:detail.engineVersion||core.engineVersion||'MML-PRO-REPORT-V4.1-TWO-PHASE',
-    model:detail.model||core.model||''
-  };
+async function requestCanonicalAssessmentInterpretation(payload){
+  const response=await fetch('/.netlify/functions/mml-assessment-file-analysis',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+  });
+  const data=await response.json().catch(async()=>({error:(await response.text().catch(()=>''))||''}));
+  if(!response.ok)throw new Error(data.error||`심리검사 AI 결과 해석 실패 (${response.status})`);
+  if(!data.analysis)throw new Error('AI 결과 해석 본문을 생성하지 못했습니다.');
+  return data;
 }
 
 async function analyzeAssessmentFile(reservationId,testType,file,silent=false){
@@ -228,34 +143,13 @@ async function analyzeAssessmentFile(reservationId,testType,file,silent=false){
       throw new Error('검사결과에서 분석 가능한 사실을 추출하지 못했습니다. 결과표와 프로파일이 보이는 파일인지 확인해 주세요.');
     }
 
-    // 2단계: 추출된 사실만 임상적으로 해석합니다. 원본 파일은 다시 전송하지 않습니다.
-    const response=await fetch('/.netlify/functions/mml-assessment-file-analysis',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({...commonBody,extractedFacts})
-    });
-    const data=await response.json().catch(async()=>({error:(await response.text().catch(()=>''))||''}));
-    if(!response.ok){
-      throw new Error(data.error||`검사결과 해석 실패 (${response.status})`);
-    }
+    // 2단계: 단일 AI 해석 엔진에서 임상 해석 + 내담자용 개별보고서 + 상담자용 검토자료를 함께 생성합니다.
+    // 원본 파일은 다시 보내지 않고 1단계에서 추출된 사실만 전달합니다.
+    const data=await requestCanonicalAssessmentInterpretation({...commonBody,extractedFacts,mode:'interpret-and-report'});
     const confidenceScore=Number(data.analysis?.confidenceScore||0);const needsReview=Boolean(data.analysis?.needsReview)||confidenceScore<80;
+    const enrichedAnalysis={...data.analysis,reportEngineVersion:data.engineVersion||data.analysis?.engineVersion||'MML-CLINICAL-INTERPRETATION-1.0-CANONICAL',reportGenerationRequired:false};
 
-    // [MML-REPORT-V3] 1단계 원자료 추출이 끝나면 텍스트 자료만 사용하여
-    // 모든 검사에 공통 적용되는 완성형 내담자용 개별보고서를 별도 함수에서 생성합니다.
-    // PDF 전체를 다시 보내지 않으므로 로컬 Netlify 30초 제한 안에서 처리하기 쉽습니다.
-    let enrichedAnalysis={...data.analysis};
-    try{
-      const reportData=await requestProfessionalReportV4({
-        clientName:r.name,program:programBaseName(r.program),testType,analysis:data.analysis
-      });
-      enrichedAnalysis={
-        ...enrichedAnalysis,...(reportData.analysis||{}),
-        clientReport:{...(enrichedAnalysis.clientReport||{}),...(reportData.analysis?.clientReport||{})},
-        counselorReport:{...(enrichedAnalysis.counselorReport||{}),...(reportData.analysis?.counselorReport||{})},
-        professionalProfile:{...(enrichedAnalysis.professionalProfile||{}),...(reportData.analysis?.professionalProfile||{})}
-      };
-    }catch(reportError){console.warn('[MML REPORT V4.1] 전문보고서 자동 생성 실패',reportError);}
-
-    const item={id:Date.now()+Math.random(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),testType,fileName:file.name,mimeType:file.type,status:'분석완료 · 상담자 검토 필요',reviewed:false,visibleToClient:false,createdAt:new Date().toLocaleString('ko-KR'),model:data.model||'',...enrichedAnalysis,confidenceScore,needsReview};
+    const item={id:Date.now()+Math.random(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),testType,fileName:file.name,mimeType:file.type,status:'AI 결과 해석 완료 · 상담자 검토 필요',reviewed:false,visibleToClient:false,createdAt:new Date().toLocaleString('ko-KR'),model:data.model||'',...enrichedAnalysis,confidenceScore,needsReview};
     state.assessmentAnalyses=[item,...state.assessmentAnalyses.filter(x=>!(String(x.reservationId)===String(r.id)&&String(x.testType)===String(testType)))];
     save('modumam_assessment_analyses',state.assessmentAnalyses);
     syncClinicalAssessmentRecord(r.id);
@@ -494,20 +388,10 @@ function assessmentReportRequestStatusCard(reservation,analyses=[]){
       const analysis=(analyses||[]).find(a=>assessmentTestMatches(a.testType,test));
       const report=analysis?assessmentCenterIndividualReportForAnalysis(analysis.id):(state.reports||[]).find(row=>row.individualAssessmentReport===true&&String(row.reservationId)===String(reservation.id)&&assessmentTestMatches(row.testType,test));
       const approved=Boolean(report?.approvedForClient);
-      const status=approved?'승인완료':report?'작성완료 · 승인대기':analysis?'작성 필요':'검사결과 업로드 필요';
+      const status=approved?'사용자 열람 가능':report?'보고서 저장완료 · 승인대기':analysis?'AI 분석완료 · 보고서 작성대기':'검사결과 업로드 필요';
       const badge=approved?'bg-emerald-100 text-emerald-700':report?'bg-amber-100 text-amber-700':analysis?'bg-indigo-100 text-indigo-700':'bg-slate-100 text-slate-500';
-      const reportId=report?String(report.id):'';
-      const writeButton=report
-        ?`<button onclick="printReport(${JSON.stringify(reportId)},false)" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">미리보기</button><button onclick="editIndividualAssessmentReport(${JSON.stringify(reportId)})" class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-extrabold text-indigo-700">수정</button>`
-        :analysis
-          ?`<button onclick="scrollToAssessmentReportCard('${esc(test)}')" class="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-extrabold text-white">개별보고서 작성</button><button disabled title="보고서 작성 후 사용할 수 있습니다." class="cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400">미리보기</button><button disabled title="보고서 작성 후 사용할 수 있습니다." class="cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400">수정</button>`
-          :`<button disabled class="cursor-not-allowed rounded-xl bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400">결과 업로드 필요</button><button disabled class="cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400">미리보기</button><button disabled class="cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400">수정</button>`;
-      const approvalButton=report
-        ?approved
-          ?`<span class="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700">승인완료</span><button onclick="toggleReportApproval(${JSON.stringify(reportId)})" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600">승인취소</button><button onclick="printReport(${JSON.stringify(reportId)},true)" class="rounded-xl border border-orange-200 bg-white px-3 py-2 text-xs font-extrabold text-orange-700">PDF</button>`
-          :`<button onclick="toggleReportApproval(${JSON.stringify(reportId)})" class="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-extrabold text-white">승인</button><button onclick="printReport(${JSON.stringify(reportId)},true)" class="rounded-xl border border-orange-200 bg-white px-3 py-2 text-xs font-extrabold text-orange-700">PDF</button>`
-        :`<button disabled title="보고서 작성 후 승인할 수 있습니다." class="cursor-not-allowed rounded-xl bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400">승인</button><button disabled title="보고서 작성 후 출력할 수 있습니다." class="cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-400">PDF</button>`;
-      itemRows.push(`<div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div class="flex flex-wrap items-center gap-2"><p class="font-extrabold text-slate-900">${esc(assessmentTestLabel(test))} 개별 심리검사 보고서</p><span class="rounded-full px-2.5 py-1 text-[10px] font-extrabold ${badge}">${status}</span></div><p class="mt-1 text-xs text-slate-400">작성 후 미리보기·수정·승인·승인취소·PDF를 관리합니다.</p></div><div class="flex flex-wrap gap-2">${writeButton}${approvalButton}</div></div></div>`);
+      const stage=approved?'승인완료':report?'저장완료':analysis?'분석완료':'대기';
+      itemRows.push(`<div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div class="flex flex-wrap items-center gap-2"><p class="font-extrabold text-slate-900">${esc(assessmentTestLabel(test))} 개별 심리검사 보고서</p><span class="rounded-full px-2.5 py-1 text-[10px] font-extrabold ${badge}">${status}</span></div><p class="mt-1 text-xs text-slate-400">실제 보고서 작업은 아래 ‘개별 심리검사 보고서’ 영역에서 진행합니다.</p></div><div class="flex items-center gap-2"><span class="text-[10px] font-extrabold tracking-[.12em] text-slate-400">CURRENT STAGE</span><span class="rounded-xl ${badge} px-3 py-2 text-xs font-extrabold">${stage}</span></div></div></div>`);
     });
   }
 
@@ -515,22 +399,13 @@ function assessmentReportRequestStatusCard(reservation,analyses=[]){
     const master=assessmentCenterIntegratedReportForReservation(reservation.id);
     const derived=master&&typeof derivedReportForSource==='function'?derivedReportForSource(master.id,'client'):null;
     const approved=Boolean(derived?.approvedForClient||derived?.status==='approved');
-    const status=approved?'승인완료':derived?'작성완료 · 승인대기':master?'종합보고서 생성 필요':'AI 종합해석보고서 필요';
+    const status=approved?'사용자 열람 가능':derived?'종합보고서 저장완료 · 승인대기':master?'AI 종합해석 저장완료 · 종합보고서 생성대기':'AI 종합해석보고서 작성 필요';
     const badge=approved?'bg-emerald-100 text-emerald-700':derived?'bg-amber-100 text-amber-700':master?'bg-indigo-100 text-indigo-700':'bg-slate-100 text-slate-500';
-    const writeButton=derived
-      ?`<button onclick="editDerivedAssessmentReport('${derived.id}')" class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-extrabold text-indigo-700">종합보고서 수정</button>`
-      :master
-        ?`<button onclick="generateDerivedAssessmentReport('${master.id}','client',this)" class="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-extrabold text-white">종합보고서 생성</button>`
-        :`<button onclick="scrollToAssessmentComprehensiveReport()" class="rounded-xl bg-slate-700 px-3 py-2 text-xs font-extrabold text-white">AI 종합해석보고서 작성</button>`;
-    const approvalButton=derived
-      ?approved
-        ?`<span class="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700">승인완료</span><button onclick="toggleDerivedAssessmentReportApproval('${derived.id}')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600">승인취소</button>`
-        :`<button onclick="toggleDerivedAssessmentReportApproval('${derived.id}')" class="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-extrabold text-white">승인</button>`
-      :'';
-    itemRows.push(`<div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div class="flex flex-wrap items-center gap-2"><p class="font-extrabold text-slate-900">심리검사 종합보고서</p><span class="rounded-full px-2.5 py-1 text-[10px] font-extrabold ${badge}">${status}</span></div><p class="mt-1 text-xs text-slate-400">보고서 관리 항목</p></div><div class="flex flex-wrap gap-2">${writeButton}${approvalButton}</div></div></div>`);
+    const stage=approved?'승인완료':derived?'저장완료':master?'종합해석완료':'대기';
+    itemRows.push(`<div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div class="flex flex-wrap items-center gap-2"><p class="font-extrabold text-slate-900">심리검사 종합보고서</p><span class="rounded-full px-2.5 py-1 text-[10px] font-extrabold ${badge}">${status}</span></div><p class="mt-1 text-xs text-slate-400">실제 보고서 작업은 아래 ‘AI 종합해석보고서/심리검사 종합보고서’ 영역에서 진행합니다.</p></div><div class="flex items-center gap-2"><span class="text-[10px] font-extrabold tracking-[.12em] text-slate-400">CURRENT STAGE</span><span class="rounded-xl ${badge} px-3 py-2 text-xs font-extrabold">${stage}</span></div></div></div>`);
   }
 
-  return `<section id="assessment-report-request-status" class="rounded-[2rem] border ${requestCount?'border-indigo-200':'border-slate-100'} bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold tracking-[.14em] text-indigo-600">CLIENT REPORT MANAGEMENT</p><h3 class="mt-1 text-xl font-extrabold">보고서 관리현황</h3><p class="mt-1 text-xs text-slate-400">저장된 보고서를 수정·승인·승인취소할 수 있습니다.${requestDate?` · 신청일 ${esc(requestDate)}`:''}</p></div><span class="rounded-full ${requestCount?'bg-indigo-100 text-indigo-700':'bg-slate-100 text-slate-500'} px-3 py-1.5 text-xs font-extrabold">${requestCount?`${requestCount}건 신청`:'신청 없음'}</span></div><div class="mt-5 space-y-3">${itemRows.length?itemRows.join(''):'<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center"><p class="text-sm font-extrabold text-slate-600">사용자가 신청한 보고서가 없습니다.</p><p class="mt-1 text-xs text-slate-400">사용자 마음기록에서 신청하면 이 영역에 작성·승인 버튼이 자동으로 표시됩니다.</p></div>'}</div></section>`;
+  return `<section id="assessment-report-request-status" class="rounded-[2rem] border ${requestCount?'border-indigo-200':'border-slate-100'} bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold tracking-[.14em] text-indigo-600">CLIENT REPORT MANAGEMENT</p><h3 class="mt-1 text-xl font-extrabold">보고서 관리현황</h3><p class="mt-1 text-xs text-slate-400">신청된 보고서의 현재 진행단계를 확인합니다.${requestDate?` · 신청일 ${esc(requestDate)}`:''}</p></div><span class="rounded-full ${requestCount?'bg-indigo-100 text-indigo-700':'bg-slate-100 text-slate-500'} px-3 py-1.5 text-xs font-extrabold">${requestCount?`${requestCount}건 신청`:'신청 없음'}</span></div><div class="mt-5 space-y-3">${itemRows.length?itemRows.join(''):'<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center"><p class="text-sm font-extrabold text-slate-600">사용자가 신청한 보고서가 없습니다.</p><p class="mt-1 text-xs text-slate-400">사용자 마음기록에서 신청하면 이 영역에 현재 진행단계가 표시됩니다.</p></div>'}</div></section>`;
 }
 function assessmentCenterReportSections(a){
   return {
@@ -600,7 +475,7 @@ function saveGeneratedAssessmentReport(id){
 }
 window.saveGeneratedAssessmentReport=saveGeneratedAssessmentReport;
 
-// [MML-PRO-REPORT-V4] 기존 원자료 분석을 유지한 채 전문보고서만 다시 생성합니다.
+// [MML-CANONICAL-INTERPRETATION] 기존 원자료 분석을 유지한 채 같은 AI 해석 엔진으로 전문보고서를 다시 생성합니다.
 // 이미 업로드한 검사파일을 다시 올릴 필요가 없습니다.
 async function regenerateProfessionalIndividualReport(analysisId,button){
   const index=(state.assessmentAnalyses||[]).findIndex(x=>String(x.id)===String(analysisId));
@@ -609,15 +484,16 @@ async function regenerateProfessionalIndividualReport(analysisId,button){
   const reservation=(state.reservations||[]).find(r=>String(r.id)===String(original.reservationId))||{};
   if(button){button.disabled=true;button.textContent='전문보고서 작성 중...';}
   try{
-    const data=await requestProfessionalReportV4({
+    const data=await requestCanonicalAssessmentInterpretation({
       clientName:original.clientName||reservation.name||'',
       program:original.program||programBaseName(reservation.program||''),
-      testType:original.testType,analysis:original
+      testType:original.testType,mode:'report-refresh',
+      extractedFacts:original.rawFacts||{},analysisSnapshot:original
     });
     if(!data.analysis)throw new Error('전문보고서를 생성하지 못했습니다.');
     const now=new Date().toLocaleString('ko-KR');
     state.assessmentAnalyses[index]={...original,...data.analysis,status:'보고서 생성완료 · 상담자 검토 필요',
-      reportEngineVersion:data.engineVersion||'MML-PRO-REPORT-V4.1-TWO-PHASE',
+      reportEngineVersion:data.engineVersion||data.analysis?.engineVersion||'MML-CLINICAL-INTERPRETATION-1.0-CANONICAL',
       reportGeneratedAt:now,reviewed:false,needsReview:true,updatedAt:now};
     save('modumam_assessment_analyses',state.assessmentAnalyses);
     syncClinicalAssessmentRecord(original.reservationId);
@@ -773,10 +649,28 @@ async function generateIntegratedAssessmentReport(){
   try{
     const response=await fetch('/.netlify/functions/mml-clinician-integrated-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:r.name,program:testGroups.program,basicTests:testGroups.basicTests,additionalTests:testGroups.additionalTests,tests:reviewedAnalyses.map(x=>({testType:x.testType,subjectRole:(String(x.testType).includes('신청자')?'신청자':String(x.testType).includes('배우자')?'배우자':String(x.testType).includes('K-CDI')?'자녀':String(x.testType).includes('PAT')?'양육자':''),sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,rawFacts:x.rawFacts||null,counselorReport:x.counselorReport||null,clientReport:x.clientReport||null,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview})),crossAnalysis:cross||null})});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'심리검사 종합해석보고서를 생성하지 못했습니다.');
-    const clinicianSections=clinicianIntegratedSource(data.report||{},data.masterReport||null);
+    const generatedCross=(data.crossAnalysis&&typeof data.crossAnalysis==='object')?data.crossAnalysis:null;
+    if(generatedCross){
+      const now=new Date().toLocaleString('ko-KR');
+      const crossItem={
+        id:cross?.id||Date.now(),reservationId:r.id,clientName:r.name,phone:r.phone||'',program:programBaseName(r.program),
+        tests:reviewedAnalyses.map(x=>x.testType),
+        commonPatterns:String(generatedCross.commonPatterns||'').trim(),differences:String(generatedCross.differences||'').trim(),
+        stateTrait:String(generatedCross.stateTrait||'').trim(),responseContext:String(generatedCross.responseContext||'').trim(),
+        riskProtection:String(generatedCross.riskProtection||'').trim(),followUpQuestions:String(generatedCross.followUpQuestions||'').trim(),
+        counselingImplications:String(generatedCross.counselingImplications||'').trim(),caseIntegration:String(generatedCross.caseIntegration||'').trim(),
+        limitations:String(generatedCross.limitations||'').trim(),reviewed:false,status:'AI 자동 교차분석 · 상담자 검토 필요',
+        model:data.model||'',promptVersion:data.promptVersion||'',createdAt:cross?.createdAt||now,updatedAt:now
+      };
+      state.assessmentCrossAnalyses=[crossItem,...state.assessmentCrossAnalyses.filter(x=>String(x.reservationId)!==String(r.id))];
+      state.assessmentCrossDraft={...crossItem};
+      save('modumam_assessment_cross_analyses',state.assessmentCrossAnalyses);
+    }
+    const clinicianSections=clinicianIntegratedSource(data.report||{},data.masterReport||null,generatedCross||cross||null);
     const hasBody=['clinicalJudgment','convergentEvidence','caseFormulation','professionalSummary'].some(k=>String(clinicianSections[k]||'').trim());
     if(!hasBody)throw new Error('AI가 보고서 본문을 반환하지 않았습니다. 다시 생성해 주세요.');
-    state.integratedReportDraft={...clinicianSections,masterReport:data.masterReport||null,clinicalProfile:data.clinicalProfile||null,clientReport:null,model:data.model||'',promptVersion:data.promptVersion||'',qualityChecked:Boolean(data.qualityChecked),qualityIssues:Array.isArray(data.qualityIssues)?data.qualityIssues:[],generatedAt:new Date().toLocaleString('ko-KR'),updatedAt:new Date().toLocaleString('ko-KR'),reservationId:r.id,tests:reviewedAnalyses.map(x=>x.testType)};persistIntegratedReportDraft(state.integratedReportDraft);
+    state.integratedReportDraft={...clinicianSections,crossAnalysis:generatedCross||cross||null,masterReport:data.masterReport||null,clinicalProfile:data.clinicalProfile||null,clientReport:null,model:data.model||'',promptVersion:data.promptVersion||'',qualityChecked:Boolean(data.qualityChecked),qualityIssues:Array.isArray(data.qualityIssues)?data.qualityIssues:[],generatedAt:new Date().toLocaleString('ko-KR'),updatedAt:new Date().toLocaleString('ko-KR'),reservationId:r.id,tests:reviewedAnalyses.map(x=>x.testType)};persistIntegratedReportDraft(state.integratedReportDraft);
+    syncClinicalAssessmentRecord(r.id);
   }catch(error){alert(error.message||'심리보고서 생성 중 오류가 발생했습니다.');}
   finally{state.integratedReportLoading=false;render();}
 }
@@ -1126,6 +1020,19 @@ function closeIndividualAssessmentPreview(){
 function previewIndividualAssessmentReport(id){
   const original=state.assessmentAnalyses.find(x=>String(x.id)===String(id));
   if(!original){alert('미리보기할 검사보고서를 찾지 못했습니다.');return;}
+  const linkedReport=typeof assessmentCenterIndividualReportForAnalysis==='function'?assessmentCenterIndividualReportForAnalysis(id):null;
+  const approvedHtml=String(linkedReport?.approvedReportHtml||'').trim();
+  if(linkedReport?.approvedForClient&&approvedHtml&&window.MMLReportViewer?.open){
+    try{
+      return window.MMLReportViewer.open({
+        id:linkedReport.id,
+        title:linkedReport.title||individualReportTitle(original.testType),
+        html:approvedHtml
+      },{printImmediately:false,toolbar:true});
+    }catch(error){
+      console.warn('[MML] 승인 개별보고서 원본 미리보기 fallback',error);
+    }
+  }
   const a=assessmentAnalysisWithEditorValues(original);
   closeIndividualAssessmentPreview();
   const modal=document.createElement('div');
@@ -1133,7 +1040,7 @@ function previewIndividualAssessmentReport(id){
   modal.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.72);display:flex;flex-direction:column;padding:14px;';
   const toolbar=document.createElement('div');
   toolbar.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border-radius:16px 16px 0 0;padding:12px 16px;box-shadow:0 10px 30px rgba(0,0,0,.18);';
-  toolbar.innerHTML=`<div><b style="font-size:14px;color:#123f33">${esc(individualReportTitle(a.testType))}</b><span style="margin-left:8px;font-size:12px;color:#64748b">기본 2페이지 · 내용에 따라 자동 확장</span></div><div style="display:flex;gap:8px"><button type="button" id="mml-preview-close" style="border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#334155;padding:9px 13px;font-weight:800;cursor:pointer">닫기</button></div>`;
+  toolbar.innerHTML=`<div><b style="font-size:14px;color:#123f33">${esc(individualReportTitle(a.testType))}</b><span style="margin-left:8px;font-size:12px;color:#64748b">기본 2페이지 · 내용에 따라 자동 확장</span></div><div style="display:flex;gap:8px"><button type="button" id="mml-preview-print" style="border:1px solid #fed7aa;border-radius:10px;background:#fff;color:#c2410c;padding:9px 13px;font-weight:800;cursor:pointer">PDF·인쇄</button><button type="button" id="mml-preview-close" style="border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#334155;padding:9px 13px;font-weight:800;cursor:pointer">닫기</button></div>`;
   const frame=document.createElement('iframe');
   frame.title='개별 심리검사 보고서 미리보기';
   frame.style.cssText='width:100%;flex:1;border:0;background:#e8eeeb;border-radius:0 0 16px 16px;';
@@ -1182,7 +1089,7 @@ function testInterpretationView(){
   const available=[...new Set([...requested,...analyses.map(x=>x.testType)])];
   const reportDraft=state.integratedReportDraft;
   return layout(`<div class="space-y-6"><div class="rounded-[2rem] bg-gradient-to-r from-slate-950 via-indigo-950 to-emerald-950 p-7 text-white shadow-xl"><p class="text-xs font-extrabold text-emerald-300">AI MASTER PSYCHOLOGICAL ASSESSMENT ENGINE 1.0</p><h2 class="mt-2 text-2xl font-extrabold">심리평가센터</h2><p class="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">모든 심리검사 결과와 상담자 검토 내용을 하나의 통합 마스터 보고서로 취합합니다. 심리평가센터에서 검사결과 분석부터 보고서 저장·승인·내담자 공개까지 한 번에 진행합니다.</p></div>
-  <div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_auto]"><select onchange="setAssessmentReservation(this.value)" class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold"><option value="">회원·예약 선택</option>${state.reservations.map(x=>`<option value="${x.id}" ${String(state.assessmentReservationId)===String(x.id)?'selected':''}>${esc(x.name||x.clientName||'이름 없음')} · ${esc(programBaseName(x.program||x.service||''))} · ${esc(x.date||x.reservationDate||'')} ${esc(x.time||'')}</option>`).join('')}</select><button onclick="refreshAssessmentReservations()" class="rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-3 text-sm font-extrabold text-indigo-700 hover:bg-indigo-100">예약 새로 불러오기</button>${r?`<button onclick="generateIntegratedAssessmentReport()" ${state.integratedReportLoading?'disabled':''} class="rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">${state.integratedReportLoading?'심리보고서 생성 중...':'AI 종합해석보고서 작성'}</button>`:''}</div>${r?`<div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-5"><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">회원</p><p class="mt-1 font-extrabold">${esc(r.name)}님</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">프로그램</p><p class="mt-1 font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">신청 검사</p><p class="mt-1 font-extrabold">${requested.length?requested.map(esc).join(', '):'검사 미등록'}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">분석 현황</p><p class="mt-1 font-extrabold">${analyses.filter(x=>x.reviewed).length}/${Math.max(requested.length,analyses.length)} 검토 완료</p></div>${(()=>{const reportStatus=assessmentTopReportStatus(r,analyses);const tone=reportStatus.tone==='emerald'?'bg-emerald-50 text-emerald-700':reportStatus.tone==='amber'?'bg-amber-50 text-amber-700':reportStatus.tone==='indigo'?'bg-indigo-50 text-indigo-700':'bg-slate-50 text-slate-600';return `<div class="rounded-2xl p-4 ${tone}"><p class="text-xs font-bold opacity-60">${esc(reportStatus.label)}</p><p class="mt-1 font-extrabold">${esc(reportStatus.text)}</p></div>`})()}</div>`:''}</div>
+  <div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_auto]"><select onchange="setAssessmentReservation(this.value)" class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold"><option value="">회원·예약 선택</option>${state.reservations.map(x=>`<option value="${x.id}" ${String(state.assessmentReservationId)===String(x.id)?'selected':''}>${esc(x.name)} · ${esc(programBaseName(x.program))} · ${esc(x.date)} ${esc(x.time)}</option>`).join('')}</select>${r?`<button onclick="generateIntegratedAssessmentReport()" ${state.integratedReportLoading?'disabled':''} class="rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">${state.integratedReportLoading?'심리보고서 생성 중...':'AI 종합해석보고서 작성'}</button>`:''}</div>${r?`<div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-5"><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">회원</p><p class="mt-1 font-extrabold">${esc(r.name)}님</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">프로그램</p><p class="mt-1 font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">신청 검사</p><p class="mt-1 font-extrabold">${requested.length?requested.map(esc).join(', '):'검사 미등록'}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">분석 현황</p><p class="mt-1 font-extrabold">${analyses.filter(x=>x.reviewed).length}/${Math.max(requested.length,analyses.length)} 검토 완료</p></div>${(()=>{const reportStatus=assessmentTopReportStatus(r,analyses);const tone=reportStatus.tone==='emerald'?'bg-emerald-50 text-emerald-700':reportStatus.tone==='amber'?'bg-amber-50 text-amber-700':reportStatus.tone==='indigo'?'bg-indigo-50 text-indigo-700':'bg-slate-50 text-slate-600';return `<div class="rounded-2xl p-4 ${tone}"><p class="text-xs font-bold opacity-60">${esc(reportStatus.label)}</p><p class="mt-1 font-extrabold">${esc(reportStatus.text)}</p></div>`})()}</div>`:''}</div>
   ${r?assessmentReportRequestStatusCard(r,analyses):''}
   ${r?`<div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 class="text-xl font-extrabold">1. 심리검사 결과 관리</h3><p class="mt-1 text-xs text-slate-400">검사결과를 추가하거나 검사별 파일을 변경·재분석·삭제할 수 있습니다.</p></div><label class="cursor-pointer rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white">검사결과 추가<input type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFiles(this.files)"/></label></div><div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">${available.length?available.map(test=>{const a=analysisForTest(r.id,test);const loading=state.assessmentLoading[`${r.id}_${test}`];return`<div class="rounded-2xl border ${a?'border-emerald-200 bg-emerald-50':'border-slate-200 bg-slate-50'} p-5"><div class="flex items-center justify-between"><p class="font-extrabold">${esc(assessmentTestLabel(test))}</p><span class="rounded-full bg-white px-2 py-1 text-[10px] font-bold ${a?.reviewed?'text-emerald-700':a?'text-amber-700':'text-slate-400'}">${a?.reviewed?'검토완료':a?'분석완료':'업로드 대기'}</span></div>${a?`<div class="mt-4 grid grid-cols-3 gap-2"><label class="cursor-pointer rounded-xl border border-slate-200 bg-white px-2 py-3 text-center text-[11px] font-extrabold text-indigo-700">파일 변경<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label><label class="cursor-pointer rounded-xl border border-slate-200 bg-white px-2 py-3 text-center text-[11px] font-extrabold text-slate-700">${loading?'분석 중...':'재분석'}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label><button onclick="deleteAssessmentTestResult('${r.id}','${esc(test)}')" class="rounded-xl border border-rose-200 bg-white px-2 py-3 text-[11px] font-extrabold text-rose-600">삭제</button></div>`:`<label class="mt-4 block cursor-pointer rounded-xl border-2 border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs font-extrabold text-indigo-700">${loading?'분석 중...':'결과 파일 업로드·분석'}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label>`}</div>`}).join(''):'<p class="text-sm text-slate-400">신청 검사 정보가 없습니다.</p>'}</div><div class="mt-5 flex flex-wrap gap-2">${ASSESSMENT_TEST_OPTIONS.filter(x=>!available.includes(x)).map(test=>`<label class="cursor-pointer rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">+ ${esc(test)}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label>`).join('')}</div></div>
   <div id="assessment-individual-reports" class="space-y-4"><div class="flex items-end justify-between"><div><h3 class="text-xl font-extrabold">2. 개별 심리검사 보고서</h3><p class="mt-1 text-xs text-slate-400">검사별로 생성된 결과보고서를 저장한 뒤 이 화면에서 수정·승인·승인취소·PDF 출력을 진행합니다. 승인된 보고서는 내담자 마음기록에 바로 연결됩니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${analyses.length}건</span></div>${analyses.length?analyses.map(assessmentAnalysisCard).join(''):'<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-400">검사결과 파일을 업로드하면 개별 심리검사 보고서 초안이 여기에 표시됩니다.</div>'}</div>
