@@ -1,6 +1,55 @@
 
 let blobsModule=null;
 
+const fs=require('fs');
+const path=require('path');
+
+function isLocalDev(){
+  const context=String(process.env.CONTEXT||'').toLowerCase();
+  const netlifyDev=String(process.env.NETLIFY_DEV||'').toLowerCase();
+  return context==='dev' || netlifyDev==='true' || netlifyDev==='1';
+}
+
+const LOCAL_STORE_FILE=path.join(process.cwd(),'.netlify','mml-data-api-local.json');
+
+function readLocalStore(){
+  try{
+    if(!fs.existsSync(LOCAL_STORE_FILE)) return {};
+    const raw=fs.readFileSync(LOCAL_STORE_FILE,'utf8');
+    return raw ? JSON.parse(raw) : {};
+  }catch(error){
+    console.warn('[MML data-api] local store read failed',error);
+    return {};
+  }
+}
+
+function writeLocalStore(data){
+  fs.mkdirSync(path.dirname(LOCAL_STORE_FILE),{recursive:true});
+  const tmp=LOCAL_STORE_FILE+'.tmp';
+  fs.writeFileSync(tmp,JSON.stringify(data,null,2),'utf8');
+  fs.renameSync(tmp,LOCAL_STORE_FILE);
+}
+
+function localStoreAdapter(){
+  return {
+    async get(key,{type}={}){
+      const all=readLocalStore();
+      if(!Object.prototype.hasOwnProperty.call(all,key)) return null;
+      return all[key];
+    },
+    async setJSON(key,value){
+      const all=readLocalStore();
+      all[key]=value;
+      writeLocalStore(all);
+    },
+    async delete(key){
+      const all=readLocalStore();
+      delete all[key];
+      writeLocalStore(all);
+    }
+  };
+}
+
 function loadBlobs(){
   if(blobsModule) return blobsModule;
   try{
@@ -62,12 +111,21 @@ exports.handler=async(event)=>{
   if(event.httpMethod==='OPTIONS') return response(204,{});
 
   if(event.httpMethod==='GET' && event.queryStringParameters?.action==='ping'){
+    if(isLocalDev()){
+      return response(200,{
+        ok:true,
+        service:'modumam-data-api',
+        version:'v38.0-local-dev-store',
+        storage:'local-dev',
+        authenticated:authorized(event)
+      });
+    }
     try{
       loadBlobs();
       return response(200,{
         ok:true,
         service:'modumam-data-api',
-        version:'v37.2-safe-errors',
+        version:'v38.0-local-dev-store',
         storage:'available',
         authenticated:authorized(event)
       });
@@ -75,7 +133,7 @@ exports.handler=async(event)=>{
       return response(200,{
         ok:true,
         service:'modumam-data-api',
-        version:'v37.2-safe-errors',
+        version:'v38.0-local-dev-store',
         storage:'disabled',
         reason:'@netlify/blobs is not installed',
         authenticated:false
@@ -83,15 +141,17 @@ exports.handler=async(event)=>{
     }
   }
 
-  let blobs;
-  try{
-    blobs=loadBlobs();
-  }catch(error){
-    return response(503,{
-      ok:false,
-      code:'SERVER_STORAGE_NOT_INSTALLED',
-      error:'서버 저장 기능이 설치되어 있지 않습니다. 기존 로컬 저장 기능은 계속 사용할 수 있습니다.'
-    });
+  let blobs=null;
+  if(!isLocalDev()){
+    try{
+      blobs=loadBlobs();
+    }catch(error){
+      return response(503,{
+        ok:false,
+        code:'SERVER_STORAGE_NOT_INSTALLED',
+        error:'서버 저장 기능이 설치되어 있지 않습니다. 기존 로컬 저장 기능은 계속 사용할 수 있습니다.'
+      });
+    }
   }
 
   if(!authorized(event)){
@@ -102,18 +162,24 @@ exports.handler=async(event)=>{
     });
   }
 
-  try{blobs.connectLambda?.(event)}catch(error){}
+  if(blobs){
+    try{blobs.connectLambda?.(event)}catch(error){}
+  }
 
   let store;
-  try{
-    store=blobs.getStore({name:STORE_NAME,consistency:'strong'});
-  }catch(error){
-    return response(503,{
-      ok:false,
-      code:'SERVER_STORAGE_UNAVAILABLE',
-      error:'서버 저장소를 열지 못했습니다. 브라우저 로컬 저장은 계속 사용할 수 있습니다.',
-      detail:String(error?.message||error)
-    });
+  if(isLocalDev()){
+    store=localStoreAdapter();
+  }else{
+    try{
+      store=blobs.getStore({name:STORE_NAME,consistency:'strong'});
+    }catch(error){
+      return response(503,{
+        ok:false,
+        code:'SERVER_STORAGE_UNAVAILABLE',
+        error:'서버 저장소를 열지 못했습니다. 브라우저 로컬 저장은 계속 사용할 수 있습니다.',
+        detail:String(error?.message||error)
+      });
+    }
   }
   const method=event.httpMethod;
 
@@ -156,7 +222,7 @@ exports.handler=async(event)=>{
 
   if(method==='PUT'){
     const record={
-      version:'v37.2-safe-errors',
+      version:'v38.0-local-dev-store',
       value:body.value,
       meta:cleanMeta(body.meta),
       updatedAt:new Date().toISOString()
