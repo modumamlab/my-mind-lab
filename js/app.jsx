@@ -2986,6 +2986,24 @@ const userText = pendingInput;
                     return;
                 }
 
+                // [MML-RESERVATION-SERVER-V1] 브라우저와 무관하게 예약을 서버에 영구 저장합니다.
+                try {
+                    const response = await fetch('/.netlify/functions/reservations-api', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({reservation: newBooking})
+                    });
+                    if (!response.ok) {
+                        const body = await response.json().catch(() => ({}));
+                        throw new Error(body.error || `예약 서버 저장 실패 (${response.status})`);
+                    }
+                } catch (error) {
+                    console.error('[예약 서버 저장 실패]', error);
+                    setBookingAlert({ type: 'error', message: '예약은 이 기기에 저장되었지만 서버 전송에 실패했습니다.' });
+                    alert('예약 서버 전송에 실패했습니다. 인터넷 연결을 확인해 주세요.');
+                    return;
+                }
+
                 try {
                     const channel = new BroadcastChannel("modumam_operating_sync");
                     channel.postMessage({ type: "assessment-report-requested", reservationId: assessmentReportReservationId, tests, reportType: automaticType, at: Date.now() });

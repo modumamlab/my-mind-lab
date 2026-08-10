@@ -1474,8 +1474,7 @@ function parseIndividualTestItems(value){
 }
 
 function renderIndividualTestItems(section){
-  const sourceText=String(section?.text||'').trim();
-  const items=parseIndividualTestItems(sourceText||section?.items||[]);
+  const items=parseIndividualTestItems(section?.items?.length?section.items:section?.text);
   return `<div class="mml-test-list">${items.map((item,index)=>`
     <div class="mml-test-item" data-test-item="${index}">
       <h4 class="mml-derived-test-title" data-test-title>${esc(item.title)}</h4>
@@ -1580,8 +1579,7 @@ function parseExpertRecoveryItems(value){
 }
 
 function renderExpertRecoveryItems(section){
-  const sourceText=String(section?.text||'').trim();
-  const items=parseExpertRecoveryItems(sourceText||section?.items||[]);
+  const items=parseExpertRecoveryItems(section?.items?.length?section.items:section?.text);
   return items.map((item,index)=>`
     <div class="mml-derived-recovery-item" data-recovery-item="${index}">
       <h4 class="mml-derived-recovery-title"><span>${String(index+1).padStart(2,'0')}</span><b data-recovery-title>${esc(item.title)}</b></h4>
@@ -1746,11 +1744,11 @@ function canonicalDerivedClientSections(report){
     const savedText=cleanReportText(saved.text);
     const text=savedText||firstDerivedFallback(source,definition.fallbackKeys);
     if(definition.key==='individualTests'){
-      const items=parseIndividualTestItems(savedText||text||saved.items||[]);
+      const items=parseIndividualTestItems(Array.isArray(saved.items)&&saved.items.length?saved.items:text);
       return {...saved,key:definition.key,label:saved.label||definition.label,text,items};
     }
     if(definition.key==='expertRecovery'){
-      const items=parseExpertRecoveryItems(savedText||text||saved.items||[]);
+      const items=parseExpertRecoveryItems(Array.isArray(saved.items)&&saved.items.length?saved.items:text);
       return {...saved,key:definition.key,label:saved.label||definition.label,text,items};
     }
     return {...saved,key:definition.key,label:saved.label||definition.label,text};
@@ -1873,10 +1871,10 @@ function derivedReportFormPagesHtml(report){
 
   const title=(no,label,sub)=>`<div class="mml-section-title"><p>${no}</p><div><h2>${label}</h2><span>${sub}</span></div></div>`;
 
-  const individualSummary=testsSection?`<section class="mml-detail mml-tests-section-v58">
-    ${title('03','개별검사 요약','각 검사에서 확인된 핵심 결과 요약')}
-    <div class="mml-tests-panel-v58" data-derived-key="individualTests">
-      <div class="mml-tests-editor-v58" contenteditable="false" spellcheck="false" data-derived-index="${testsSection.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(testsSection,'individualTests')}</div>
+  const individualSummary=testsSection?`<section class="mml-detail">
+    ${title('03','개별검사 요약','각 검사에서 확인된 핵심 결과와 종합해석에서의 의미')}
+    <div class="mml-text-panel mml-derived-signature-section" data-derived-key="individualTests">
+      <div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${testsSection.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(testsSection,'individualTests')}</div>
     </div>
   </section>`:'';
 
@@ -1903,10 +1901,10 @@ function derivedReportFormPagesHtml(report){
     </div>
   </section>`:'';
 
-  const recoverySection=recovery?`<section class="mml-direction mml-recovery-section-v58">
+  const recoverySection=recovery?`<section class="mml-direction mml-recovery-section">
     ${title('07','전문가 제언 및 회복 방향','검사 결과와 연결된 현실적인 도움 방향')}
-    <div class="mml-recovery-panel-v58" data-derived-key="expertRecovery">
-      <div class="mml-recovery-editor-v58" contenteditable="false" spellcheck="false" data-derived-index="${recovery.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(recovery,'expertRecovery')}</div>
+    <div class="mml-recovery-panel mml-derived-signature-section" data-derived-key="expertRecovery">
+      <div class="mml-derived-form-editable mml-recovery-editor" contenteditable="false" spellcheck="false" data-derived-index="${recovery.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(recovery,'expertRecovery')}</div>
     </div>
   </section>`:'';
 
@@ -1917,7 +1915,7 @@ function derivedReportFormPagesHtml(report){
 
       ${core?`<section class="mml-core-section">
         ${title('01','현재 마음의 핵심 모습','여러 검사에서 함께 확인된 현재 마음의 중심 흐름')}
-        <div class="mml-core-panel-v60 mml-derived-signature-section" data-derived-key="coreMind"><div class="mml-core-editor-v60" contenteditable="false" spellcheck="false" data-derived-index="${core.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(core,'coreMind')}</div></div>
+        <div class="mml-opening mml-derived-signature-section" data-derived-key="coreMind"><div><div class="mml-derived-form-editable" contenteditable="false" spellcheck="false" data-derived-index="${core.index}" data-placeholder="이 영역의 내용을 입력해 주세요.">${sectionText(core,'coreMind')}</div></div></div>
       </section>`:''}
 
       <section class="mml-purpose">
@@ -1934,7 +1932,7 @@ function derivedReportFormPagesHtml(report){
         ${title('02','마음 프로파일','검사 결과에서 근거가 충분한 핵심 영역')}
         <div class="mml-domain-grid">${domainRows}</div>
       </section>
-      <footer class="mml-page-footer"><span>MODUMAMLAB</span><b>1 / 3</b></footer>
+      <footer class="mml-page-footer"><span>MODUMAMLAB</span><b>1 / 2+</b></footer>
     </article>
 
     <article class="mml-page mml-page-two">
@@ -1943,15 +1941,10 @@ function derivedReportFormPagesHtml(report){
       ${emotionSection}
       ${relationSection}
       ${stressSection}
-      <footer class="mml-page-footer"><span>모두의 마음연구소 · 심리검사 종합결과보고서</span><b>2 / 3</b></footer>
-    </article>
-
-    <article class="mml-page mml-page-three">
-      <header class="mml-inner-head"><div><p>MODUMAM SIGNATURE REPORT</p><h2>전문가 제언과 회복 방향</h2></div><span>${esc(client)}</span></header>
       ${recoverySection}
       <section class="mml-note mml-note-compact"><h3>보고서를 읽을 때 기억할 점</h3><p>${esc((cleanReportText(disclaimer?.text)||'심리검사 결과는 개인을 규정하는 결론이 아니라, 현재의 마음과 적응 방식을 이해하기 위한 하나의 자료입니다. 여러 검사에서 확인된 공통점과 차이는 최근의 경험, 환경, 관계 맥락과 함께 살펴볼 때 가장 의미가 있습니다.').replace(/\s*\n+\s*/g,' '))}</p></section>
       <section class="mml-closing"><span>마음을 알아차리고, 이해하고, 연결합니다.</span><p>이번 검사에서 확인된 특성은 어려움만을 의미하지 않습니다. 자신을 이해하는 언어가 생길 때, 강점은 더 잘 활용되고 부담은 보다 현실적으로 다룰 수 있습니다.</p></section>
-      <footer class="mml-page-footer"><span>본 보고서는 AI 분석을 바탕으로 임상심리사 백인영이 원자료를 확인하고 수정하여 작성한 심리평가 결과보고서입니다.</span><b>3 / 3</b></footer>
+      <footer class="mml-page-footer"><span>본 보고서는 AI 분석을 바탕으로 임상심리사 백인영이 원자료를 확인하고 수정하여 작성한 심리평가 결과보고서입니다.</span><b>2 / 2+</b></footer>
     </article>
   </main>`;
 }
@@ -2043,6 +2036,14 @@ function openDerivedAssessmentReportForm(id){
     #mml-derived-report-editor .mml-comprehensive-signature .mml-meta{margin-bottom:14px!important}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-core-section{display:block;width:100%;margin:0 0 14px}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-core-section>.mml-section-title{width:100%}
+    /* S54: 01~07 주제목과 소제목을 한 줄에 정렬. 보고서 구조/본문은 변경하지 않는다. */
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-section-title{align-items:center!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-section-title>div{display:flex!important;align-items:baseline!important;gap:8px!important;min-width:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-section-title h2{flex:0 0 auto!important;margin:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-section-title span{display:inline-block!important;margin:0!important;line-height:1.4!important;white-space:nowrap!important}
+    /* S54: 02 마음 프로파일 하위 번호를 07 전문가 제언의 번호 배지와 동일한 형태로 표시. */
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-domain{grid-template-columns:18px 1fr!important;gap:9px!important;align-items:start!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-domain>span{display:inline-flex!important;width:18px!important;height:18px!important;align-items:center!important;justify-content:center!important;border-radius:6px!important;background:#b4783d!important;color:#fff!important;font-family:inherit!important;font-size:8px!important;font-weight:900!important;line-height:1!important}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-opening{
       display:block!important;
       width:100%!important;
@@ -2070,31 +2071,6 @@ function openDerivedAssessmentReportForm(id){
       word-break:keep-all!important;
       overflow-wrap:break-word!important;
     }
-    /* Sprint60: 01 핵심 모습도 공통 .mml-opening/.mml-derived-form-editable 규칙에서 완전히 분리한다.
-       외부/이전 CSS가 direct-child div 폭을 좁히거나 흰 배경을 주는 충돌을 원천 차단한다. */
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-panel-v60{
-      display:block!important;position:relative!important;width:100%!important;min-width:0!important;max-width:none!important;
-      height:auto!important;min-height:0!important;margin:10px 0 0!important;padding:18px 20px!important;
-      border:0!important;border-radius:14px!important;background:#123f33!important;color:#fff!important;overflow:visible!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60{
-      display:block!important;position:static!important;width:100%!important;min-width:0!important;max-width:none!important;
-      height:auto!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;
-      background:transparent!important;color:#fff!important;box-shadow:none!important;overflow:visible!important;
-      font-size:11.5px!important;line-height:1.8!important;white-space:normal!important;word-break:keep-all!important;overflow-wrap:break-word!important;
-      writing-mode:horizontal-tb!important;text-orientation:mixed!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 p,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 div,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 span{
-      display:block!important;position:static!important;width:auto!important;min-width:0!important;max-width:none!important;
-      height:auto!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;
-      color:inherit!important;white-space:normal!important;word-break:keep-all!important;overflow-wrap:break-word!important;
-      writing-mode:horizontal-tb!important;text-orientation:mixed!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 p+p,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-core-editor-v60 div+div{margin-top:8px!important}
-
     #mml-derived-report-editor .mml-comprehensive-signature .mml-text-panel .mml-derived-form-editable,
     #mml-derived-report-editor .mml-comprehensive-signature .mml-direction-box .mml-derived-form-editable{font-size:10.2px;line-height:1.78}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-flow .mml-derived-form-editable{font-size:9px;line-height:1.6}
@@ -2103,10 +2079,10 @@ function openDerivedAssessmentReportForm(id){
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-derived-test-title:first-child{margin-top:0}
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] p{font-size:8.8px;line-height:1.58;margin-bottom:5px}
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-list{display:block!important}
-    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item{display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding:9px 0 10px!important;border-bottom:1px solid #e3ebe7!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item{display:block!important;margin:0!important;padding:9px 0 10px!important;border-bottom:1px solid #e3ebe7!important}
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item:first-child{padding-top:0!important}
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item:last-child{border-bottom:0!important;padding-bottom:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item-body{display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important}
+    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-item-body{display:block!important}
 
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-title{margin:8px 0 4px;font-size:9.6px}
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-title span{width:18px;height:18px;font-size:8px;border-radius:6px}
@@ -2115,117 +2091,18 @@ function openDerivedAssessmentReportForm(id){
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-item{display:block!important;margin:0 0 12px!important;padding:0!important;min-height:0!important}
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-item:last-child{margin-bottom:0!important}
     #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-title{display:flex!important;align-items:center!important;gap:7px!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-section{display:block!important;height:auto!important;min-height:0!important;margin-bottom:0!important;padding-bottom:0!important}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-panel{display:block!important;height:auto!important;min-height:0!important;margin-top:9px!important;padding:14px 16px!important;border:1px solid #cfe3d9!important;border-radius:12px!important;background:#eef6f2!important}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor{display:block!important;height:auto!important;min-height:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor .mml-derived-recovery-item{display:block!important;height:auto!important;min-height:0!important;margin:0 0 14px!important;padding:0 0 12px!important;border-bottom:1px solid #d4e5dd!important}
     #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor .mml-derived-recovery-item:last-child{margin-bottom:0!important;padding-bottom:0!important;border-bottom:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor [data-recovery-body]{display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important}
-
-    /* Sprint56: 공통 개별보고서 CSS의 A4 높이 분배 규칙이 종합보고서 2페이지에 상속되어
-       03 검사 항목과 07 제언 항목이 페이지 높이에 맞춰 강제로 늘어나던 문제를 차단한다. */
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-three{display:block!important;height:auto!important;min-height:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-detail,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-integration,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-direction,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-note,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-closing{display:block!important;flex:none!important;height:auto!important;min-height:0!important;margin-top:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-detail,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-integration,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>.mml-direction{margin-bottom:14px!important}
-    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"]{display:block!important;flex:none!important;height:auto!important;min-height:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"]>.mml-derived-form-editable{display:block!important;flex:none!important;height:auto!important;min-height:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="individualTests"] .mml-test-list>*{flex:none!important}
-    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"]{display:block!important;flex:none!important;height:auto!important;min-height:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature [data-derived-key="expertRecovery"] .mml-derived-recovery-item>*{flex:none!important}
-
-
-    /* Sprint58: 03/07은 개별보고서 공통 레이아웃 클래스를 아예 사용하지 않는다.
-       과거 CSS의 flex/grid/고정높이 규칙과 분리된 전용 래퍼로 내용 높이만 사용한다. */
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-section-v58,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-section-v58{
-      display:block!important;position:relative!important;flex:none!important;
-      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
-      margin:0 0 14px!important;padding:0!important;overflow:visible!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-panel-v58{
-      display:block!important;position:relative!important;flex:none!important;
-      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
-      margin:9px 0 0!important;padding:11px 13px!important;overflow:visible!important;
-      border:0!important;border-left:3px solid #b4783d!important;border-radius:0!important;background:#f7f9f8!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58{
-      display:block!important;position:static!important;flex:none!important;
-      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
-      margin:0!important;padding:0!important;overflow:visible!important;background:transparent!important;border:0!important;
-      color:#596a63!important;font-size:8.8px!important;line-height:1.58!important;white-space:normal!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-list{
-      display:block!important;position:static!important;width:100%!important;height:auto!important;min-height:0!important;
-      margin:0!important;padding:0!important;overflow:visible!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item{
-      display:block!important;position:static!important;flex:none!important;width:100%!important;
-      height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:10px 0!important;
-      overflow:visible!important;border:0!important;border-bottom:1px solid #e3ebe7!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item:first-child{padding-top:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item:last-child{padding-bottom:0!important;border-bottom:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-derived-test-title{
-      display:block!important;height:auto!important;min-height:0!important;margin:0 0 5px!important;padding:0!important;
-      font-size:9.5px!important;line-height:1.5!important;color:#123f33!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item-body,
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item-body p{
-      display:block!important;position:static!important;height:auto!important;min-height:0!important;max-height:none!important;
-      margin:0!important;padding:0!important;overflow:visible!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-tests-editor-v58 .mml-test-item-body p+p{margin-top:5px!important}
-
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-panel-v58{
-      display:block!important;position:relative!important;flex:none!important;
-      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
-      margin:9px 0 0!important;padding:14px 16px!important;overflow:visible!important;
-      border:1px solid #cfe3d9!important;border-radius:12px!important;background:#eef6f2!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58{
-      display:block!important;position:static!important;flex:none!important;
-      width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
-      margin:0!important;padding:0!important;overflow:visible!important;background:transparent!important;border:0!important;
-      color:#596a63!important;font-size:9.2px!important;line-height:1.62!important;white-space:normal!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-item{
-      display:block!important;position:static!important;flex:none!important;width:100%!important;
-      height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0 0 12px!important;
-      overflow:visible!important;border:0!important;border-bottom:1px solid #d4e5dd!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-item+.mml-derived-recovery-item{padding-top:12px!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-item:last-child{padding-bottom:0!important;border-bottom:0!important}
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 .mml-derived-recovery-title{
-      display:flex!important;position:static!important;align-items:center!important;gap:7px!important;
-      height:auto!important;min-height:0!important;margin:0 0 5px!important;padding:0!important;font-size:9.6px!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 [data-recovery-body],
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 [data-recovery-body] p{
-      display:block!important;position:static!important;height:auto!important;min-height:0!important;max-height:none!important;
-      margin:0!important;padding:0!important;overflow:visible!important;
-    }
-    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor-v58 [data-recovery-body] p+p{margin-top:5px!important}
+    #mml-derived-report-editor .mml-comprehensive-signature .mml-recovery-editor [data-recovery-body]{display:block!important;height:auto!important;min-height:0!important}
 
 
     #mml-derived-report-editor.mml-derived-editing .mml-comprehensive-signature [contenteditable="true"]{border:1px dashed #b4783d!important;border-radius:8px!important;background:#fff!important;color:#20322d!important;padding:8px!important;box-shadow:0 0 0 3px rgba(180,120,61,.12)!important}
     @media print{
       #mml-derived-report-editor .mml-comprehensive-signature{padding:0!important}
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page{width:210mm!important;min-height:297mm!important;height:297mm!important;margin:0!important;padding:14mm 15mm 12mm!important;box-shadow:none!important;overflow:hidden!important;break-after:page!important;page-break-after:always!important}
+      #mml-derived-report-editor .mml-comprehensive-signature .mml-page{width:210mm!important;min-height:0!important;margin:0!important;padding:14mm 15mm 12mm!important;box-shadow:none!important;break-after:page!important;page-break-after:always!important}
       #mml-derived-report-editor .mml-comprehensive-signature .mml-page:last-child{break-after:auto!important;page-break-after:auto!important}
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-one>section,
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two>section,
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-three>section{break-inside:avoid!important;page-break-inside:avoid!important}
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two .mml-tests-section-v58,
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two .mml-detail,
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-two .mml-integration,
-      #mml-derived-report-editor .mml-comprehensive-signature .mml-page-three .mml-recovery-section-v58{break-inside:avoid!important;page-break-inside:avoid!important}
     }
     @media(max-width:900px){.mml-derived-form-shell{width:100%;max-width:100%;overflow:auto}.mml-derived-form-document{width:760px;padding:16mm 15mm}.mml-derived-form-page{width:760px;min-height:auto;padding:16mm 15mm}.mml-derived-form-title{font-size:27px}.mml-derived-form-meta{grid-template-columns:repeat(4,1fr)}.mml-derived-form-section{grid-template-columns:34px 1fr;gap:10px}}
     @media print{
@@ -2270,19 +2147,66 @@ function printDerivedAssessmentReportForm(){
   const report=derivedAssessmentReportById(editor.dataset.reportId);
   if(!report)return;
 
-  // Sprint60: PDF는 about:blank 복제창을 만들지 않고 현재 보고서 DOM을 그대로 인쇄한다.
-  // 팝업에 clone.outerHTML을 복제하면 원본 페이지의 CSS 컨텍스트/폰트/레이아웃이 끊겨
-  // 빈 미리보기 또는 본문이 한 글자씩 세로로 출력되는 문제가 발생했다.
-  if(report.audience!=='counselor'){
-    saveDerivedAssessmentReportFromForm(report.id,false,true);
+  // 상담자용은 기존 브라우저 인쇄를 유지합니다.
+  if(report.audience==='counselor'){
+    document.documentElement.classList.add('mml-derived-printing');
+    const cleanup=()=>document.documentElement.classList.remove('mml-derived-printing');
+    window.addEventListener('afterprint',cleanup,{once:true});
+    requestAnimationFrame(()=>requestAnimationFrame(()=>window.print()));
+    setTimeout(cleanup,2000);
+    return;
   }
-  document.documentElement.classList.add('mml-derived-printing');
-  const cleanup=()=>document.documentElement.classList.remove('mml-derived-printing');
-  window.addEventListener('afterprint',cleanup,{once:true});
-  requestAnimationFrame(()=>requestAnimationFrame(()=>window.print()));
-  setTimeout(cleanup,3000);
-}
 
+  // 내담자용 종합보고서는 현재 작성창에 보이는 단 하나의 DOM만 PDF 원본으로 사용합니다.
+  const current=editor.querySelector('.mml-comprehensive-signature');
+  if(!current){
+    alert('현재 종합보고서 화면을 찾지 못했습니다. 보고서를 다시 열어 주세요.');
+    return;
+  }
+
+  // 화면에서 수정한 내용은 먼저 같은 보고서 데이터에 저장합니다.
+  saveDerivedAssessmentReportFromForm(report.id,false,true);
+
+  const clone=current.cloneNode(true);
+  clone.querySelectorAll('[contenteditable]').forEach(node=>{
+    node.removeAttribute('contenteditable');
+    node.removeAttribute('spellcheck');
+  });
+
+  const styleText=[...editor.querySelectorAll('style')]
+    .map(node=>node.textContent||'')
+    .join('\n');
+
+  const printCss=`
+    @page{size:A4;margin:0}
+    html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    body{overflow:visible!important}
+    .mml-comprehensive-signature{padding:0!important;margin:0!important;background:#fff!important}
+    .mml-comprehensive-signature .mml-page{
+      box-sizing:border-box!important;
+      width:210mm!important;
+      min-height:297mm!important;
+      margin:0!important;
+      box-shadow:none!important;
+      break-after:page!important;
+      page-break-after:always!important;
+    }
+    .mml-comprehensive-signature .mml-page:last-child{
+      break-after:auto!important;
+      page-break-after:auto!important;
+    }
+    .mml-comprehensive-signature [contenteditable]{outline:none!important}
+  `;
+
+  const popup=window.open('','_blank','width=980,height=900');
+  if(!popup){
+    alert('팝업 차단을 해제해 주세요.');
+    return;
+  }
+  popup.document.open();
+  popup.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(report.title||'심리검사 종합보고서')}</title><style>${styleText}${printCss}</style></head><body>${clone.outerHTML}<script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+  popup.document.close();
+}
 function saveDerivedAssessmentReportFromForm(id,openPdf=false,silent=false){
   const rows=derivedAssessmentReports();const idx=rows.findIndex(x=>String(x.id)===String(id));if(idx<0)return;
   const editor=document.getElementById('mml-derived-report-editor');if(!editor)return;
@@ -2924,102 +2848,3 @@ function memberAssessmentSection(c){
 
   return `<section class="rounded-[2rem] border border-emerald-100 bg-white p-5 shadow-sm sm:p-6"><div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold text-emerald-600">PSYCHOLOGICAL ASSESSMENT</p><h3 class="mt-1 text-lg font-extrabold">심리평가 보고서</h3><p class="mt-1 text-xs text-slate-500">전자차트에서는 보고서만 조회합니다. 생성·수정·승인은 심리평가센터에서 관리합니다.</p></div><button onclick="setMenu('interpretation')" class="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-xs font-extrabold text-emerald-700">심리평가센터 바로가기</button></div><div class="space-y-5"><div><div class="mb-3 flex items-center justify-between"><h4 class="text-sm font-extrabold text-emerald-950">개별 심리검사 보고서</h4><span class="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700">${individualReports.length}건</span></div><div class="space-y-3">${individualHtml}</div></div><div><div class="mb-3 flex items-center justify-between"><h4 class="text-sm font-extrabold text-indigo-950">심리검사 종합보고서</h4><span class="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-bold text-indigo-700">${comprehensiveReports.length}건</span></div><div class="space-y-3">${comprehensiveHtml}</div></div></div></section>`;
 }
-
-/* =========================================================
-   Sprint62: 개별 심리검사 보고서 미리보기 기본 접기
-   - 종합보고서 저장 카드처럼 개별보고서도 기본은 compact 상태
-   - 기존 1180px iframe 미리보기는 숨기고 '열기' 버튼으로만 펼침
-   - 저장/수정/승인/PDF 기능은 그대로 유지
-========================================================= */
-(function installMmlIndividualReportCollapseS62(){
-  if(window.__MML_INDIVIDUAL_REPORT_COLLAPSE_S62__)return;
-  window.__MML_INDIVIDUAL_REPORT_COLLAPSE_S62__=true;
-
-  const normalizeText=value=>String(value||'').replace(/\s+/g,' ').trim();
-
-  function isIndividualPreviewFrame(frame){
-    if(!frame||frame.tagName!=='IFRAME')return false;
-    const title=normalizeText(frame.getAttribute('title'));
-    if(/개별\s*심리검사\s*보고서/.test(title))return true;
-    const card=frame.closest('section, article, div.rounded-2xl, div[class*="rounded-"]');
-    if(!card)return false;
-    const text=normalizeText(card.textContent);
-    return text.includes('생성된 결과보고서 저장') && !text.includes('심리검사 종합보고서 작성');
-  }
-
-  function findCard(frame){
-    let node=frame.parentElement;
-    while(node&&node!==document.body){
-      const text=normalizeText(node.textContent);
-      if(text.includes('생성된 결과보고서 저장') &&
-         (text.includes('개별 심리검사 보고서') || /TCI|MMPI|PAI|SCT|HTP|K-CDI|STS|PAT|PHQ-9|GAD-7/.test(text))){
-        return node;
-      }
-      node=node.parentElement;
-    }
-    return frame.parentElement?.parentElement||frame.parentElement;
-  }
-
-  function findActionRow(card){
-    if(!card)return null;
-    const buttons=[...card.querySelectorAll('button')];
-    const saveButton=buttons.find(btn=>normalizeText(btn.textContent)==='생성된 결과보고서 저장');
-    if(!saveButton)return null;
-    return saveButton.closest('.grid')||saveButton.parentElement;
-  }
-
-  function applyOne(frame){
-    if(!isIndividualPreviewFrame(frame))return;
-    const previewWrap=frame.parentElement;
-    const card=findCard(frame);
-    const actionRow=findActionRow(card);
-    if(!previewWrap||!card||!actionRow)return;
-
-    card.dataset.mmlIndividualCompact='s62';
-    previewWrap.dataset.mmlIndividualPreview='s62';
-
-    let toggle=actionRow.querySelector('[data-mml-individual-toggle="s62"]');
-    if(!toggle){
-      toggle=document.createElement('button');
-      toggle.type='button';
-      toggle.dataset.mmlIndividualToggle='s62';
-      toggle.className='rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800';
-      toggle.textContent='열기';
-      actionRow.insertBefore(toggle,actionRow.firstChild);
-      toggle.addEventListener('click',()=>{
-        const expanded=previewWrap.dataset.mmlExpanded==='true';
-        previewWrap.dataset.mmlExpanded=expanded?'false':'true';
-        previewWrap.style.display=expanded?'none':'';
-        toggle.textContent=expanded?'열기':'접기';
-        if(!expanded){
-          requestAnimationFrame(()=>frame.scrollIntoView({block:'nearest',behavior:'smooth'}));
-        }
-      });
-    }
-
-    if(!previewWrap.dataset.mmlExpanded){
-      previewWrap.dataset.mmlExpanded='false';
-      previewWrap.style.display='none';
-      toggle.textContent='열기';
-    }else if(previewWrap.dataset.mmlExpanded==='false'){
-      previewWrap.style.display='none';
-      toggle.textContent='열기';
-    }else{
-      previewWrap.style.display='';
-      toggle.textContent='접기';
-    }
-  }
-
-  function applyAll(){
-    document.querySelectorAll('iframe').forEach(applyOne);
-  }
-
-  const start=()=>{
-    applyAll();
-    const observer=new MutationObserver(()=>requestAnimationFrame(applyAll));
-    observer.observe(document.documentElement,{childList:true,subtree:true});
-  };
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
-  else start();
-})();

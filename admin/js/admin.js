@@ -122,6 +122,32 @@ function markReservationDeleted(id){const ids=deletedReservationIds();ids.add(St
 function unmarkReservationDeleted(id){const ids=deletedReservationIds();ids.delete(String(id));try{localStorage.setItem(DELETED_RESERVATION_IDS_KEY,JSON.stringify([...ids]));}catch(_){}}
 function excludeDeletedReservations(rows){const deleted=deletedReservationIds();return (Array.isArray(rows)?rows:[]).filter(item=>!deleted.has(String(item?.id||'')));}
 
+
+const RESERVATION_SERVER_API='/.netlify/functions/reservations-api';
+async function loadServerReservations(){
+  try{
+    const response=await fetch(RESERVATION_SERVER_API,{method:'GET',headers:{'X-MML-Admin-Password':ADMIN_PASSWORD},cache:'no-store'});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(body.error||`예약 서버 조회 실패 (${response.status})`);
+    const serverRows=excludeDeletedReservations(Array.isArray(body.reservations)?body.reservations:[]);
+    const merged=mergeReservationsById(serverRows,state.reservations||[]);
+    state.reservations=merged;
+    localStorage.setItem('modumam_reservations',JSON.stringify(merged));
+    await replaceIndexedReservations(merged).catch(()=>{});
+    state.reservationSyncError='';
+    return merged;
+  }catch(error){state.reservationSyncError=String(error?.message||error);console.warn('[예약 서버 조회 실패]',error);return state.reservations||[];}
+}
+async function saveServerReservations(rows){
+  const list=excludeDeletedReservations(Array.isArray(rows)?rows:[]);
+  if(!list.length)return false;
+  try{
+    const response=await fetch(RESERVATION_SERVER_API,{method:'PUT',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({reservations:list})});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(body.error||`예약 서버 저장 실패 (${response.status})`);
+    return true;
+  }catch(error){state.reservationSyncError=String(error?.message||error);console.warn('[예약 서버 저장 실패]',error);return false;}
+}
 function appendAuditLog(action,key,detail=''){
   if(window.MMLDataStore){
     window.MMLDataStore.audit(action,key,detail,{module:'admin'});
@@ -156,7 +182,7 @@ function save(k,v){
     alert(`저장하지 못했습니다.\n${String(error?.message||error)}`);
     return false;
   }
-  if(k==='modumam_reservations'&&Array.isArray(v)) replaceIndexedReservations(v).catch(error=>{state.reservationSyncError=String(error?.message||error)});
+  if(k==='modumam_reservations'&&Array.isArray(v)){replaceIndexedReservations(v).catch(error=>{state.reservationSyncError=String(error?.message||error)});saveServerReservations(v).catch(()=>{});}
   return true;
 }
 
@@ -257,6 +283,7 @@ function receiveReservationRows(rows,source='사용자 페이지'){
 }
 async function refreshSharedOperatingData(showMessage=false){
   requestReservationsFromUserPages();
+  await loadServerReservations();
   const localChanged=syncSharedOperatingData();
   const indexedChanged=await syncIndexedReservationData();
   if(showMessage) alert(localChanged||indexedChanged?'새 예약과 운영 데이터를 불러왔습니다. 사용자 페이지에도 예약목록을 요청했습니다.':'저장소를 확인했고 사용자 페이지에 예약목록을 요청했습니다.');

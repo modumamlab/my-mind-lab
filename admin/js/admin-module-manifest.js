@@ -92,7 +92,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260809-individual-compact-s62',
+      src:'./js/modules/assessment-reports.js?v=20260811-title-number-s54',
       required:true,
       dependsOn:['data-store','print-engine']
     },
