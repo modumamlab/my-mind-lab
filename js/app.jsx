@@ -2926,7 +2926,7 @@ const userText = pendingInput;
                 setShowAssessmentReportApplication(true);
             };
 
-            const requestAssessmentReport = () => {
+            const requestAssessmentReport = async () => {
                 if (!assessmentReportReservationId) {
                     alert("보고서를 연결할 심리검사 예약을 선택해 주세요.");
                     return;
