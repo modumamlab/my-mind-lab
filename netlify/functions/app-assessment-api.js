@@ -51,7 +51,7 @@ exports.handler = async (event) => {
 
   let store;
   try {
-    store = getStore({ name: STORE_NAME, consistency: 'strong' });
+    store = getStore(STORE_NAME);
   } catch (error) {
     console.error('[app-assessment-api] getStore failed', error);
     return response(503, {
