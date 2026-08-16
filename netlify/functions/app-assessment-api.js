@@ -10,8 +10,8 @@ const response = (statusCode, body) => ({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    'Access-Control-Allow-Headers': 'Content-Type, X-MML-Admin-Password',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS'
   },
   body: JSON.stringify(body)
 });
@@ -29,13 +29,44 @@ function rows(v) {
   return (Array.isArray(v) ? v : []).filter(r => r && r.id !== undefined && r.id !== null);
 }
 
-function publicStatus(status) {
-  const s = text(status, 40);
-  if (['결과업로드', '분석완료', '보고서작성', '보고서승인', '완료'].includes(s)) {
-    return s === '보고서승인' || s === '완료' ? '리포트승인' : '검사완료';
+function adminAuthorized(event) {
+  const expected = String(process.env.MML_RESERVATION_ADMIN_PASSWORD || 'modumam2026');
+  const supplied = String(
+    event.headers?.['x-mml-admin-password'] ||
+    event.headers?.['X-MML-Admin-Password'] ||
+    ''
+  );
+  return supplied === expected;
+}
+
+function mergeRows(...lists) {
+  const map = new Map();
+  lists.flat().filter(Boolean).forEach((row) => {
+    const key = String(row.id || `${row.name || ''}-${row.phone || ''}-${row.date || ''}-${row.time || ''}`);
+    map.set(key, { ...(map.get(key) || {}), ...row });
+  });
+  return [...map.values()].sort((a, b) =>
+    String(b.updatedAt || b.createdAt || b.id || '').localeCompare(
+      String(a.updatedAt || a.createdAt || a.id || '')
+    )
+  );
+}
+
+function publicStatus(row) {
+  const status = text(row?.status, 40);
+  const reportApproved =
+    row?.assessmentReportStatus === '승인 완료' ||
+    Boolean(row?.assessmentReportApprovedAt) ||
+    Boolean(row?.approvedIntegratedReportId) ||
+    (Array.isArray(row?.approvedIndividualReportIds) && row.approvedIndividualReportIds.length > 0) ||
+    row?.resultReportApproved === true;
+
+  if (reportApproved || ['보고서승인', '완료'].includes(status)) return '리포트승인';
+  if (['결과업로드', '상담준비', '상담진행', '상담완료', '종결', '검사완료', '분석완료', '보고서작성'].includes(status)) {
+    return '검사완료';
   }
-  if (['검사진행', '검사진행중'].includes(s)) return '검사진행중';
-  if (['검사안내발송', '예약승인'].includes(s)) return '검사안내발송';
+  if (['검사발송', '검사링크발송', '검사진행', '검사진행중'].includes(status)) return '검사진행중';
+  if (['예약승인', '결제완료'].includes(status)) return '신청접수';
   return '신청접수';
 }
 
@@ -59,6 +90,69 @@ exports.handler = async (event) => {
       error: '서버 저장소 연결에 실패했습니다.',
       detail: String(error?.message || error)
     });
+  }
+
+  const isAdminRequest = String(event.queryStringParameters?.admin || '') === '1';
+
+  if (event.httpMethod === 'GET' && isAdminRequest) {
+    if (!adminAuthorized(event)) {
+      return response(401, { ok: false, error: '관리자 인증이 필요합니다.' });
+    }
+    try {
+      const current = rows(await store.get(KEY, { type: 'json' }).catch(() => null));
+      return response(200, {
+        ok: true,
+        reservations: current,
+        count: current.length
+      });
+    } catch (error) {
+      console.error('[app-assessment-api] admin list failed', error);
+      return response(503, {
+        ok: false,
+        error: '예약 서버 데이터를 불러오지 못했습니다.',
+        detail: String(error?.message || error)
+      });
+    }
+  }
+
+  if (event.httpMethod === 'PUT' && isAdminRequest) {
+    if (!adminAuthorized(event)) {
+      return response(401, { ok: false, error: '관리자 인증이 필요합니다.' });
+    }
+
+    let body = {};
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch (_) {
+      return response(400, { ok: false, error: '요청 형식이 올바르지 않습니다.' });
+    }
+
+    try {
+      const current = rows(await store.get(KEY, { type: 'json' }).catch(() => null));
+      const incoming = Array.isArray(body.reservations)
+        ? body.reservations
+        : (body.reservation ? [body.reservation] : []);
+
+      if (!incoming.length) {
+        return response(400, { ok: false, error: '저장할 예약 정보가 없습니다.' });
+      }
+
+      const next = mergeRows(incoming, current).slice(0, 3000);
+      await store.setJSON(KEY, next);
+
+      return response(200, {
+        ok: true,
+        reservations: next,
+        count: next.length
+      });
+    } catch (error) {
+      console.error('[app-assessment-api] admin save failed', error);
+      return response(503, {
+        ok: false,
+        error: '예약 서버 동기화에 실패했습니다.',
+        detail: String(error?.message || error)
+      });
+    }
   }
 
   if (event.httpMethod === 'POST') {
@@ -96,8 +190,9 @@ exports.handler = async (event) => {
       phone,
       email,
       type: '온라인 심리검사',
-      date: now.toISOString().slice(0, 10),
+      date: '',
       time: '',
+      applicationDate: now.toISOString().slice(0, 10),
       program: `개별 심리검사 (${testName})`,
       bookingProgram: '개별 심리검사',
       bookingCategory: 'individual-test',
@@ -176,7 +271,7 @@ exports.handler = async (event) => {
         ok: true,
         application: {
           id,
-          status: publicStatus(row.status),
+          status: publicStatus(row),
           testUrl: text(row.testUrl || row.assessmentUrl, 1000),
           updatedAt: text(row.updatedAt || row.createdAt, 80)
         }

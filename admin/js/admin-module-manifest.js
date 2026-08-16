@@ -13,11 +13,6 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
 
   const core = [
     {
-      id:'server-store',
-      src:'./js/modules/server-store.js?v=20260724-server-data-v37-1-fixed',
-      required:false
-    },
-    {
       id:'data-store',
       src:'./js/modules/data-store.js?v=20260724-server-data-v37-1-fixed',
       required:true
@@ -107,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260808-individual-approval-lifecycle-s13',
+      src:'./js/admin.js?v=20260817-userapp-5174-v3',
       required:true
     },
     {

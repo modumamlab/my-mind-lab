@@ -1,4 +1,4 @@
-console.info('[MML] assessment-center phase7 loaded');
+console.info('[MML] assessment-center phase7 · preview-state + report-label-fix loaded');
 /* =========================================================
    모두의 마음연구소 상담운영센터 2.0
    심리평가센터 독립 모듈
@@ -1270,14 +1270,19 @@ function individualAssessmentPreviewUrl(a){
   return 'data:text/html;charset=utf-8,'+encodeURIComponent(individualAssessmentPreviewDocument(a));
 }
 
+// [MML-20260817-PREVIEW-STATE] render()가 다시 실행되어도 사용자가 연 미리보기 상태를 유지합니다.
+const assessmentInlinePreviewOpenIds=new Set();
 function toggleIndividualAssessmentInlinePreview(analysisId){
-  const wrap=document.getElementById(`mml-individual-preview-wrap-${analysisId}`);
-  const button=document.getElementById(`mml-individual-preview-toggle-${analysisId}`);
+  const id=String(analysisId);
+  const wrap=document.getElementById(`mml-individual-preview-wrap-${id}`);
+  const button=document.getElementById(`mml-individual-preview-toggle-${id}`);
   if(!wrap||!button){
-    console.warn('[MML] 개별보고서 미리보기 영역을 찾지 못했습니다.',analysisId);
+    console.warn('[MML] 개별보고서 미리보기 영역을 찾지 못했습니다.',id);
     return;
   }
-  const opening=wrap.hidden===true || wrap.style.display==='none';
+  const opening=!assessmentInlinePreviewOpenIds.has(id);
+  if(opening)assessmentInlinePreviewOpenIds.add(id);
+  else assessmentInlinePreviewOpenIds.delete(id);
   wrap.hidden=!opening;
   wrap.style.display=opening?'block':'none';
   button.textContent=opening?'접기':'열기';
@@ -1299,11 +1304,11 @@ function assessmentAnalysisCard(a){
   const previewUrl=individualAssessmentPreviewUrl(a).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   return `<section id="assessment-report-card-${assessmentTestKey(test)}" class="rounded-[2rem] border ${a.reviewed?'border-emerald-200':'border-amber-200'} bg-white shadow-sm overflow-hidden">
     <div class="p-5"><div><p class="text-lg font-extrabold">${esc(individualReportTitle(a.testType))}</p><p class="mt-1 text-xs text-slate-400">${esc(a.fileName||'')} · ${esc(a.createdAt||'')}</p></div></div>
-    <div id="mml-individual-preview-wrap-${a.id}" class="border-t border-slate-100 bg-slate-100/70 p-3 sm:p-5" hidden style="display:none">
+    <div id="mml-individual-preview-wrap-${a.id}" class="border-t border-slate-100 bg-slate-100/70 p-3 sm:p-5" ${assessmentInlinePreviewOpenIds.has(String(a.id))?'':'hidden'} style="display:${assessmentInlinePreviewOpenIds.has(String(a.id))?'block':'none'}">
       <iframe title="${esc(individualReportTitle(test))}" src="${previewUrl}" style="display:block;width:100%;height:1180px;border:0;border-radius:16px;background:#e8eeeb" loading="lazy"></iframe>
     </div>
     <div class="border-t border-slate-100 p-5">
-      ${(()=>{const report=assessmentCenterIndividualReportForAnalysis(a.id);const requested=Boolean(report&&typeof reportHasMatchingClientRequest==='function'&&reportHasMatchingClientRequest(report));return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-6"><button id="mml-individual-preview-toggle-${a.id}" type="button" aria-expanded="false" onclick="toggleIndividualAssessmentInlinePreview('${a.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">열기</button><button onclick="saveGeneratedAssessmentReport('${a.id}')" class="rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700">생성된 결과보고서 저장</button>${report?`<button onclick="editIndividualAssessmentReport('${report.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">수정</button>${report.approvedForClient?`<span class="flex items-center justify-center rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-extrabold text-emerald-700">승인완료</span><button onclick="toggleReportApproval('${report.id}')" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold text-slate-600">승인취소</button>`:requested?`<button onclick="toggleReportApproval('${report.id}')" class="rounded-2xl bg-emerald-700 px-4 py-3 text-xs font-extrabold text-white">승인</button>`:`<span class="flex items-center justify-center rounded-2xl bg-amber-50 px-4 py-3 text-xs font-extrabold text-amber-700">사용자 신청 대기</span>`}<button onclick="printReport('${report.id}',true)" class="rounded-2xl border border-orange-200 bg-white px-4 py-3 text-xs font-extrabold text-orange-700">PDF</button>`:''}</div>`})()}
+      ${(()=>{const report=assessmentCenterIndividualReportForAnalysis(a.id);const requested=Boolean(report&&typeof reportHasMatchingClientRequest==='function'&&reportHasMatchingClientRequest(report));return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-6"><button id="mml-individual-preview-toggle-${a.id}" type="button" aria-expanded="${assessmentInlinePreviewOpenIds.has(String(a.id))?'true':'false'}" onclick="toggleIndividualAssessmentInlinePreview('${a.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">${assessmentInlinePreviewOpenIds.has(String(a.id))?'접기':'열기'}</button><button onclick="saveGeneratedAssessmentReport('${a.id}')" class="rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700">결과보고서 저장</button>${report?`<button onclick="editIndividualAssessmentReport('${report.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">수정</button>${report.approvedForClient?`<span class="flex items-center justify-center rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-extrabold text-emerald-700">승인완료</span><button onclick="toggleReportApproval('${report.id}')" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold text-slate-600">승인취소</button>`:requested?`<button onclick="toggleReportApproval('${report.id}')" class="rounded-2xl bg-emerald-700 px-4 py-3 text-xs font-extrabold text-white">승인</button>`:`<span class="flex items-center justify-center rounded-2xl bg-amber-50 px-4 py-3 text-xs font-extrabold text-amber-700">사용자 신청 대기</span>`}<button onclick="printReport('${report.id}',true)" class="rounded-2xl border border-orange-200 bg-white px-4 py-3 text-xs font-extrabold text-orange-700">PDF</button>`:''}</div>`})()}
     </div>
   </section>`;
 }

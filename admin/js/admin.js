@@ -108,7 +108,7 @@ async function replaceIndexedReservations(rows){
   db.close();
 }
 
-let state={counselingJournalTab:'sessions',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,reservationSyncError:''};
+let state={counselingJournalTab:'sessions',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,legacyReservationServerCount:0,appReservationServerCount:0,reservationSyncError:''};
 const REPORT_TEST_OPTIONS=['TCI','MMPI-2','PAI','SCT','HTP','STS','PAT','K-CDI','PHQ-9','GAD-7'];
 function sanitizeReportTests(value){const raw=Array.isArray(value)?value:String(value||'').split(/[,·]/);return [...new Set(raw.map(x=>String(x||'').trim()).filter(x=>REPORT_TEST_OPTIONS.includes(x)))]}
 function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',program:'개별 심리검사',testType:'TCI',selectedTests:['TCI'],title:'',summary:'',mindProfile:'',individualTests:'',emotionState:'',thinkingRelationship:'',stressDaily:'',plan:'',strength:'',caution:'',reportType:'summaryReport',summaryReport:true,status:'작성중',approvedForClient:false}}
@@ -123,35 +123,106 @@ function unmarkReservationDeleted(id){const ids=deletedReservationIds();ids.dele
 function excludeDeletedReservations(rows){const deleted=deletedReservationIds();return (Array.isArray(rows)?rows:[]).filter(item=>!deleted.has(String(item?.id||'')));}
 
 
-const RESERVATION_SERVER_API='/.netlify/functions/reservations-api';
-async function loadServerReservations(){
+const LEGACY_RESERVATION_SERVER_API='/.netlify/functions/reservations-api';
+const APP_RESERVATION_SERVER_API='/.netlify/functions/app-assessment-api?admin=1';
+
+async function fetchReservationSource(url,label){
   try{
-    const response=await fetch(RESERVATION_SERVER_API,{method:'GET',headers:{'X-MML-Admin-Password':ADMIN_PASSWORD},cache:'no-store'});
+    const response=await fetch(url,{
+      method:'GET',
+      headers:{'X-MML-Admin-Password':ADMIN_PASSWORD},
+      cache:'no-store'
+    });
     const body=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(body.error||`예약 서버 조회 실패 (${response.status})`);
-    const serverRows=excludeDeletedReservations(Array.isArray(body.reservations)?body.reservations:[]);
-    const merged=mergeReservationsById(serverRows,state.reservations||[]);
-    state.reservations=merged;
-    state.reservationServerCount=serverRows.length;
-    localStorage.setItem('modumam_reservations',JSON.stringify(merged));
-    // 앱/홈페이지에서 서버로 접수된 예약을 관리자 수신함에도 보존합니다.
-    localStorage.setItem('modumam_reservation_inbox',JSON.stringify(mergeReservationsById(serverRows,load('modumam_reservation_inbox',[])).slice(0,500)));
-    await replaceIndexedReservations(merged).catch(()=>{});
-    state.reservationDbCount=merged.length;
-    state.reservationSyncError='';
-    return merged;
-  }catch(error){state.reservationSyncError=String(error?.message||error);console.warn('[예약 서버 조회 실패]',error);return state.reservations||[];}
+    if(!response.ok)throw new Error(body.error||`${label} 조회 실패 (${response.status})`);
+    return {
+      ok:true,
+      rows:excludeDeletedReservations(Array.isArray(body.reservations)?body.reservations:[])
+    };
+  }catch(error){
+    console.warn(`[${label} 조회 실패]`,error);
+    return {ok:false,rows:[],error:String(error?.message||error)};
+  }
 }
+
+async function loadServerReservations(){
+  const [legacyResult,appResult]=await Promise.all([
+    fetchReservationSource(LEGACY_RESERVATION_SERVER_API,'홈페이지 예약 서버'),
+    fetchReservationSource(APP_RESERVATION_SERVER_API,'앱 검사신청 서버')
+  ]);
+
+  // 서버 외에도 브라우저 기본저장소·수신함을 항상 보존하여
+  // 어느 한 서버가 비어 있거나 일시 실패해도 기존 예약이 사라지지 않게 합니다.
+  const localRows=excludeDeletedReservations(load('modumam_reservations',[]));
+  const inboxRows=excludeDeletedReservations(load('modumam_reservation_inbox',[]));
+  const merged=mergeReservationsById(
+    legacyResult.rows,
+    appResult.rows,
+    localRows,
+    inboxRows,
+    state.reservations||[]
+  );
+
+  state.reservations=merged;
+  state.reservationServerCount=legacyResult.rows.length+appResult.rows.length;
+  state.legacyReservationServerCount=legacyResult.rows.length;
+  state.appReservationServerCount=appResult.rows.length;
+
+  localStorage.setItem('modumam_reservations',JSON.stringify(merged));
+  localStorage.setItem(
+    'modumam_reservation_inbox',
+    JSON.stringify(
+      mergeReservationsById(
+        legacyResult.rows,
+        appResult.rows,
+        inboxRows
+      ).slice(0,500)
+    )
+  );
+
+  await replaceIndexedReservations(merged).catch(()=>{});
+  state.reservationDbCount=merged.length;
+
+  const errors=[legacyResult.error,appResult.error].filter(Boolean);
+  state.reservationSyncError=errors.join(' / ');
+  return merged;
+}
+
+async function putReservationSource(url,list,label){
+  if(!list.length)return true;
+  try{
+    const response=await fetch(url,{
+      method:'PUT',
+      headers:{
+        'Content-Type':'application/json',
+        'X-MML-Admin-Password':ADMIN_PASSWORD
+      },
+      body:JSON.stringify({reservations:list})
+    });
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(body.error||`${label} 저장 실패 (${response.status})`);
+    return true;
+  }catch(error){
+    console.warn(`[${label} 저장 실패]`,error);
+    state.reservationSyncError=String(error?.message||error);
+    return false;
+  }
+}
+
 async function saveServerReservations(rows){
   const list=excludeDeletedReservations(Array.isArray(rows)?rows:[]);
   if(!list.length)return false;
-  try{
-    const response=await fetch(RESERVATION_SERVER_API,{method:'PUT',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({reservations:list})});
-    const body=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(body.error||`예약 서버 저장 실패 (${response.status})`);
-    return true;
-  }catch(error){state.reservationSyncError=String(error?.message||error);console.warn('[예약 서버 저장 실패]',error);return false;}
+
+  const appRows=list.filter(r=>String(r?.applicationSource||'')==='modumam-app-v1' || String(r?.appApplicationId||'').startsWith('APP-'));
+  const legacyRows=list.filter(r=>!appRows.includes(r));
+
+  const [legacyOk,appOk]=await Promise.all([
+    putReservationSource(LEGACY_RESERVATION_SERVER_API,legacyRows,'홈페이지 예약 서버'),
+    putReservationSource(APP_RESERVATION_SERVER_API,appRows,'앱 검사신청 서버')
+  ]);
+  return legacyOk&&appOk;
 }
+
 function appendAuditLog(action,key,detail=''){
   if(window.MMLDataStore){
     window.MMLDataStore.audit(action,key,detail,{module:'admin'});
@@ -216,7 +287,11 @@ function mergeReservationsById(...lists){
     const previous=map.get(key)||{};
     map.set(key,{...previous,...item});
   });
-  return [...map.values()].sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+  return [...map.values()].sort((a,b)=>{
+    const aTime=String(a.updatedAt||a.createdAt||a.date||a.id||'');
+    const bTime=String(b.updatedAt||b.createdAt||b.date||b.id||'');
+    return bTime.localeCompare(aTime);
+  });
 }
 function syncSharedOperatingData(){
   // [FIX-20260715-RESERVATION-MASTER]
@@ -781,6 +856,12 @@ function saveCurrentReservationChanges(id){
   const time=document.getElementById(`reservation-time-${id}`)?.value?.trim()||'';
   const type=document.getElementById(`reservation-method-${id}`)?.value?.trim()||'';
 
+  const isAppApplication=String(reservation.applicationSource||'')==='modumam-app-v1'||String(reservation.appApplicationId||'').startsWith('APP-');
+  const scheduleStarted=Boolean(date||time);
+  if(isAppApplication&&!scheduleStarted){
+    alert('앱에서 접수된 검사신청은 아직 예약시간이 정해지지 않았습니다.\n예약일과 시간을 지정할 때만 저장해 주세요.');
+    return;
+  }
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('상담일자를 올바르게 선택해 주세요.');return;}
   const allowedTimes=counselingTimesForMethod(type);
   if(!allowedTimes.includes(time)){alert(isAiCounselingMethod(type)?'24시 AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'대면·화상 상담은 09:00~17:00 사이에서 선택해 주세요.');return;}
@@ -1780,7 +1861,10 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
             <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260720-REQUEST-LINKED-CLIENT-REPORT-V8</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
-            <div class="hidden sm:flex items-center gap-2"><button onclick="location.href='/'" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 페이지</button></div>
+            <div class="hidden sm:flex items-center gap-2">
+              <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
+              <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>
+            </div>
           </div>
           <nav class="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">${navButton('dashboard','오늘 업무')}${navButton('clients','내담자')}${navButton('members','전자차트')}${navButton('reservation','예약')}${navButton('interpretation','심리평가')}${navButton('journal','상담일지')}${navButton('intake','AI모니터링')}${navButton('counseling','상담기록')}${navButton('clinicalTimeline','사례관리')}${navButton('clinicalDss','임상지원')}${navButton('statistics','통계')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 rounded-xl bg-rose-50 px-4 py-2 text-xs font-extrabold text-rose-600">로그아웃</button></nav>
         </div>
@@ -2681,6 +2765,7 @@ function resultUploadsView(){
         const completed=!!r.aiResultCounselingCompletedAt;
         const aiLabel=completed?'상담 완료':enabled?'활성':'비활성';
         const aiClass=completed?'bg-emerald-100 text-emerald-700':enabled?'bg-violet-100 text-violet-700':'bg-slate-100 text-slate-500';
+        const reservationId=JSON.stringify(String(r.id));
         return `<article class="rounded-3xl border border-slate-100 bg-slate-50 p-5">
           <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div class="min-w-0 flex-1">
@@ -2708,13 +2793,13 @@ function resultUploadsView(){
             <div class="w-full space-y-3 xl:w-64">
               <label class="flex items-center justify-between gap-3 rounded-2xl border ${enabled?'border-violet-200 bg-violet-50':'border-slate-200 bg-white'} px-4 py-3 text-sm font-extrabold">
                 <span>AI 결과상담 활성화</span>
-                <input type="checkbox" ${enabled?'checked':''} ${completed?'disabled':''} onchange="toggleAiResultCounseling(${r.id},this.checked)" class="h-5 w-5"/>
+                <input type="checkbox" ${enabled?'checked':''} ${completed?'disabled':''} onchange='toggleAiResultCounseling(${reservationId},this.checked)' class="h-5 w-5"/>
               </label>
-              <select onchange="updateReservation(${r.id},{status:this.value})" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold">
+              <select onchange='updateReservation(${reservationId},{status:this.value})' class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold">
                 ${STATUS.map(x=>`<option value="${x}" ${st===x?'selected':''}>${x}</option>`).join('')}
               </select>
               <div class="grid grid-cols-2 gap-2">
-                <button onclick="openMemberChartByReservation(${r.id},'profile')" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-extrabold">전자차트</button>
+                <button onclick='openMemberChartByReservation(${reservationId},"profile")' class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-extrabold">전자차트</button>
                 <button onclick="setMenu('reservation')" class="rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-extrabold text-white">예약관리</button>
               </div>
               <button onclick="setMenu('interpretation')" class="w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-xs font-extrabold text-white">심리평가센터에서 결과 확인</button>

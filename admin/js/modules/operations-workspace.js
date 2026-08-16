@@ -1,4 +1,4 @@
-console.info('[MML] OPERATIONS-WORKSPACE-MODULE-V29 loaded');
+console.info('[MML] OPERATIONS-WORKSPACE-MODULE-V30-SHARED-PROVIDER loaded');
 
 // 오늘 상담은 dashboardView 안에 통합되었습니다.
 
@@ -142,7 +142,7 @@ function dashboardView(){
         </div>
         <div class="space-y-3">
           ${recent.length
-            ? recent.map(r=>`<button onclick="openMemberChartByReservation(${r.id},'profile')" class="w-full rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left hover:border-indigo-200">
+            ? recent.map(r=>`<button onclick='openMemberChartByReservation(${JSON.stringify(String(r.id))},"profile")' class="w-full rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left hover:border-indigo-200">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <p class="text-sm font-extrabold text-slate-900">${esc(r.name)}님</p>
@@ -162,7 +162,7 @@ function dashboardView(){
 function reservationSyncStatus(){
   const primary=load('modumam_reservations',[]).length;
   const inbox=load('modumam_reservation_inbox',[]).length;
-  return `<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3"><div><p class="text-xs font-extrabold text-sky-900">예약 저장소 확인</p><p class="mt-1 text-[11px] text-sky-700">IndexedDB ${state.reservationDbCount||0}건 · 기본 저장소 ${primary}건 · 예약 수신함 ${inbox}건 · 현재 표시 ${state.reservations.length}건</p>${state.reservationSyncError?`<p class="mt-1 text-[11px] font-bold text-rose-600">저장소 오류: ${esc(state.reservationSyncError)}</p>`:''}</div><button onclick="refreshSharedOperatingData(true)" class="rounded-xl bg-sky-700 px-4 py-2 text-xs font-extrabold text-white">예약 새로 불러오기</button></div>`;
+  return `<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3"><div><p class="text-xs font-extrabold text-sky-900">예약 저장소 확인</p><p class="mt-1 text-[11px] text-sky-700">홈페이지 서버 ${state.legacyReservationServerCount||0}건 · 앱 검사신청 ${state.appReservationServerCount||0}건 · IndexedDB ${state.reservationDbCount||0}건 · 기본 저장소 ${primary}건 · 예약 수신함 ${inbox}건 · 현재 표시 ${state.reservations.length}건</p>${state.reservationSyncError?`<p class="mt-1 text-[11px] font-bold text-rose-600">저장소 오류: ${esc(state.reservationSyncError)}</p>`:''}</div><button onclick="refreshSharedOperatingData(true)" class="rounded-xl bg-sky-700 px-4 py-2 text-xs font-extrabold text-white">예약 새로 불러오기</button></div>`;
 }
 function adminReservationCreatePanel(){
   const today=new Date().toISOString().slice(0,10);
@@ -218,45 +218,153 @@ function reservationView(){
       <h2 class="mt-2 text-2xl font-extrabold">예약·검사 운영</h2>
       <p class="mt-2 text-sm text-slate-300">예약 진행상태와 AI 결과상담 활성화를 한 화면에서 관리합니다. 검사결과 분석과 보고서 작성은 심리평가센터에서 진행합니다.</p>
     </div>
+
+    <section class="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="mb-3">
+        <p class="text-base font-extrabold text-slate-900">검사기관 바로가기 · 공통 링크</p>
+        <p class="mt-1 text-[11px] text-slate-500">검사기관 주소를 한 번 저장하면 모든 예약에서 공통으로 사용합니다.</p>
+      </div>
+      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div class="rounded-2xl border border-rose-100 bg-rose-50/50 p-3">
+          <p class="text-[10px] font-extrabold text-rose-500">MAUMSARANG</p>
+          <p class="mt-1 text-sm font-extrabold text-slate-900">마음사랑검사</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <input id="shared-provider-maumsarang" type="url"
+              value="${esc(load('test_provider_url_maumsarang','https://mscore.kr/'))}"
+              class="min-w-[220px] flex-1 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs">
+            <button type="button" onclick="saveTestProviderUrl('maumsarang','shared-provider-maumsarang')"
+              class="rounded-xl bg-rose-500 px-3 py-2 text-[11px] font-extrabold text-white">링크 저장</button>
+            <button type="button" onclick="openTestProviderUrl('maumsarang')"
+              class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-extrabold text-rose-600">사이트 열기</button>
+          </div>
+        </div>
+        <div class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3">
+          <p class="text-[10px] font-extrabold text-indigo-500">INPSYT</p>
+          <p class="mt-1 text-sm font-extrabold text-slate-900">인싸이트검사</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <input id="shared-provider-insight" type="url"
+              value="${esc(load('test_provider_url_insight','https://inpsyt.co.kr/mypage/dashboard/list'))}"
+              class="min-w-[220px] flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs">
+            <button type="button" onclick="saveTestProviderUrl('insight','shared-provider-insight')"
+              class="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-extrabold text-white">링크 저장</button>
+            <button type="button" onclick="openTestProviderUrl('insight')"
+              class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-extrabold text-indigo-600">사이트 열기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     ${adminReservationCreatePanel()}
-    ${state.reservations.map(r=>{const p=progress(r),tests=requestedTests(r),st=normalizeStatus(r.status),terminal=['종결','예약취소'].includes(st);return `<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-      <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div><div class="flex flex-wrap items-center gap-2"><h3 class="text-xl font-extrabold">${esc(r.name)}님</h3><span class="rounded-full px-3 py-1 text-xs font-bold ${statusClass(st)}">${esc(st)}</span>${p.ai?'<span class="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-700">AI체크인 완료</span>':''}</div><p class="mt-1 text-xs text-slate-400">${esc(r.phone||'연락처 없음')}</p></div>
-        <button onclick="openMemberChartByReservation(${r.id},'profile')" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">회원 전자차트</button>
-      </div>
+    ${state.reservations.map(r=>{
+      const p=progress(r),tests=requestedTests(r),st=normalizeStatus(r.status),terminal=['종결','예약취소'].includes(st);
+      const reservationId=JSON.stringify(String(r.id));
+      const isAppApplication=String(r.applicationSource||'')==='modumam-app-v1'||String(r.appApplicationId||'').startsWith('APP-');
 
-      <div class="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-        <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-xs font-extrabold text-emerald-700">예약정보 수정</p><p class="mt-1 text-[11px] text-emerald-700/70">예약일·시간·상담방식을 변경한 뒤 저장해 주세요.</p></div><button type="button" onclick="saveCurrentReservationChanges(${r.id})" class="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700">예약 변경 저장</button></div>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">예약일정</p><div class="mt-2 grid grid-cols-2 gap-2"><input id="reservation-date-${esc(String(r.id))}" type="date" value="${esc(r.date)}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"><select id="reservation-time-${esc(String(r.id))}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${counselingTimesForMethod(r.type).map(time=>`<option value="${time}" ${String(r.time||'')===time?'selected':''}>${time}</option>`).join('')}</select></div></div>
-          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">프로그램명</p><p class="mt-2 font-extrabold">${esc(programBaseName(r.program))}</p></div>
-          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">신청 검사</p><div class="mt-2 flex flex-wrap gap-1.5">${tests.length?tests.map(t=>`<span class="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-1 text-xs font-extrabold text-purple-700">${esc(shortTestName(t))}</span>`).join(''):'<span class="text-xs text-slate-400">신청 검사 없음</span>'}</div></div>
-          <div class="rounded-2xl border border-white bg-white p-4"><p class="text-[11px] font-bold text-slate-400">상담방식</p><select id="reservation-method-${esc(String(r.id))}" onchange="updateReservationTimeOptions('${esc(String(r.id))}')" class="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${COUNSELING_METHODS.map(method=>`<option value="${method}" ${String(r.type||'')===method?'selected':''}>${counselingMethodLabel(method)}</option>`).join('')}</select></div>
+      // 앱의 '검사 신청'은 상담예약이 아닙니다.
+      // 관리자가 실제 일정을 지정하기 전까지 날짜/시간/상담방식을 모두 미정으로 표시합니다.
+      const hasAdminSchedule=Boolean(
+        r.reservationScheduledAt ||
+        r.scheduleConfirmedAt ||
+        r.adminScheduledAt ||
+        (String(r.time||'').trim() && !['온라인 심리검사'].includes(String(r.type||'').trim()))
+      );
+      const isUnscheduledApp=isAppApplication&&!hasAdminSchedule;
+      const scheduleDate=isUnscheduledApp?'':String(r.date||'');
+      const scheduleTime=isUnscheduledApp?'':String(r.time||'');
+      const scheduleMethod=isUnscheduledApp?'':String(r.type||'');
+
+      const methodOptions=[
+        ...(isUnscheduledApp?['<option value="" selected>상담방식 미정</option>']:[]),
+        ...COUNSELING_METHODS.map(method=>`<option value="${method}" ${scheduleMethod===method?'selected':''}>${counselingMethodLabel(method)}</option>`)
+      ].join('');
+      const timeOptions=[
+        ...(!scheduleTime?['<option value="" selected>시간 미정</option>']:[]),
+        ...counselingTimesForMethod(scheduleMethod).map(time=>`<option value="${time}" ${scheduleTime===time?'selected':''}>${time}</option>`)
+      ].join('');
+
+      const scheduleLabel=isUnscheduledApp
+        ? '일정 미정'
+        : [scheduleDate,scheduleTime].filter(Boolean).join(' ')||'일정 미정';
+      const methodLabel=isUnscheduledApp?'상담방식 미정':counselingMethodLabel(r.type||'');
+
+      return `<section class="rounded-[1.6rem] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="text-lg font-extrabold">${esc(r.name)}님</h3>
+              <span class="rounded-full px-2.5 py-1 text-[11px] font-bold ${statusClass(st)}">${esc(st)}</span>
+              ${isAppApplication?'<span class="rounded-full bg-teal-100 px-2.5 py-1 text-[11px] font-bold text-teal-700">앱 검사신청</span>':''}
+            </div>
+            <p class="mt-1 text-[11px] text-slate-400">${esc(r.phone||'연락처 없음')}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick='openMemberChartByReservation(${reservationId},"profile")' class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold">전자차트</button>
+            ${!terminal?`<button onclick="runNextAction(${reservationId})" class="rounded-xl bg-slate-950 px-3 py-2 text-[11px] font-extrabold text-white">${esc(nextActionLabel(r))}</button>`:''}
+          </div>
         </div>
-        <div class="mt-3 flex justify-end sm:hidden"><button type="button" onclick="saveCurrentReservationChanges(${r.id})" class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">예약 변경 저장</button></div>
-      </div>
 
-      <div class="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-        <div><p class="text-sm font-extrabold">자동 진행상태</p><p class="mt-1 text-xs text-slate-500">${esc(autoStatusDescription(r))}</p></div><div class="mt-4">${focusedNextTaskBlock(r)}</div>
-        <div class="mt-4">${operationPipeline(r)}</div>
-      </div>
-
-      <div class="mt-4 rounded-2xl border ${r.aiResultCounselingEnabled?'border-violet-200 bg-violet-50':'border-slate-100 bg-white'} p-4">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div><p class="text-sm font-extrabold">AI 결과상담</p><p class="mt-1 text-[11px] text-slate-500">검사결과가 업로드된 뒤 내담자의 AI 상담 이용 여부를 설정합니다.</p></div>
-          <label class="flex items-center gap-3 rounded-xl border ${r.aiResultCounselingEnabled?'border-violet-200 bg-white text-violet-700':'border-slate-200 bg-slate-50 text-slate-600'} px-4 py-3 text-xs font-extrabold">
-            <span>${r.aiResultCounselingEnabled?'활성화됨':'비활성'}</span>
-            <input type="checkbox" ${r.aiResultCounselingEnabled?'checked':''} ${r.aiResultCounselingCompletedAt?'disabled':''} onchange="toggleAiResultCounseling(${r.id},this.checked)" class="h-5 w-5">
-          </label>
+        <div class="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+            <p class="text-[10px] font-bold text-slate-400">일정</p>
+            <p class="mt-1 truncate text-xs font-extrabold ${isUnscheduledApp?'text-amber-700':'text-slate-800'}">${esc(scheduleLabel)}</p>
+          </div>
+          <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+            <p class="text-[10px] font-bold text-slate-400">프로그램</p>
+            <p class="mt-1 truncate text-xs font-extrabold">${esc(programBaseName(r.program))}</p>
+          </div>
+          <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+            <p class="text-[10px] font-bold text-slate-400">검사</p>
+            <p class="mt-1 truncate text-xs font-extrabold">${esc(tests.map(shortTestName).join(' · ')||'없음')}</p>
+          </div>
+          <div class="rounded-xl bg-slate-50 px-3 py-2.5">
+            <p class="text-[10px] font-bold text-slate-400">상담방식</p>
+            <p class="mt-1 truncate text-xs font-extrabold">${esc(methodLabel)}</p>
+          </div>
         </div>
-        ${r.aiResultCounselingCompletedAt?`<p class="mt-3 text-[11px] font-bold text-emerald-700">상담 완료: ${esc(r.aiResultCounselingCompletedAt)}</p>`:''}
-      </div>
 
-      <div class="mt-4 grid grid-cols-1 gap-4">
-        <div class="rounded-2xl border border-slate-100 bg-white p-4"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h4 class="text-sm font-extrabold">신청 검사 관리</h4><p class="mt-1 text-[11px] text-slate-400">검사기관 사이트를 저장하고 바로 열어 신청 검사를 관리합니다.</p></div><button onclick="markAllTestsSent(${r.id})" class="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">전체 발송완료</button></div><div class="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4"><p class="text-xs font-extrabold text-slate-500">신청 검사</p><div class="mt-2 flex flex-wrap gap-2">${tests.length?tests.map(t=>`<span class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700">${esc(t)}</span>`).join(''):'<span class="text-xs text-slate-400">신청된 검사가 없습니다.</span>'}</div></div><div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2"><article class="rounded-2xl border border-rose-100 bg-rose-50 p-4"><p class="text-[10px] font-extrabold text-rose-500">MAUMSARANG</p><h5 class="mt-1 text-base font-extrabold">마음사랑검사</h5><input id="test-provider-url-maumsarang" type="url" value="${esc(getTestProviderUrl('maumsarang'))}" class="mt-4 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs"><div class="mt-3 grid grid-cols-2 gap-2"><button onclick="saveTestProviderUrl('maumsarang')" class="rounded-xl bg-rose-600 px-3 py-2 text-xs font-extrabold text-white">링크 저장</button><button onclick="openTestProviderUrl('maumsarang')" class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold text-rose-700">사이트 열기</button></div></article><article class="rounded-2xl border border-indigo-100 bg-indigo-50 p-4"><p class="text-[10px] font-extrabold text-indigo-500">INPSYT</p><h5 class="mt-1 text-base font-extrabold">인싸이트검사</h5><input id="test-provider-url-insight" type="url" value="${esc(getTestProviderUrl('insight'))}" class="mt-4 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs"><div class="mt-3 grid grid-cols-2 gap-2"><button onclick="saveTestProviderUrl('insight')" class="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-extrabold text-white">링크 저장</button><button onclick="openTestProviderUrl('insight')" class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-extrabold text-indigo-700">사이트 열기</button></div></article></div></div>
+        <div class="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+          <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div class="min-w-0">
+              <p class="text-xs font-extrabold">${esc(autoStatusDescription(r))}</p>
+              <div class="mt-2">${operationPipeline(r)}</div>
+            </div>
+            ${r.aiResultCounselingCompletedAt
+              ? `<span class="shrink-0 rounded-full bg-emerald-100 px-3 py-1.5 text-[11px] font-bold text-emerald-700">AI 상담 완료</span>`
+              : `<label class="flex shrink-0 items-center gap-2 rounded-xl border ${r.aiResultCounselingEnabled?'border-violet-200 bg-violet-50 text-violet-700':'border-slate-200 bg-white text-slate-600'} px-3 py-2 text-[11px] font-extrabold">
+                  <span>AI 상담 ${r.aiResultCounselingEnabled?'활성 · 1시간':'비활성'}</span>
+                  <input type="checkbox" ${r.aiResultCounselingEnabled?'checked':''} onchange='toggleAiResultCounseling(${reservationId},this.checked)' class="h-4 w-4">
+                </label>`
+            }
+          </div>
+        </div>
 
-      </div>
-    </section>`}).join('')||empty('예약이 없습니다.')}
+        <details class="mt-3 rounded-xl border border-slate-100 bg-white">
+          <summary class="cursor-pointer list-none px-4 py-3 text-xs font-extrabold text-slate-700">
+            예약·검사 상세관리
+            <span class="ml-2 text-[10px] font-medium text-slate-400">일정 변경 · 검사 발송 · 검사기관</span>
+          </summary>
+          <div class="border-t border-slate-100 p-4">
+            <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <label class="text-[11px] font-bold text-slate-500">예약일
+                <input id="reservation-date-${esc(String(r.id))}" type="date" value="${esc(scheduleDate)}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+              </label>
+              <label class="text-[11px] font-bold text-slate-500">예약시간
+                <select id="reservation-time-${esc(String(r.id))}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${timeOptions}</select>
+              </label>
+              <label class="text-[11px] font-bold text-slate-500">상담방식
+                <select id="reservation-method-${esc(String(r.id))}" onchange="updateReservationTimeOptions('${esc(String(r.id))}')" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${methodOptions}</select>
+              </label>
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button" onclick='saveCurrentReservationChanges(${reservationId})' class="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-extrabold text-white">예약 변경 저장</button>
+              <button onclick='markAllTestsSent(${reservationId})' class="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-[11px] font-bold text-indigo-700">검사 전체 발송완료</button>
+            </div>
+
+            <div class="mt-3">${focusedNextTaskBlock(r)}</div>
+          </div>
+        </details>
+      </section>`}).join('')||empty('예약이 없습니다.')}
   </div>`)
 }
 function aiMonitoringRecords(){
