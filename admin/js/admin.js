@@ -108,7 +108,7 @@ async function replaceIndexedReservations(rows){
   db.close();
 }
 
-let state={counselingJournalTab:'sessions',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationSyncError:''};
+let state={counselingJournalTab:'sessions',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,reservationSyncError:''};
 const REPORT_TEST_OPTIONS=['TCI','MMPI-2','PAI','SCT','HTP','STS','PAT','K-CDI','PHQ-9','GAD-7'];
 function sanitizeReportTests(value){const raw=Array.isArray(value)?value:String(value||'').split(/[,·]/);return [...new Set(raw.map(x=>String(x||'').trim()).filter(x=>REPORT_TEST_OPTIONS.includes(x)))]}
 function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',program:'개별 심리검사',testType:'TCI',selectedTests:['TCI'],title:'',summary:'',mindProfile:'',individualTests:'',emotionState:'',thinkingRelationship:'',stressDaily:'',plan:'',strength:'',caution:'',reportType:'summaryReport',summaryReport:true,status:'작성중',approvedForClient:false}}
@@ -132,8 +132,12 @@ async function loadServerReservations(){
     const serverRows=excludeDeletedReservations(Array.isArray(body.reservations)?body.reservations:[]);
     const merged=mergeReservationsById(serverRows,state.reservations||[]);
     state.reservations=merged;
+    state.reservationServerCount=serverRows.length;
     localStorage.setItem('modumam_reservations',JSON.stringify(merged));
+    // 앱/홈페이지에서 서버로 접수된 예약을 관리자 수신함에도 보존합니다.
+    localStorage.setItem('modumam_reservation_inbox',JSON.stringify(mergeReservationsById(serverRows,load('modumam_reservation_inbox',[])).slice(0,500)));
     await replaceIndexedReservations(merged).catch(()=>{});
+    state.reservationDbCount=merged.length;
     state.reservationSyncError='';
     return merged;
   }catch(error){state.reservationSyncError=String(error?.message||error);console.warn('[예약 서버 조회 실패]',error);return state.reservations||[];}
@@ -283,10 +287,16 @@ function receiveReservationRows(rows,source='사용자 페이지'){
 }
 async function refreshSharedOperatingData(showMessage=false){
   requestReservationsFromUserPages();
-  await loadServerReservations();
+  const serverRows=await loadServerReservations();
   const localChanged=syncSharedOperatingData();
   const indexedChanged=await syncIndexedReservationData();
-  if(showMessage) alert(localChanged||indexedChanged?'새 예약과 운영 데이터를 불러왔습니다. 사용자 페이지에도 예약목록을 요청했습니다.':'저장소를 확인했고 사용자 페이지에 예약목록을 요청했습니다.');
+  if(showMessage){
+    if(state.reservationSyncError){
+      alert('예약 서버 불러오기 실패: '+state.reservationSyncError);
+    }else{
+      alert(`예약 서버 ${state.reservationServerCount||0}건 확인 · 현재 표시 ${state.reservations.length}건`);
+    }
+  }
   render();
 }
 function esc(v){return String(v||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')}
