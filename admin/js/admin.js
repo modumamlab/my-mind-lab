@@ -1,27 +1,6 @@
+const ADMIN_PASSWORD = 'modumam2026';
 console.info('[MML] ADMIN-260725-REFACTOR-FOUNDATION-STEP25 loaded');
-/* [FIX-20260715-SESSION-ORGANIZER-15] 회기기록 정리 UI 및 저장 목록 개편 */
-/* [FIX-20260715-ELECTRONIC-CHART-20] 이름·연락처 검색형 통합 전자차트 */
-/* [FIX-20260715-CASE-AID-REMOVE-11] AI 사례개념화 화면의 AI 상담보조 영역 삭제 */
-/* [FIX-20260715-JOURNAL-UI-ACTIVE] 상담일지 화면 개선 실제 적용본 */
-/* =========================================================
-   모두의 마음연구소 상담운영센터 2.0 · 상담운영센터 2.0 · Sprint 18 AI 결과상담 연결
-   파일 역할: 예약관리, 검사 진행관리, AI 접수기록, 보고서, 회원관리
 
-   관리자 수정 위치
-   1) 관리자 비밀번호: ADMIN_PASSWORD 검색
-   2) 예약 상태값: STATUS 검색
-   3) 결제 금액 계산: getPaymentInfo 검색
-   4) 검사명 정리: normTest / requestedTests 검색
-   5) 결과보고서 템플릿: modumamReportTemplate 검색
-   6) 상담신청서·동의서 관리: documentsView 검색
-   7) 내담자 전자차트: membersView 검색
-   8) AI 상담보조: generateCounselingAid 검색
-   9) 운영관리 버튼: approveReservation / markPaymentComplete / sendTestLinks 검색
-========================================================= */
-
-const ADMIN_PASSWORD="modumam2026";
-const MAX_LOGIN_FAILS=5;
-const LOCK_SECONDS=30;
 const STATUS=["예약신청","예약승인","결제완료","검사발송","검사완료","결과업로드","상담준비","상담진행","상담완료","종결","취소요청","예약취소"];
 const STATUS_ALIASES={'승인대기':'예약신청','예약확정':'예약승인','결제대기':'예약승인','검사링크발송':'검사발송','검사진행':'검사발송','결과작성':'결과업로드','상담예정':'상담준비'};
 function normalizeStatus(status){const raw=String(status||'예약신청');return STATUS_ALIASES[raw]||raw;}
@@ -155,12 +134,15 @@ async function loadServerReservations(){
   // 어느 한 서버가 비어 있거나 일시 실패해도 기존 예약이 사라지지 않게 합니다.
   const localRows=excludeDeletedReservations(load('modumam_reservations',[]));
   const inboxRows=excludeDeletedReservations(load('modumam_reservation_inbox',[]));
+  // 서버 저장소를 예약 상태의 기준본(canonical source)으로 사용합니다.
+  // 로컬/수신함/현재 화면의 오래된 복사본을 먼저 넣고,
+  // 서버의 최신 예약을 마지막에 병합하여 같은 ID의 상태를 서버값으로 확정합니다.
   const merged=mergeReservationsById(
-    legacyResult.rows,
-    appResult.rows,
     localRows,
     inboxRows,
-    state.reservations||[]
+    state.reservations||[],
+    legacyResult.rows,
+    appResult.rows
   );
 
   state.reservations=merged;
@@ -223,6 +205,40 @@ async function saveServerReservations(rows){
   return legacyOk&&appOk;
 }
 
+async function saveReservationCanonical(reservation){
+  if(!reservation || reservation.id===undefined || reservation.id===null){
+    throw new Error('저장할 예약 정보가 없습니다.');
+  }
+
+  // 홈페이지 예약은 reservations-api POST 동일-ID upsert를 단일 기준 저장 경로로 사용합니다.
+  const isAppReservation =
+    String(reservation?.applicationSource||'')==='modumam-app-v1' ||
+    String(reservation?.appApplicationId||'').startsWith('APP-');
+
+  if(isAppReservation){
+    // 앱 예약은 기존 앱 저장소에 유지합니다.
+    const ok=await putReservationSource(APP_RESERVATION_SERVER_API,[reservation],'앱 검사신청 서버');
+    if(!ok)throw new Error(state.reservationSyncError||'앱 예약 저장에 실패했습니다.');
+    return reservation;
+  }
+
+  const response=await fetch(LEGACY_RESERVATION_SERVER_API,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'X-MML-Admin-Password':ADMIN_PASSWORD
+    },
+    cache:'no-store',
+    body:JSON.stringify({reservation})
+  });
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok || body?.ok!==true){
+    throw new Error(body?.error||`예약 서버 저장 실패 (${response.status})`);
+  }
+  return body.reservation||reservation;
+}
+
+
 function appendAuditLog(action,key,detail=''){
   if(window.MMLDataStore){
     window.MMLDataStore.audit(action,key,detail,{module:'admin'});
@@ -235,7 +251,7 @@ function appendAuditLog(action,key,detail=''){
     localStorage.setItem(auditKey,JSON.stringify(current.slice(0,300)));
   }catch(e){}
 }
-function save(k,v){
+function save(k,v,options={}){
   try{
     if(k==='modumam_reports'&&window.MMLReportStore?.saveAll){
       // 보고서 본문은 MMLReportStore(IndexedDB)의 단일 경로로만 저장합니다.
@@ -257,7 +273,7 @@ function save(k,v){
     alert(`저장하지 못했습니다.\n${String(error?.message||error)}`);
     return false;
   }
-  if(k==='modumam_reservations'&&Array.isArray(v)){replaceIndexedReservations(v).catch(error=>{state.reservationSyncError=String(error?.message||error)});saveServerReservations(v).catch(()=>{});}
+  if(k==='modumam_reservations'&&Array.isArray(v)){replaceIndexedReservations(v).catch(error=>{state.reservationSyncError=String(error?.message||error)});if(!options.skipServer)saveServerReservations(v).catch(()=>{});}
   return true;
 }
 
@@ -360,19 +376,31 @@ function receiveReservationRows(rows,source='사용자 페이지'){
   if(changed)appendAuditLog('예약 직접 수신','modumam_reservations',`${source} ${incoming.length}건`);
   return changed;
 }
+let reservationRefreshPromise=null;
 async function refreshSharedOperatingData(showMessage=false){
-  requestReservationsFromUserPages();
-  const serverRows=await loadServerReservations();
-  const localChanged=syncSharedOperatingData();
-  const indexedChanged=await syncIndexedReservationData();
-  if(showMessage){
-    if(state.reservationSyncError){
-      alert('예약 서버 불러오기 실패: '+state.reservationSyncError);
-    }else{
-      alert(`예약 서버 ${state.reservationServerCount||0}건 확인 · 현재 표시 ${state.reservations.length}건`);
-    }
+  // 같은 시점에 여러 이벤트가 발생해도 예약 서버 조회는 한 번만 실행합니다.
+  if(reservationRefreshPromise){
+    if(showMessage) await reservationRefreshPromise;
+    return reservationRefreshPromise;
   }
-  render();
+  reservationRefreshPromise=(async()=>{
+    await loadServerReservations();
+    syncSharedOperatingData();
+    await syncIndexedReservationData();
+    if(showMessage){
+      if(state.reservationSyncError){
+        alert('예약 서버 불러오기 실패: '+state.reservationSyncError);
+      }else{
+        alert(`예약 서버 ${state.reservationServerCount||0}건 확인 · 현재 표시 ${state.reservations.length}건`);
+      }
+    }
+    render();
+  })();
+  try{
+    await reservationRefreshPromise;
+  }finally{
+    reservationRefreshPromise=null;
+  }
 }
 function esc(v){return String(v||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')}
 function statusClass(s){const n=normalizeStatus(s);if(['상담완료','종결'].includes(n))return'bg-emerald-100 text-emerald-700';if(['상담준비','상담진행'].includes(n))return'bg-teal-100 text-teal-700';if(n==='결과업로드')return'bg-purple-100 text-purple-700';if(n==='검사완료')return'bg-violet-100 text-violet-700';if(n==='검사발송')return'bg-indigo-100 text-indigo-700';if(n==='결제완료')return'bg-emerald-100 text-emerald-700';if(n==='예약승인')return'bg-blue-100 text-blue-700';if(n==='취소요청')return'bg-orange-100 text-orange-700';if(n==='예약취소')return'bg-rose-100 text-rose-700';return'bg-amber-100 text-amber-700'}
@@ -534,7 +562,7 @@ function counselingMethodKey(type){
 function counselingMethodChips(type){
   const selected=counselingMethodKey(type);
   const methods=['장소 조율','찾아가는','화상','AI'];
-  return `<div class="flex flex-wrap gap-2 mt-2">${methods.map(m=>`<span class="rounded-full px-3 py-1.5 text-xs border ${selected===m?'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm':'bg-white text-slate-400 border-slate-200 font-semibold'}">${m}${selected===m?' · 선택':''}</span>`).join('')}</div>`;
+  return `<div class="flex flex-wrap gap-2 mt-2">${methods.map(m=>`<span class="rounded-full px-3 py-1.5 text-xs border ${selected===m?'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm':'bg-white text-slate-400 border-slate-200 font-semibold'}">${m}${selected===m?' · 선택':''}</span>`).join('')}${renderAiCounselingActivationControl(reservation)}</div>`;
 }
 function electronicChartTestChips(client, latest, tests){
   const statuses=latest?.testStatuses||{};
@@ -632,53 +660,62 @@ window.openTodayTaskPage=openTodayTaskPage;
    - 5회 실패 시 30초 잠금
    - 브라우저 세션 동안 로그인 유지
 ========================================================= */
+
+
+
+
 function login(e){
-  e.preventDefault();
+  e?.preventDefault?.();
   const now=Date.now();
-  const inputPassword = String(state.password || '').trim();
-
-  /* =====================================================
-     관리자 비밀번호 확인
-     - 앞뒤 공백은 자동 제거합니다.
-     - 잠금 상태여도 올바른 비밀번호를 입력하면 즉시 로그인됩니다.
-     - 비밀번호 변경 위치: ADMIN_PASSWORD
-  ===================================================== */
-  if(inputPassword===ADMIN_PASSWORD){
-    state.authed=true;
-    state.password='';
-    state.loginError='';
-    state.loginFailCount=0;
-    state.loginLockedUntil=0;
-    sessionStorage.setItem('modumam_admin_auth','true');
-    sessionStorage.removeItem('modumam_admin_fail_count');
-    sessionStorage.removeItem('modumam_admin_locked_until');
-    render();
-    return;
-  }
-
   if(state.loginLockedUntil && now<state.loginLockedUntil){
-    const remain=Math.ceil((state.loginLockedUntil-now)/1000);
-    state.loginError=`비밀번호를 여러 번 틀렸습니다. ${remain}초 후 다시 시도해 주세요.`;
+    state.loginError='잠시 후 다시 시도해 주세요.';
     render();
-    return;
+    return false;
   }
 
-  state.loginFailCount+=1;
-  sessionStorage.setItem('modumam_admin_fail_count',String(state.loginFailCount));
-  if(state.loginFailCount>=MAX_LOGIN_FAILS){
-    state.loginLockedUntil=Date.now()+LOCK_SECONDS*1000;
-    sessionStorage.setItem('modumam_admin_locked_until',String(state.loginLockedUntil));
-    state.loginError=`비밀번호를 ${MAX_LOGIN_FAILS}회 틀렸습니다. ${LOCK_SECONDS}초 후 다시 시도해 주세요.`;
-  }else{
-    state.loginError=`비밀번호가 올바르지 않습니다. (${state.loginFailCount}/${MAX_LOGIN_FAILS})`;
+  const input=String(state.password||'').trim();
+  const validPassword=ADMIN_PASSWORD;
+
+  if(input===validPassword){
+    state.authed=true;
+    state.loginError='';
+    state.loginAttempts=0;
+    state.loginLockedUntil=0;
+    try{ sessionStorage.setItem('modumam_admin_authed','1'); }catch(e){}
+    render();
+    // 기존 예약 전체 초기화는 배포 후 관리자 로그인 시 한 번만 실행합니다.
+    Promise.resolve()
+      .then(()=>refreshSharedOperatingData(false))
+      .catch(error=>{
+        console.error('[예약 전체 초기화]',error);
+        alert('기존 예약을 초기화하지 못했습니다.\n'+String(error?.message||error));
+      });
+    // 로그인 후 예약 동기화는 위 초기화 흐름에서 실행합니다.
+    /*
+    Promise.resolve().then(()=>refreshSharedOperatingData(false)).catch(error=>{
+      console.warn('[예약 초기 동기화 실패]',error);
+    });
+    */
+    return true;
+  }
+
+  state.authed=false;
+  state.loginAttempts=Number(state.loginAttempts||0)+1;
+  state.loginError='비밀번호가 올바르지 않습니다.';
+  if(state.loginAttempts>=5){
+    state.loginLockedUntil=Date.now()+30*1000;
+    state.loginAttempts=0;
   }
   render();
+  return false;
 }
 function logout(){sessionStorage.removeItem('modumam_admin_auth');state.authed=false;state.password='';state.loginError='';render()}
 // [MOD-20260713-ADMIN-STATUS-HISTORY]
 // 예약 진행상태가 바뀌면 회원 화면에서 확인할 수 있도록 변경 이력과 읽지 않은 알림을 저장합니다.
-function updateReservation(id,patch){
+async function updateReservation(id,patch){
   const changedAt=new Date().toLocaleString('ko-KR');
+  let updatedReservation=null;
+
   state.reservations=state.reservations.map(r=>{
     if(String(r.id)!==String(id))return r;
     const next={...r,...patch};
@@ -689,31 +726,43 @@ function updateReservation(id,patch){
       next.statusUpdatedAt=changedAt;
       next.statusUpdateUnread=true;
     }
+    updatedReservation=next;
     return next;
   });
-  save('modumam_reservations',state.reservations);
+
+  if(!updatedReservation){
+    throw new Error('변경할 예약 정보를 찾지 못했습니다.');
+  }
+
+  // 먼저 서버 기준본에 저장 완료한 뒤 브라우저 보조저장소와 화면을 갱신합니다.
+  const serverSaved=await saveReservationCanonical(updatedReservation);
+  state.reservations=state.reservations.map(r=>
+    String(r.id)===String(id)?{...r,...serverSaved}:r
+  );
 
   try{
-    const updated=state.reservations.find(
-      r=>String(r.id)===String(id)
-    );
+    save('modumam_reservations',state.reservations,{skipServer:true});
+  }catch(error){
+    console.warn('[예약 로컬 보조 저장 실패]',error);
+  }
+
+  try{
+    const updated=state.reservations.find(r=>String(r.id)===String(id));
     if(updated){
       const inbox=load('modumam_reservation_inbox',[]);
-      const nextInbox=[
-        updated,
-        ...inbox.filter(item=>String(item.id)!==String(id))
-      ];
-      save('modumam_reservation_inbox',nextInbox);
-      save('modumam_last_reservation',updated);
-      putIndexedReservation(updated).catch(error=>{
+      const nextInbox=[updated,...inbox.filter(item=>String(item.id)!==String(id))];
+      localStorage.setItem('modumam_reservation_inbox',JSON.stringify(nextInbox.slice(0,500)));
+      localStorage.setItem('modumam_last_reservation',JSON.stringify(updated));
+      await putIndexedReservation(updated).catch(error=>{
         console.error('[예약 진행상태 IndexedDB 저장]',error);
       });
     }
   }catch(error){
-    console.error('[예약 진행상태 동기화]',error);
+    console.error('[예약 진행상태 보조 동기화]',error);
   }
 
   render();
+  return serverSaved;
 }
 
 // [MOD-20260713-ADMIN-SCHEDULE-HISTORY]
@@ -721,7 +770,7 @@ function updateReservation(id,patch){
 
 // [MOD-20260726-ADMIN-CANCELLATION]
 // 사용자의 예약취소 요청을 관리자가 승인하거나 거부합니다.
-function approveReservationCancellation(id){
+async function approveReservationCancellation(id){
   const r=state.reservations.find(x=>String(x.id)===String(id));
   if(!r)return;
   if(normalizeStatus(r.status)!=='취소요청'){
@@ -732,7 +781,7 @@ function approveReservationCancellation(id){
   const now=new Date().toLocaleString('ko-KR');
   const history=[...(Array.isArray(r.cancellationHistory)?r.cancellationHistory:[])];
   history.unshift({id:Date.now(),action:'승인',beforeStatus:r.cancelPreviousStatus||r.previousStatus||'예약신청',afterStatus:'예약취소',processedAt:now});
-  updateReservation(id,{
+  await updateReservation(id,{
     status:'예약취소',
     cancellationStatus:'approved',
     cancellationApprovedAt:now,
@@ -745,7 +794,7 @@ function approveReservationCancellation(id){
   appendAuditLog?.('예약취소 승인','modumam_reservations',`${r.name||''} · ${r.date||''} ${r.time||''}`);
 }
 
-function rejectReservationCancellation(id){
+async function rejectReservationCancellation(id){
   const r=state.reservations.find(x=>String(x.id)===String(id));
   if(!r)return;
   if(normalizeStatus(r.status)!=='취소요청'){
@@ -763,7 +812,7 @@ function rejectReservationCancellation(id){
   const now=new Date().toLocaleString('ko-KR');
   const history=[...(Array.isArray(r.cancellationHistory)?r.cancellationHistory:[])];
   history.unshift({id:Date.now(),action:'거부',reason:String(reason).trim(),beforeStatus:'취소요청',afterStatus:safeRestore,processedAt:now});
-  updateReservation(id,{
+  await updateReservation(id,{
     status:safeRestore,
     cancellationStatus:'rejected',
     cancellationRejectedAt:now,
@@ -950,13 +999,48 @@ function updateReservationTimeOptions(id){
 }
 window.updateReservationTimeOptions=updateReservationTimeOptions;
 
-function approveReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));const caseNumber=r?.caseNumber||findExistingCaseNumber(r||{},state.reservations)||nextCaseNumber(r||{},state.reservations);updateReservation(id,{status:'예약승인',caseNumber,approvedAt:new Date().toLocaleString()});}
-function markPaymentComplete(id){const r=state.reservations.find(x=>String(x.id)===String(id));const isPersonal=programBaseName(r?.program||r?.bookingProgram||'')==='개인 마음상담';updateReservation(id,isPersonal?{status:'상담준비',paidAt:new Date().toLocaleString(),counselingReadyAt:new Date().toLocaleString()}:{status:'결제완료',paidAt:new Date().toLocaleString()});}
+async function approveReservation(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));
+  if(!r){
+    alert('예약 정보를 찾지 못했습니다. 예약 새로 불러오기를 눌러 다시 확인해 주세요.');
+    return false;
+  }
+  if(normalizeStatus(r.status)!=='예약신청'){
+    alert(`현재 상태가 ${normalizeStatus(r.status)}이므로 예약승인할 수 없습니다.`);
+    return false;
+  }
+  const caseNumber=r.caseNumber||findExistingCaseNumber(r,state.reservations)||nextCaseNumber(r,state.reservations);
+  const approvedAt=new Date().toLocaleString('ko-KR');
+  await updateReservation(id,{status:'예약승인',caseNumber,approvedAt});
+  return true;
+}
+function markPaymentComplete(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));
+  const isPersonal=programBaseName(r?.program||r?.bookingProgram||'')==='개인 마음상담';
+  const now=new Date().toLocaleString('ko-KR');
+  return updateReservation(id,isPersonal
+    ? {
+        status:'상담준비',
+        paidAt:now,
+        paymentCompleted:true,
+        paymentCompletedAt:now,
+        paymentStatus:'결제완료',
+        counselingReadyAt:now
+      }
+    : {
+        status:'결제완료',
+        paidAt:now,
+        paymentCompleted:true,
+        paymentCompletedAt:now,
+        paymentStatus:'결제완료'
+      }
+  );
+}
 function sendTestLinks(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]=ts[t]&&ts[t]!=='미발송'?ts[t]:'발송완료');updateReservation(id,{status:'검사발송',testStatuses:ts,testLinksSentAt:new Date().toLocaleString()});}
 function markTestComplete(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]='검사완료');updateReservation(id,{status:'검사완료',testStatuses:ts,testCompletedAt:new Date().toLocaleString()});}
 function markCounselingReady(id){updateReservation(id,{status:'상담준비',counselingReadyAt:new Date().toLocaleString()});}
-function nextActionLabel(r){const st=normalizeStatus(r.status);if(st==='예약신청')return '예약 승인';if(st==='예약승인')return '결제 확인';if(st==='결제완료')return '검사 링크 발송';if(st==='검사발송')return '검사 완료 확인';if(st==='검사완료')return '결과 업로드';if(st==='결과업로드')return '상담 준비';if(st==='상담준비')return '상담 시작';if(st==='상담진행')return '상담 완료';if(st==='상담완료')return '종결';return '완료';}
-function runNextAction(id){
+function nextActionLabel(r){const st=normalizeStatus(r.status);if(st==='취소요청')return '취소 요청 처리';if(st==='예약신청')return '예약 승인';if(st==='예약승인')return '결제 확인';if(st==='결제완료')return '검사 링크 발송';if(st==='검사발송')return '검사 완료 확인';if(st==='검사완료')return '결과 업로드';if(st==='결과업로드')return '상담 준비';if(st==='상담준비')return '상담 시작';if(st==='상담진행')return '상담 완료';if(st==='상담완료')return '종결';return '완료';}
+async function runNextAction(id){
   const r=state.reservations.find(
     x=>String(x.id)===String(id)
   );
@@ -987,7 +1071,57 @@ function runNextAction(id){
 
   alert(st==='종결'?'이미 종결된 예약입니다.':'현재 단계에서는 다음 단계로 이동할 수 없습니다.');
 }
+window.approveReservation=approveReservation;
 window.runNextAction=runNextAction;
+
+// [MOD-20260824-RESERVATION-NEXT-CLICK-V3]
+// 예약카드는 매 render()마다 DOM이 교체되므로 inline onclick 대신 document 이벤트 위임으로 처리합니다.
+if(!window.__MML_RESERVATION_NEXT_CLICK_BOUND__){
+  window.__MML_RESERVATION_NEXT_CLICK_BOUND__=true;
+  document.addEventListener('click',async(event)=>{
+    const button=event.target?.closest?.('[data-mml-action="reservation-next"]');
+    if(!button)return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const reservationId=String(button.dataset.reservationId||'').trim();
+    if(!reservationId){
+      alert('예약 ID를 확인할 수 없습니다.');
+      return;
+    }
+
+    if(button.dataset.processing==='true')return;
+    button.dataset.processing='true';
+    const originalText=button.textContent;
+    button.disabled=true;
+    button.textContent='처리 중...';
+
+    try{
+      const target=state.reservations.find(row=>String(row.id)===reservationId);
+      if(!target)throw new Error('예약 정보를 찾지 못했습니다. 예약 새로 불러오기를 눌러 다시 확인해 주세요.');
+
+      const before=normalizeStatus(target.status);
+      await Promise.resolve(runNextAction(reservationId));
+
+      // 승인/상태 변경 뒤 서버 기준 상태를 한 번 다시 읽어 관리자 카드와 맞춥니다.
+      await refreshSharedOperatingData(false);
+      const updated=state.reservations.find(row=>String(row.id)===reservationId);
+      const after=normalizeStatus(updated?.status);
+
+      if(before===after){
+        throw new Error(`상태가 변경되지 않았습니다. 현재 상태: ${after||before}`);
+      }
+    }catch(error){
+      console.error('[예약 다음단계 클릭]',error);
+      alert(error?.message||'예약 상태 변경에 실패했습니다.');
+      button.disabled=false;
+      button.textContent=originalText;
+      button.dataset.processing='false';
+    }
+  },true);
+}
+
 
 // [MOD-20260713-STATUS-ROLLBACK]
 // 통합 진행상태를 한 단계 이전으로 되돌리고 변경 이력을 예약별로 확인합니다.
@@ -1284,6 +1418,8 @@ function restoreCancelledReservation(id){
 
 window.deleteCancelledReservation=deleteCancelledReservation;
 window.restoreCancelledReservation=restoreCancelledReservation;
+window.approveReservationCancellation=approveReservationCancellation;
+window.rejectReservationCancellation=rejectReservationCancellation;
 
 function copyText(t){navigator.clipboard.writeText(t).then(()=>alert('복사되었습니다.'))}
 function copyPaymentMessage(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const p=getPaymentInfo(r);copyText(`${r.name}님, 안녕하세요.\n모두의 마음연구소입니다.\n\n예약 신청이 확인되었습니다.\n\n■ 신청 프로그램\n${programBaseName(r.program)}\n\n■ 상담 방식\n${r.type}\n\n■ 희망 일정\n${r.date} ${r.time}\n\n■ 결제 금액\n${p.total}\n${p.detail}\n\n■ 입금 계좌\n카카오뱅크 3333-21-2787124\n예금주 : 백인영\n\n입금 확인 후 검사 링크를 발송해 드리겠습니다.\n\n감사합니다.\n모두의 마음연구소`)}
@@ -3461,8 +3597,8 @@ window.addEventListener('storage',(event)=>{
     if(syncSharedOperatingData()) render();
   }
 });
-window.addEventListener('focus',()=>{if(state.authed)refreshSharedOperatingData(false)});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.authed)refreshSharedOperatingData(false)});
+// 예약 서버는 포커스/탭 전환 때 자동 조회하지 않습니다.
+// 관리자 로그인 시 1회, 신규 예약 알림 수신, 상태 변경, '예약 새로 불러오기' 때만 동기화합니다.
 try{
   const operatingChannel=new BroadcastChannel('modumam_operating_sync');
   operatingChannel.addEventListener('message',event=>{
@@ -3490,7 +3626,15 @@ try{
 
 syncSharedOperatingData();
 render();
-syncIndexedReservationData().then(changed=>{if(changed||state.reservationDbCount)render();requestReservationsFromUserPages()});
+syncIndexedReservationData().then(changed=>{
+  if(changed||state.reservationDbCount)render();
+  // 사용자 탭에 반복 요청을 보내지 않습니다.
+});
+if(state.authed){
+  refreshSharedOperatingData(false).catch(error=>{
+    console.warn('[예약 초기 동기화 실패]',error);
+  });
+}
 // MOD-20260720-PDF-A4-FLOW-V8: 전자차트 종합보고서 PDF의 빈 페이지와 섹션 정렬 오류를 수정합니다.
 
 // BUILD 20260721-CURRENT-FORM-DIRECT-PRINT-V55
@@ -3536,3 +3680,94 @@ window.MMLAssessmentReportActions={
   approve(id){return window.toggleReportApproval(String(id))},
   pdf(id){return window.printReport(String(id),true)}
 };
+
+
+
+function isAiCounselingReservation(reservation){
+  const values=[
+    reservation?.program,
+    reservation?.bookingProgram,
+    reservation?.programName,
+    reservation?.serviceName,
+    reservation?.type
+  ].map(v=>String(v||''));
+  return values.some(v=>v.includes('24시 AI상담')||v.includes('AI상담')||v.includes('AI 상담'));
+}
+function canEnableAiCounseling(reservation){
+  // 운영자가 필요할 때 직접 활성/비활성 상태를 결정합니다.
+  // 결제상태나 예약 진행단계는 AI상담 활성화의 선행조건으로 사용하지 않습니다.
+  return !!reservation && normalizeStatus(reservation.status)!=='예약취소';
+}
+function isAiCounselingEnabled(reservation){
+  return reservation?.aiCounselingEnabled===true || reservation?.aiEnabled===true;
+}
+
+function renderAiCounselingActivationControl(reservation){
+  const enabled = isAiCounselingEnabled(reservation);
+  const available = canEnableAiCounseling(reservation);
+  const id = String(reservation?.id || '');
+
+  if(enabled){
+    return `
+      <button
+        type="button"
+        data-mml-action="ai-counseling-toggle"
+        data-reservation-id="${id}"
+        data-next-enabled="false"
+        class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-700"
+      >AI 상담 활성</button>
+    `;
+  }
+
+  return `
+    <button
+      type="button"
+      data-mml-action="ai-counseling-toggle"
+      data-reservation-id="${id}"
+      data-next-enabled="true"
+      ${available ? '' : 'disabled'}
+      class="rounded-xl border px-3 py-2 text-[11px] font-extrabold ${
+        available
+          ? 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+          : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+      }"
+    >AI 상담 비활성</button>
+  `;
+}
+
+window.renderAiCounselingActivationControl=renderAiCounselingActivationControl;
+window.isAiCounselingReservation=isAiCounselingReservation;
+window.canEnableAiCounseling=canEnableAiCounseling;
+
+async function toggleAiCounselingActivation(reservationId,nextEnabled){
+  const reservation = (typeof state!=='undefined' && Array.isArray(state.reservations))
+    ? state.reservations.find(r=>String(r.id)===String(reservationId))
+    : null;
+
+  if(!reservation){
+    throw new Error('예약 정보를 찾지 못했습니다.');
+  }
+
+  if(!canEnableAiCounseling(reservation)){
+    alert('취소된 예약은 AI 상담을 활성화할 수 없습니다.');
+    return false;
+  }
+
+  await updateReservation(reservationId,{
+    aiCounselingEnabled:!!nextEnabled,
+    aiEnabled:!!nextEnabled,
+    aiResultCounselingEnabled:!!nextEnabled,
+    aiCounselingActivatedAt:nextEnabled ? new Date().toLocaleString('ko-KR') : ''
+  });
+  return true;
+}
+window.toggleAiCounselingActivation=toggleAiCounselingActivation;
+
+
+
+
+
+
+
+
+

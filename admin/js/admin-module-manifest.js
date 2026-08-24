@@ -93,7 +93,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260808-ai-24h-booking-v3',
+      src:'./js/modules/operations-workspace.js?v=20260825-ai-button-restore-v1',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260817-userapp-5174-v3',
+      src:'./js/admin.js?v=20260825-ai-simple-gate-v1',
       required:true
     },
     {

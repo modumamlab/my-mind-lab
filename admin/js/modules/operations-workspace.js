@@ -122,7 +122,6 @@ function dashboardView(){
                       <button onclick="startCounseling(${r.id})" class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">상담 시작</button>
                       <button onclick="openCounselingRecordByReservation(${r.id})" class="rounded-xl bg-blue-600 px-3 py-2 text-xs font-extrabold text-white">상담일지</button>
                       ${normalizeStatus(r.status)==='상담진행'?`<button onclick="completeCounselingAndOpenChart(${r.id})" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">상담 완료</button>`:''}
-                      ${isAiResultCounselingReservation(r)?`<button onclick="toggleAiResultCounseling(${r.id},${r.aiResultCounselingEnabled?'false':'true'})" class="rounded-xl ${r.aiResultCounselingEnabled?'bg-violet-100 text-violet-700':'bg-violet-600 text-white'} px-3 py-2 text-xs font-extrabold">AI 상담 ${r.aiResultCounselingEnabled?'비활성화':'활성화'}</button>`:''}
                       <button onclick="setMenu('reservation')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">예약관리</button>
                     </div>
                   </div>
@@ -299,7 +298,13 @@ function reservationView(){
           </div>
           <div class="flex flex-wrap gap-2">
             <button onclick='openMemberChartByReservation(${reservationId},"profile")' class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold">전자차트</button>
-            ${!terminal?`<button onclick="runNextAction(${reservationId})" class="rounded-xl bg-slate-950 px-3 py-2 text-[11px] font-extrabold text-white">${esc(nextActionLabel(r))}</button>`:''}
+            ${normalizeStatus(r.status)!=='예약취소' && window.isAiCounselingReservation?.(r)
+              ? window.renderAiCounselingActivationControl?.(r) || ''
+              : ''}
+            ${normalizeStatus(r.status)==='취소요청'
+              ? `<button type="button" data-mml-action="reservation-cancel-approve" data-reservation-id="${esc(String(r.id||''))}" class="rounded-xl bg-rose-600 px-3 py-2 text-[11px] font-extrabold text-white">취소 승인</button>
+                 <button type="button" data-mml-action="reservation-cancel-reject" data-reservation-id="${esc(String(r.id||''))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-700">취소 거부</button>`
+              : (!terminal?`<button type="button" data-mml-action="reservation-next" data-reservation-id=${reservationId} class="rounded-xl bg-slate-950 px-3 py-2 text-[11px] font-extrabold text-white">${esc(nextActionLabel(r))}</button>`:'')}
           </div>
         </div>
 
@@ -330,10 +335,7 @@ function reservationView(){
             </div>
             ${r.aiResultCounselingCompletedAt
               ? `<span class="shrink-0 rounded-full bg-emerald-100 px-3 py-1.5 text-[11px] font-bold text-emerald-700">AI 상담 완료</span>`
-              : `<label class="flex shrink-0 items-center gap-2 rounded-xl border ${r.aiResultCounselingEnabled?'border-violet-200 bg-violet-50 text-violet-700':'border-slate-200 bg-white text-slate-600'} px-3 py-2 text-[11px] font-extrabold">
-                  <span>AI 상담 ${r.aiResultCounselingEnabled?'활성 · 1시간':'비활성'}</span>
-                  <input type="checkbox" ${r.aiResultCounselingEnabled?'checked':''} onchange='toggleAiResultCounseling(${reservationId},this.checked)' class="h-4 w-4">
-                </label>`
+              : ''
             }
           </div>
         </div>
@@ -852,7 +854,7 @@ function deleteManualClient(key){
   if(!confirm(`${c.name}님의 직접등록 정보만 삭제할까요? 예약·검사·상담 기록은 삭제되지 않습니다.`))return;
   state.clients=rows.filter(x=>(x.key||clientKey(x.name,x.phone))!==key);save('modumam_clients',state.clients);render();
 }
-function openClientChart(key){state.selectedClientKey=key;state.memberTab='profile';state.menu='members';render()}
+
 function clientManagementView(){
   const q=String(state.clientSearch||'').trim().toLowerCase();
   const rows=clientManagementRows().filter(c=>!q||`${c.name||''} ${c.phone||''} ${c.guardian||''} ${c.school||''}`.toLowerCase().includes(q));
@@ -863,4 +865,69 @@ function clientManagementView(){
     <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="mb-5"><p class="text-xs font-extrabold text-emerald-700">${editing?'EDIT CLIENT':'NEW CLIENT'}</p><h3 class="mt-1 text-lg font-extrabold">${editing?'내담자 정보 수정':'내담자 신규등록'}</h3></div><div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"><input id="client-name" value="${esc(d.name||'')}" placeholder="이름 *" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"><input id="client-phone" value="${esc(d.phone||'')}" placeholder="연락처 *" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"><input id="client-birth" type="date" value="${esc(d.birth||'')}" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"><input id="client-guardian" value="${esc(d.guardian||'')}" placeholder="보호자" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"><input id="client-school" value="${esc(d.school||'')}" placeholder="학교" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"><input id="client-grade" value="${esc(d.grade||'')}" placeholder="학년" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"><input id="client-referral" value="${esc(d.referral||'')}" placeholder="의뢰기관" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"><input id="client-memo" value="${esc(d.memo||'')}" placeholder="메모" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"></div><div class="mt-4 flex gap-2"><button onclick="${editing?`updateManualClient('${esc(state.clientEditingKey)}')`:'saveManualClient()'}" class="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-extrabold text-white">${editing?'수정 저장':'내담자 등록'}</button>${editing?'<button onclick="cancelManualClientEdit()" class="rounded-xl border border-slate-200 px-5 py-3 text-xs font-extrabold">취소</button>':''}</div></section>
     <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 class="text-lg font-extrabold">전체 내담자</h3><p class="mt-1 text-xs text-slate-400">직접등록 내담자와 홈페이지 예약 내담자를 함께 표시합니다.</p></div><input value="${esc(state.clientSearch||'')}" oninput="state.clientSearch=this.value;render()" placeholder="이름·연락처·학교 검색" class="rounded-xl border border-slate-200 px-4 py-3 text-sm"></div><div class="mt-5 space-y-3">${rows.length?rows.map(c=>`<article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div class="flex flex-wrap items-center gap-2"><h4 class="font-extrabold text-slate-900">${esc(c.name)}님</h4><span class="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-500">${esc(c.source||((c.reservations||[]).length?'홈페이지/예약 연결':'기록 연결'))}</span></div><p class="mt-1 text-xs text-slate-500">${esc(c.phone||'연락처 없음')}${c.birth?` · ${esc(c.birth)}`:''}${c.school?` · ${esc(c.school)} ${esc(c.grade||'')}`:''}</p><p class="mt-1 text-[11px] text-slate-400">예약 ${(c.reservations||[]).length}건 · 검사 ${(c.uploads||[]).length}건 · 보고서 ${(c.reports||[]).length}건</p></div><div class="flex flex-wrap gap-2"><button onclick="openClientChart('${esc(c.key)}')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">전자차트</button><button onclick="editManualClient('${esc(c.key)}')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold">수정</button><button onclick="deleteManualClient('${esc(c.key)}')" class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold text-rose-600">직접등록 삭제</button></div></div></article>`).join(''):empty('등록된 내담자가 없습니다.')}</div></section>
   </div>`);
+}
+
+
+// [MOD-20260824-CANCELLATION-ACTION-DELEGATION-V2]
+if (!window.__mmlCancellationActionDelegationInstalled) {
+  window.__mmlCancellationActionDelegationInstalled = true;
+  document.addEventListener('click', async (event) => {
+    const button = event.target?.closest?.('[data-mml-action="reservation-cancel-approve"],[data-mml-action="reservation-cancel-reject"]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const id = button.getAttribute('data-reservation-id') || '';
+    const action = button.getAttribute('data-mml-action');
+    if (!id) return alert('예약 정보를 찾지 못했습니다.');
+    button.disabled = true;
+    try {
+      const fn = action === 'reservation-cancel-approve'
+        ? window.approveReservationCancellation
+        : window.rejectReservationCancellation;
+      if (typeof fn !== 'function') throw new Error('취소 처리 기능을 불러오지 못했습니다.');
+      await fn(id);
+    } catch (error) {
+      console.error('[예약 취소 처리]', error);
+      alert('예약 취소 처리 중 오류가 발생했습니다.\\n' + String(error?.message || error));
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
+  });
+}
+
+
+// [MOD-20260825-AI-COUNSELING-BUTTON-RESTORE]
+if (!window.__mmlAiCounselingButtonInstalled) {
+  window.__mmlAiCounselingButtonInstalled = true;
+  document.addEventListener('click', async (event) => {
+    const button = event.target?.closest?.('[data-mml-action="ai-counseling-toggle"]');
+    if (!button) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const id = button.getAttribute('data-reservation-id') || '';
+    const nextEnabled = button.getAttribute('data-next-enabled') === 'true';
+
+    if (!id) {
+      alert('예약 정보를 찾지 못했습니다.');
+      return;
+    }
+
+    if (button.dataset.processing === 'true') return;
+    button.dataset.processing = 'true';
+    button.disabled = true;
+
+    try {
+      if (typeof window.toggleAiCounselingActivation !== 'function') {
+        throw new Error('AI 상담 활성화 기능을 불러오지 못했습니다.');
+      }
+      await window.toggleAiCounselingActivation(id, nextEnabled);
+    } catch (error) {
+      console.error('[AI 상담 활성화]', error);
+      alert('AI 상담 상태 변경 중 오류가 발생했습니다.\n' + String(error?.message || error));
+      button.disabled = false;
+      button.dataset.processing = 'false';
+    }
+  }, true);
 }
