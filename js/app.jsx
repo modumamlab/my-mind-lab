@@ -37,6 +37,19 @@
             request.onerror = () => reject(request.error || new Error("예약 저장소를 열 수 없습니다."));
         });
 
+        const saveReservationToServer = async (reservation) => {
+            const response = await fetch('/.netlify/functions/reservations-api', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reservation })
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || body?.ok !== true) {
+                throw new Error(body?.error || `예약 서버 저장 실패 (${response.status})`);
+            }
+            return body;
+        };
+
         const saveReservationToIndexedDB = async (reservation) => {
             const db = await openModumamDatabase();
             await new Promise((resolve, reject) => {
@@ -4504,14 +4517,22 @@ const toggleTest = (test) => {
                 const updatedReservations = mergeReservationRows(newBooking, reservations);
                 setReservations(updatedReservations);
 
-                // [MOD-20260714-RESERVATION-IDB-BRIDGE]
-                // IndexedDB 저장을 우선 완료한 뒤 localStorage에도 가능한 범위에서 보조 저장합니다.
+                // [FIX-20260824-RESERVATION-SERVER-PERSIST]
+                // 홈페이지 신청은 브라우저 저장만으로 완료 처리하지 않습니다.
+                // 실제 Netlify 예약 서버에 먼저 영구 저장한 뒤 IndexedDB/localStorage를 보조 저장소로 사용합니다.
+                try {
+                    await saveReservationToServer(newBooking);
+                } catch (error) {
+                    console.error('예약 서버 저장 실패:', error);
+                    setBookingAlert({ type: 'error', message: '예약 서버에 신청을 저장하지 못했습니다. 잠시 후 다시 신청해 주세요.' });
+                    alert('예약 신청을 서버에 저장하지 못했습니다. 네트워크 연결을 확인한 뒤 다시 신청해 주세요.');
+                    return;
+                }
+
                 try {
                     await saveReservationToIndexedDB(newBooking);
                 } catch (error) {
-                    setBookingAlert({ type: 'error', message: '예약 저장소 연결에 실패했습니다. 브라우저를 새로고침한 뒤 다시 신청해 주세요.' });
-                    alert('예약 저장에 실패했습니다. 브라우저 저장소 사용이 허용되어 있는지 확인해 주세요.');
-                    return;
+                    console.warn('IndexedDB 예약 보조 저장 실패:', error);
                 }
 
                 try {
@@ -5035,13 +5056,14 @@ if (userAge === 'parent') {
                 검사예약
             </button>
 
-            <button onClick={() => scrollToSection('inquiry')} className="text-sm font-bold text-slate-600 hover:text-amber-600 transition-colors">
-                문의하기
-            </button>
-
-            {(isLoggedIn || currentUser) && (
+            {/* [MOD-20260727-REVIEWS-002] 로그아웃 시 이용후기, 로그인 시 마음기록 */}
+            {(isLoggedIn || currentUser) ? (
                 <button onClick={handleMyPageClick} className="bg-slate-900 text-white px-6 py-2.5 rounded-full hover:bg-slate-800 hover:scale-105 transition-all shadow-md shadow-slate-100 text-sm font-bold">
                     마음기록
+                </button>
+            ) : (
+                <button onClick={() => scrollToSection('reviews')} className="bg-slate-900 text-white px-6 py-2.5 rounded-full hover:bg-slate-800 hover:scale-105 transition-all shadow-md shadow-slate-100 text-sm font-bold">
+                    이용후기
                 </button>
             )}
 
@@ -5099,16 +5121,7 @@ if (userAge === 'parent') {
                         <span>검사예약</span>
                     </button>
 
-                    <button
-                        type="button"
-                        onClick={() => { setIsMobileMenuOpen(false); scrollToSection('inquiry'); }}
-                        className="flex min-h-14 w-full items-center gap-4 rounded-xl px-3 text-left text-base font-bold text-slate-800 transition-colors hover:bg-slate-50"
-                    >
-                        <span className="w-5 text-center text-base text-amber-500">?</span>
-                        <span>문의하기</span>
-                    </button>
-
-                    {(isLoggedIn || currentUser) && (
+                    {(isLoggedIn || currentUser) ? (
                         <button
                             type="button"
                             onClick={() => { setIsMobileMenuOpen(false); handleMyPageClick(); }}
@@ -5116,6 +5129,15 @@ if (userAge === 'parent') {
                         >
                             <span className="w-5 text-center text-base text-rose-500">♥</span>
                             <span>마음기록</span>
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => { setIsMobileMenuOpen(false); scrollToSection('reviews'); }}
+                            className="flex min-h-14 w-full items-center gap-4 rounded-xl px-3 text-left text-base font-bold text-slate-800 transition-colors hover:bg-slate-50"
+                        >
+                            <span className="w-5 text-center text-base text-amber-500">★</span>
+                            <span>이용후기</span>
                         </button>
                     )}
                 </nav>
@@ -5505,7 +5527,7 @@ if (userAge === 'parent') {
                                    - AI 마음상담: 마음리포트와 마음체크 기록 통합
                                    - 심리검사 결과 / 상담·예약 내역은 기존 연결 유지
                                 ===================================================== */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                                     <button
                                         type="button"
                                         onClick={() => setMyRecordPanel('today')}
@@ -5594,76 +5616,14 @@ if (userAge === 'parent') {
                                         </span>
                                     </button>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setMyRecordPanel('reviews')}
-                                        className={`group text-left rounded-3xl border p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${myRecordPanel === 'reviews' ? 'border-rose-200 bg-rose-50/60' : 'border-slate-100 bg-white'}`}
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center text-xl">★</div>
-                                            <span className="text-xs font-extrabold text-rose-700 bg-white border border-rose-100 rounded-full px-3 py-1">{myServiceReviews.length}건</span>
-                                        </div>
-                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">나의 이용후기</h3>
-                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">심리검사와 상담 이용 경험을 기록하고 확인합니다.</p>
-                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-rose-700">후기 작성하기 <Icon name="chevron-right" className="w-4 h-4 ml-1" /></span>
-                                    </button>
+
                                 </div>
 
                                 {/* =====================================================
                                    [MOD-20260710-018] 오늘의 마음 직접 기록 / AI 마음상담 통합 기록
                                 ===================================================== */}
                                 <div className="mt-6 rounded-[2rem] border border-slate-100 bg-slate-50/70 p-5 sm:p-7">
-                                    {myRecordPanel === 'reviews' ? (
-                                        <div>
-                                            <div className="mb-6">
-                                                <h3 className="text-lg font-extrabold text-slate-900">나의 이용후기</h3>
-                                                <p className="mt-1 text-xs text-slate-500 leading-relaxed">심리검사 또는 상담 이용 경험을 작성해 주세요. 후기는 관리자 확인 후 익명으로 공개됩니다.</p>
-                                            </div>
-                                            <div className="rounded-3xl border border-rose-100 bg-white p-5 sm:p-6">
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                    <fieldset className="text-xs font-extrabold text-slate-700">
-                                                        <legend>이용 서비스 <span className="font-medium text-slate-400">(중복 선택 가능)</span></legend>
-                                                        <div className="mt-2 grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-2">
-                                                            {REVIEW_SERVICE_OPTIONS.map((service) => {
-                                                                const checked = reviewCategories.includes(service);
-                                                                return (
-                                                                    <label key={service} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 text-xs transition ${checked ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200'}`}>
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={checked}
-                                                                            onChange={() => setReviewCategories((current) => checked ? current.filter((item) => item !== service) : [...current, service])}
-                                                                            className="h-4 w-4 accent-rose-600"
-                                                                        />
-                                                                        <span className="font-extrabold">{service}</span>
-                                                                    </label>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </fieldset>
-                                                    <label className="text-xs font-extrabold text-slate-700">만족도
-                                                        <select value={reviewRating} onChange={(event) => setReviewRating(Number(event.target.value))} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-rose-300">
-                                                            <option value="5">★★★★★ 매우 만족</option><option value="4">★★★★ 만족</option><option value="3">★★★ 보통</option><option value="2">★★ 아쉬움</option><option value="1">★ 매우 아쉬움</option>
-                                                        </select>
-                                                    </label>
-                                                </div>
-                                                <label className="mt-4 block text-xs font-extrabold text-slate-700">이용후기
-                                                    <textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} maxLength={500} rows={5} placeholder="어떤 점이 도움이 되었는지 편안하게 작성해 주세요." className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 outline-none focus:border-rose-300" />
-                                                </label>
-                                                <div className="mt-4 flex items-center justify-between gap-3">
-                                                    <span className="text-[11px] text-slate-400">{reviewText.length}/500자</span>
-                                                    <button type="button" onClick={submitServiceReview} className="rounded-2xl bg-rose-600 px-5 py-3 text-xs font-extrabold text-white hover:bg-rose-700">후기 등록</button>
-                                                </div>
-                                            </div>
-                                            <div className="mt-5 space-y-3">
-                                                {myServiceReviews.length ? myServiceReviews.map((review) => (
-                                                    <div key={review.id} className="rounded-2xl border border-slate-100 bg-white p-5">
-                                                        <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="rounded-full bg-rose-50 px-3 py-1 text-[11px] font-extrabold text-rose-700">{review.category}</span><span className="text-sm text-amber-500">{'★'.repeat(Number(review.rating) || 5)}</span></div><span className={`rounded-full px-3 py-1 text-[10px] font-extrabold ${review.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{review.status === 'approved' ? '공개 승인' : '확인 대기'}</span></div>
-                                                        <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">{review.content}</p><p className="mt-3 text-[10px] text-slate-400">{review.createdAt}</p>
-                                                    </div>
-                                                )) : <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs text-slate-400">아직 작성한 이용후기가 없습니다.</div>}
-                                            </div>
-                                        </div>
-                                    ) : myRecordPanel === 'reservations' ? (
+                                    {myRecordPanel === 'reservations' ? (
                                         <div>
                                             <div className="mb-5">
                                                 <h3 className="text-lg font-extrabold text-slate-900">상담·예약 내역</h3>
@@ -7960,45 +7920,41 @@ if (userAge === 'parent') {
 
                         {/* 페이지 본문 최하단 · 푸터 바로 위 */}
                         {/* =====================================================
-                           문의하기 · 심리검사/리포트/AI 해석상담/전문가 상담
+                           [MOD-20260727-REVIEWS-004] 비회원 공개 이용후기 · 페이지 최하단
                         ===================================================== */}
-                        <section id="inquiry" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-50 border-y border-slate-100">
-                            <div className="max-w-5xl mx-auto">
-                                <div className="text-center max-w-2xl mx-auto mb-10">
-                                    <span className="inline-flex rounded-full bg-amber-100 px-4 py-2 text-xs font-extrabold text-amber-800">문의하기</span>
-                                    <h2 className="mt-5 text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">궁금한 점을 편하게 문의해 주세요</h2>
-                                    <p className="mt-4 text-sm sm:text-base text-slate-600 leading-7">심리검사 선택부터 검사 진행, 심리리포트, AI 해석상담, 전문가 해석상담까지 필요한 내용을 안내해 드립니다.</p>
-                                </div>
+                        {!(isLoggedIn || currentUser) && (
+                            <section id="reviews" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-50 border-y border-slate-100">
+                                <div className="max-w-6xl mx-auto">
+                                    <div className="text-center max-w-2xl mx-auto mb-10">
+                                        <span className="inline-flex rounded-full bg-amber-100 px-4 py-2 text-xs font-extrabold text-amber-800">이용후기</span>
+                                        <p className="mt-5 text-xl sm:text-2xl font-extrabold text-emerald-700 leading-relaxed">모두의 마음연구소를 이용한 당신의 마음 이야기</p>
+                                    </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {[
-                                        ['심리검사 선택 문의', '어떤 검사가 필요한지 궁금할 때'],
-                                        ['검사 진행 문의', '예약·검사 진행 방법이 궁금할 때'],
-                                        ['심리리포트 문의', '검사 결과와 리포트 이용이 궁금할 때'],
-                                        ['AI 해석상담 문의', '24시 AI 해석상담 이용이 궁금할 때'],
-                                        ['전문가 해석상담 문의', '1급 임상심리사 해석상담이 필요할 때'],
-                                        ['기타 문의', '그 밖의 이용 관련 문의가 있을 때']
-                                    ].map(([title, description]) => (
-                                        <div key={title} className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                                            <p className="text-sm font-extrabold text-slate-900">{title}</p>
-                                            <p className="mt-2 text-xs leading-6 text-slate-500">{description}</p>
+                                    {publishedServiceReviews.length ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                            {publishedServiceReviews.slice(0, 9).map((review) => (
+                                                <article key={review.id} className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-extrabold text-indigo-700">{review.category || '이용후기'}</span>
+                                                        </div>
+                                                        <span className="text-sm tracking-wider text-amber-500">{'★'.repeat(Math.max(1, Math.min(5, Number(review.rating) || 5)))}</span>
+                                                    </div>
+                                                    <p className="mt-5 text-sm leading-7 text-slate-700 whitespace-pre-wrap">“{review.content}”</p>
+                                                    <div className="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-400">{review.displayName || '이용자'} · {review.createdAt || ''}</div>
+                                                </article>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
+                                    ) : null}
 
-                                <div className="mt-8 rounded-3xl bg-slate-900 px-6 py-8 text-center text-white">
-                                    <p className="text-lg font-extrabold">카카오 채널로 문의하세요</p>
-                                    <p className="mt-2 text-xs sm:text-sm text-slate-300 leading-6">문의 내용을 확인한 뒤 필요한 안내를 드립니다. 상담 중에는 답변이 늦어질 수 있습니다.</p>
-                                    <button
-                                        type="button"
-                                        onClick={() => window.open('https://pf.kakao.com/_hQSXX/chat', '_blank')}
-                                        className="mt-5 rounded-full bg-yellow-400 px-7 py-3 text-sm font-extrabold text-slate-900 hover:bg-yellow-300 transition-colors"
-                                    >
-                                        카카오 채널 문의하기
-                                    </button>
+                                    <div className="mt-8 rounded-3xl bg-slate-900 px-6 py-7 text-center text-white">
+                                        <p className="text-base font-extrabold">서비스를 이용하셨나요?</p>
+                                        <p className="mt-2 text-xs text-slate-300">로그인하면 마음기록에서 이용후기를 작성하고 관리할 수 있습니다.</p>
+                                        <button type="button" onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }} className="mt-5 rounded-full bg-white px-6 py-3 text-sm font-extrabold text-slate-900 hover:bg-slate-100">로그인</button>
+                                    </div>
                                 </div>
-                            </div>
-                        </section>
+                            </section>
+                        )}
 
      </main>
 
