@@ -74,5 +74,20 @@
       }
     })();
   </script>
+
+  <!-- Netlify Forms: 신규 예약 관리자 이메일 알림용 (민감 심리정보는 전송하지 않음) -->
+  <form name="reservation-notification" method="POST" data-netlify="true" netlify-honeypot="bot-field" hidden>
+    <input type="hidden" name="form-name" value="reservation-notification" />
+    <input type="hidden" name="bot-field" />
+    <input type="text" name="신청자" />
+    <input type="text" name="연락처" />
+    <input type="email" name="이메일" />
+    <input type="text" name="예약유형" />
+    <input type="text" name="신청프로그램" />
+    <input type="text" name="예약일" />
+    <input type="text" name="예약시간" />
+    <input type="text" name="선호연락방법" />
+    <input type="text" name="접수번호" />
+  </form>
 </body>
 </html>
