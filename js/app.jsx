@@ -572,13 +572,13 @@ async function submitSignup(userData) {
                     setBookingTime('');
                 }
             }, [bookingType]);
-            const [bookingProgram, setBookingProgram] = useState('개별 심리검사');
+            const [bookingProgram, setBookingProgram] = useState('개인 마음상담');
             const [selectedTests, setSelectedTests] = useState([]);
             const [bookingAlert, setBookingAlert] = useState(null);
-            const [bookingTestsOpen, setBookingTestsOpen] = useState(true);
-            const [bookingMethodOpen, setBookingMethodOpen] = useState(false);
-            const [bookingInfoOpen, setBookingInfoOpen] = useState(false);
-            const [bookingConsentOpen, setBookingConsentOpen] = useState(false);
+            const [bookingTestsOpen, setBookingTestsOpen] = useState(false);
+            const [bookingMethodOpen, setBookingMethodOpen] = useState(true);
+            const [bookingInfoOpen, setBookingInfoOpen] = useState(true);
+            const [bookingConsentOpen, setBookingConsentOpen] = useState(true);
             const bookingCollapseVersion = 's68';
 
             const getBookingMethodGuide = (type) => {
@@ -602,12 +602,12 @@ async function submitSignup(userData) {
                     },
                     '24시 AI상담(비대면)': {
                         title: '24시 AI상담(비대면)',
-                        text: '임상심리사가 검토·승인한 심리검사 결과를 바탕으로 채팅형 상담을 진행합니다. 24시간 중 원하는 시작시간을 선택할 수 있으며, 예약 시작시각부터 50분 동안 이용할 수 있습니다.'
+                        text: '상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러울 때, 원하는 시간에 60분 동안 AI와 편안하게 상담할 수 있습니다.'
                     },
                     // 기존 저장 예약 호환
                     'AI(비대면)': {
                         title: '24시 AI상담(비대면)',
-                        text: '임상심리사가 검토·승인한 심리검사 결과를 바탕으로 채팅형 상담을 진행합니다. 24시간 중 원하는 시작시간을 선택할 수 있으며, 예약 시작시각부터 50분 동안 이용할 수 있습니다.'
+                        text: '상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러울 때, 원하는 시간에 60분 동안 AI와 편안하게 상담할 수 있습니다.'
                     }
                 };
                 return guides[type] || guides['찾아오는(대면)'];
@@ -744,7 +744,7 @@ async function submitSignup(userData) {
             /* =====================================================
                [V38] AI 결과상담
                - 임상심리사 검토·승인 결과보고서를 기반으로 진행
-               - 예약 시작시각부터 50분 동안 상담 버튼 활성
+               - 예약 시작시각부터 60분 동안 상담 버튼 활성
                - 늦게 접속해도 예약 종료시각은 연장되지 않음
             ===================================================== */
             const [aiResultCounselingOpen, setAiResultCounselingOpen] = useState(false);
@@ -801,7 +801,7 @@ async function submitSignup(userData) {
 
 
             // [MOD-20260717-AI-RESULT-GRACEFUL-END]
-            // 45분에는 5분 남음 안내, 50분에는 현재 입력/응답을 마친 뒤 종결 안내를 보냅니다.
+            // 55분에는 5분 남음 안내, 60분에는 현재 입력/응답을 마친 뒤 종결 안내를 보냅니다.
             useEffect(() => {
                 if (!aiResultCounselingOpen || !activeAiReservation || aiResultSummary) return;
 
@@ -1899,7 +1899,7 @@ const userText = pendingInput;
                     } else if (aiIntakeReport.counselingRecommendation.includes("부부")) {
                         setBookingProgram("부부 마음이음");
                     } else {
-                        setBookingProgram("개인 마음이음");
+                        setBookingProgram("개별 심리검사");
                     }
 
                     const extraTests = (aiIntakeReport.recommendedTests || [])
@@ -3308,7 +3308,7 @@ const userText = pendingInput;
                 if (!reservation?.date || !reservation?.time) return null;
                 const start = new Date(`${reservation.date}T${reservation.time}:00`);
                 if (Number.isNaN(start.getTime())) return null;
-                const end = new Date(start.getTime() + 50 * 60 * 1000);
+                const end = new Date(start.getTime() + 60 * 60 * 1000);
                 return { start, end };
             };
 
@@ -3429,7 +3429,9 @@ const userText = pendingInput;
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         mode,
-                        reportText: reportToCounselingContext(report),
+                        // 검사를 하지 않은 이용자는 일반 AI상담으로 진행합니다.
+                        // 검사 결과가 있는 경우에만 검사자료를 상담 맥락으로 전달합니다.
+                        reportText: report?.generalAiCounseling ? "" : reportToCounselingContext(report),
                         integratedReportText: reportToCounselingContext(integratedReport),
                         clientMindReportText: "", // 내담자용 심리보고서는 의도적으로 전달하지 않음
                         messages,
@@ -3478,25 +3480,29 @@ const userText = pendingInput;
 
             const startAiResultCounseling = async (reservation) => {
                 const state = getAiReservationState(reservation);
-                const uploadedSource = buildUploadedAssessmentCounselingSource(reservation);
 
-                if (!uploadedSource) {
-                    alert("심리검사 결과지가 업로드된 뒤 AI 결과 해석상담을 이용할 수 있습니다.");
-                    return;
-                }
                 if (reservation?.aiResultCounselingCompletedAt) {
                     alert("이 예약의 AI 결과상담은 이미 완료되었습니다.");
                     return;
                 }
                 if (state.status === "before") {
-                    alert(`예약시간이 되면 AI 결과상담 버튼이 활성화됩니다.\n상담시간: ${reservation.date} ${reservation.time}부터 50분`);
+                    alert(`예약시간이 되면 AI 결과상담 버튼이 활성화됩니다.\n상담시간: ${reservation.date} ${reservation.time}부터 60분`);
                     return;
                 }
                 if (state.status === "ended") {
                     alert("예약된 AI 결과상담 시간이 종료되었습니다.");
                     return;
                 }
-                const report = uploadedSource;
+                // 24시 AI상담의 입장 조건은 예약시간뿐입니다.
+                // 다만 해당 내담자의 심리검사 결과가 있으면 상담 참고자료로 자동 활용합니다.
+                const assessmentSource = buildUploadedAssessmentCounselingSource(reservation);
+                const report = assessmentSource || {
+                    id: `AI-COUNSELING-${reservation.id}`,
+                    title: '24시 AI상담(비대면)',
+                    testType: '',
+                    summary: '',
+                    generalAiCounseling: true
+                };
                 setActiveAiReservation(reservation);
                 setActiveApprovedReport(report);
                 setAiResultCounselingOpen(true);
@@ -3513,7 +3519,7 @@ const userText = pendingInput;
 
                 const intro = {
                     role: "ai",
-                    text: "업로드된 심리검사 결과를 불러왔습니다. 검사결과의 의미를 쉬운 말로 살펴보고 실제 경험과 연결하며 상담을 시작하겠습니다.",
+                    text: "안녕하세요. 지금부터 60분 동안 편안하게 이야기해 주세요. 오늘 가장 이야기하고 싶은 마음이나 고민부터 천천히 시작해도 괜찮습니다.",
                     time: getChatTime()
                 };
                 aiResultSessionIdRef.current = `AI-RESULT-${reservation.id}-${Date.now()}`;
@@ -3733,7 +3739,7 @@ const userText = pendingInput;
                                 ...item,
                                 aiResultCounselingCompletedAt: completedAt,
                                 aiResultCounselingSummary: summary,
-                                aiResultCounselingEndReason: "예약시간 50분 완료",
+                                aiResultCounselingEndReason: "예약시간 60분 완료",
                                 status: String(item.type || "").includes("AI") ? "상담완료" : item.status
                             }
                             : item
@@ -4275,11 +4281,11 @@ const psychTests = [
     {
     id: 'p1',
     badge: 'AI 마음 상담 + 전문가 상담',
-    title: '개인 마음이음',
-    subtitle: '나를 이해하는 심리검사와 해석상담',
-    desc: '심리검사를 통해 현재의 마음을 이해하고, 반복되는 고민의 원인을 함께 살펴보며 자신에게 맞는 변화와 성장의 방향을 찾아갑니다.',
+    title: '개인 마음상담',
+    subtitle: '나를 이해하고 회복을 돕는 1:1 마음상담',
+    desc: '현재의 고민과 마음 상태를 함께 살펴보고, 반복되는 어려움을 이해하며 자신에게 맞는 변화와 회복의 방향을 찾아갑니다.',
     target: '✔ 나를 더 이해하고 싶은 분\n✔ 우울·불안·스트레스를 겪는 분\n✔ 진로 방향을 고민하는 분\n✔ 직장 내 스트레스와 소진을 겪는 분',
-    test: 'TCI · MMPI-2 · 진로검사 · 직무스트레스 · 회복탄력성 등 맞춤 선택',
+    test: '심리검사 선택 없이 상담방식 선택',
     time: '약 50분',
     img: 'https://placehold.co/600x400/EEF7F4/4B5563?text=Personal+Mind'
 },
@@ -4505,7 +4511,7 @@ const toggleTest = (test) => {
       ? `${bookingProgram} (${selectedTests.join(" + ")})`
       : bookingProgram,
   bookingProgram: bookingProgram,
-  bookingCategory: bookingProgram === '개별 심리검사' ? 'individual-test' : 'program',
+  bookingCategory: bookingProgram === '개별 심리검사' ? 'individual-test' : bookingProgram === '개인 마음상담' ? 'personal-counseling' : 'program',
   extraTests: selectedTests,
   selectedTests: selectedTests,
   applicationForm: {
@@ -4536,7 +4542,7 @@ const toggleTest = (test) => {
   documentStatus: '예약 필수 동의 완료 / 신청서·동의서 발송 예정',
   status: '승인대기',
   aiCounseling: ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType),
-  counselingDurationMinutes: ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType) ? 50 : null,
+  counselingDurationMinutes: ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType) ? 60 : null,
   reportRequired: ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType)
 };
 
@@ -4591,7 +4597,7 @@ const toggleTest = (test) => {
 setBookingPhone('');
 setBookingDate('');
 setBookingTime('');
-setBookingProgram("개인 마음이음");
+setBookingProgram("개별 심리검사");
 setSelectedTests([]);
 setBookingBirth('');
 setBookingEmail('');
@@ -4635,16 +4641,21 @@ const getPaymentInfo = (res) => {
   const isRemote = type.includes("비대면") || type.includes("화상") || type.includes("전화") || type.includes("문자");
   const isFaceToFace = !isRemote && (type === "찾아가는(대면)" || type === "찾아오는(대면)" || type === "장소 조율(대면)" || type === "대면" || type.includes("대면"));
   const isIndividualTest = program.includes("개별 심리검사") || res.bookingCategory === 'individual-test';
-  const counselingAmount = isIndividualTest
+  const isPersonalCounseling = program.includes("개인 마음상담") || res.bookingCategory === 'personal-counseling';
+  const counselingAmount = isPersonalCounseling
     ? (isFaceToFace ? 50000 : 20000)
-    : (isFaceToFace ? 80000 : 50000);
-  const counselingLabel = isIndividualTest
-    ? (isFaceToFace ? "해석상담비(대면) 50,000원" : "해석상담비(비대면) 20,000원")
-    : (isFaceToFace
-        ? "상담비(대면) 50,000원 + 기본검사 30,000원"
-        : "상담비(비대면) 20,000원 + 기본검사 30,000원");
+    : isIndividualTest
+      ? (isFaceToFace ? 50000 : 20000)
+      : (isFaceToFace ? 80000 : 50000);
+  const counselingLabel = isPersonalCounseling
+    ? (isFaceToFace ? "개인 마음상담(대면) 50,000원" : "개인 마음상담(비대면) 20,000원")
+    : isIndividualTest
+      ? (isFaceToFace ? "해석상담비(대면) 50,000원" : "해석상담비(비대면) 20,000원")
+      : (isFaceToFace
+          ? "상담비(대면) 50,000원 + 기본검사 30,000원"
+          : "상담비(비대면) 20,000원 + 기본검사 30,000원");
 
-  const needsBasicExtra = !isIndividualTest && (program.includes("부부") || program.includes("부모-자녀"));
+  const needsBasicExtra = !isIndividualTest && !isPersonalCounseling && (program.includes("부부") || program.includes("부모-자녀"));
   const basicExtraAmount = needsBasicExtra ? 30000 : 0;
   const basicExtraLabel = needsBasicExtra ? "기본검사 추가 30,000원" : "기본검사 1개 포함";
 
@@ -5660,7 +5671,7 @@ if (userAge === 'parent') {
                                             <div className="mb-5">
                                                 <h3 className="text-lg font-extrabold text-slate-900">상담·예약 내역</h3>
                                                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                                    상담과 심리검사 예약 현황을 확인합니다. 24시 AI상담(비대면)은 업로드된 검사결과를 바탕으로 글로 대화하는 해석상담이며, 선택한 시작시간에 이곳에서 바로 시작할 수 있습니다.
+                                                    상담과 심리검사 예약 현황을 확인합니다. 24시 AI상담(비대면)은 상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러울 때, 원하는 시간에 60분 동안 AI와 편안하게 상담할 수 있는 비대면 상담입니다.
                                                 </p>
                                             </div>
 
@@ -5680,14 +5691,9 @@ if (userAge === 'parent') {
                                                         const aiState = isAiReservation
                                                             ? getAiReservationState(reservation)
                                                             : null;
-                                                        const uploadedAssessmentSource = isAiReservation
-                                                            ? buildUploadedAssessmentCounselingSource(reservation)
-                                                            : null;
-                                                        const hasUploadedAssessment = !!uploadedAssessmentSource;
                                                         const isAiCompleted = !!reservation.aiResultCounselingCompletedAt;
                                                         const canStartAi =
                                                             isAiReservation &&
-                                                            hasUploadedAssessment &&
                                                             !isAiCompleted &&
                                                             aiState?.status === 'available' &&
                                                             reservation.status !== '예약취소';
@@ -5873,19 +5879,17 @@ if (userAge === 'parent') {
                                                                                 }`}
                                                                             >
                                                                                 {isAiCompleted
-                                                                                    ? 'AI 결과 해석상담 완료'
-                                                                                    : !hasUploadedAssessment
-                                                                                        ? '검사결과 업로드 대기'
-                                                                                        : aiState?.status === 'before'
-                                                                                            ? 'AI 상담(비대면) 들어가기'
-                                                                                            : aiState?.status === 'ended'
-                                                                                                ? 'AI 결과 해석상담이 종료되었습니다'
-                                                                                                : 'AI 상담(비대면) 들어가기'}
+                                                                                    ? 'AI 상담 완료'
+                                                                                    : aiState?.status === 'before'
+                                                                                        ? 'AI 상담(비대면) 들어가기'
+                                                                                        : aiState?.status === 'ended'
+                                                                                            ? 'AI 상담 시간이 종료되었습니다'
+                                                                                            : 'AI 상담(비대면) 들어가기'}
                                                                             </button>
 
                                                                             <div className="space-y-1 text-xs text-slate-500">
-                                                                                <p>검사결과: {hasUploadedAssessment ? '업로드 완료 · AI 해석상담 준비' : '업로드 대기'}</p>
-                                                                                <p>AI 결과 해석상담: {isAiCompleted ? '상담 완료' : hasUploadedAssessment ? '검사결과 기반 상담' : '검사결과 업로드 후 이용'}</p>
+                                                                                <p>관리자 승인 없이 예약시간에 바로 이용할 수 있습니다.</p>
+                                                                                <p>이용시간: 예약 시작 시각부터 60분</p>
                                                                             </div>
                                                                         </div>
                                                                     )}
@@ -6548,9 +6552,11 @@ if (userAge === 'parent') {
                                                     <button 
                                                         onClick={() => {
                                                             if (recommendedTests && recommendedTests.length > 0) {
-                                                                setBookingProgram(`개인 마음이음 - ${recommendedTests.join(", ")}`);
+                                                                setBookingProgram("개별 심리검사");
+                                                                setSelectedTests(recommendedTests);
                                                             } else {
-                                                                setBookingProgram(`개인 마음이음 - 맞춤 심리검사`);
+                                                                setBookingProgram("개별 심리검사");
+                                                                setSelectedTests([]);
                                                             }
                                                             scrollToSection("reservations");
                                                         }}
@@ -6607,7 +6613,11 @@ if (userAge === 'parent') {
 
                                                             <button
                                                                 onClick={() => {
-                                                                    let programValue = "개인 마음이음";
+                                                                    let programValue = "개별 심리검사";
+
+                                                                    if (prog.title.includes("개인 마음상담")) {
+                                                                        programValue = "개인 마음상담";
+                                                                    }
 
                                                                     if (prog.title.includes("부모-자녀")) {
                                                                         programValue = "부모-자녀 마음이음";
@@ -6619,6 +6629,12 @@ if (userAge === 'parent') {
 
                                                                     setBookingProgram(programValue);
                                                                     setSelectedTests([]);
+                                                                    if (programValue === '개인 마음상담') {
+                                                                        setBookingTestsOpen(false);
+                                                                        setBookingMethodOpen(true);
+                                                                        setBookingInfoOpen(true);
+                                                                        setBookingConsentOpen(true);
+                                                                    }
                                                                     setTimeout(() => scrollToSection('reservations'), 0);
                                                                 }}
                                                                 className="mt-6 w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold px-6 py-3.5 rounded-2xl transition-all shadow-sm"
@@ -6779,12 +6795,12 @@ if (userAge === 'parent') {
             const program = e.target.value;
             setBookingProgram(program);
             setSelectedTests([]);
-            // Sprint68: 프로그램 선택 직후에는 검사 선택만 열고,
-            // 상담방식·예약정보·필수동의는 검사 선택 전까지 접어둡니다.
-            setBookingTestsOpen(true);
-            setBookingMethodOpen(false);
-            setBookingInfoOpen(false);
-            setBookingConsentOpen(false);
+            // 개인 마음상담은 심리검사를 선택하지 않고 상담방식만 선택해 예약·결제합니다.
+            const isPersonalCounseling = program === '개인 마음상담';
+            setBookingTestsOpen(!isPersonalCounseling);
+            setBookingMethodOpen(isPersonalCounseling);
+            setBookingInfoOpen(isPersonalCounseling);
+            setBookingConsentOpen(isPersonalCounseling);
             // [MOD-20260712-PARENT-BOOKING-009]
             // 행동관찰을 새로 선택하기 전에는 찾아가는(대면)을 사용할 수 없습니다.
             if (bookingType === '찾아가는(대면)') {
@@ -6793,8 +6809,8 @@ if (userAge === 'parent') {
         }}
         className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
     >
+        <option value="개인 마음상담">개인 마음상담</option>
         <option value="개별 심리검사">개별 심리검사</option>
-        <option value="개인 마음이음">개인 마음이음</option>
         <option value="부부 마음이음">부부 마음이음</option>
         <option value="부모-자녀 마음이음">부모-자녀 마음이음</option>
     </select>
@@ -6804,139 +6820,26 @@ if (userAge === 'parent') {
        - 개인/부부/부모-자녀 선택과 관계없이 항상 표시
     ===================================================== */}
     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
-        {bookingProgram === "개별 심리검사" ? (
+        {bookingProgram === "개인 마음상담" ? (
+          <p>※ 개인 마음상담은 심리검사 선택 없이 상담방식만 선택하여 예약·결제합니다.</p>
+        ) : bookingProgram === "개별 심리검사" ? (
           <p>※ 기본검사 없이 필요한 심리검사만 선택하여 신청할 수 있습니다.</p>
         ) : (
           <p>※ 기본검사는 프로그램에 포함되어 있으며, 추가검사는 필요에 따라 선택하실 수 있습니다.</p>
         )}
-        <p className="mt-1">※ 찾아가는(대면) 상담은 부모-자녀 마음이음의 '행동관찰'을 선택한 경우에만 신청할 수 있습니다.</p>
+        {bookingProgram !== "개인 마음상담" && (
+          <p className="mt-1">※ 찾아가는(대면) 상담은 부모-자녀 마음이음의 '행동관찰'을 선택한 경우에만 신청할 수 있습니다.</p>
+        )}
     </div>
 </div>
             
-           {/* 2. 검사 선택 - React 상태 접기 */}
+           {/* 2. 검사 선택 - 개인 마음상담은 검사 없이 상담방식만 선택 */}
+            {bookingProgram !== "개인 마음상담" && (
             <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
               <button type="button" onClick={() => setBookingTestsOpen(!bookingTestsOpen)} aria-expanded={bookingTestsOpen} className="flex w-full items-center justify-between px-4 py-4 text-sm font-extrabold text-slate-900">
                 <span>검사 선택</span><span className={`text-slate-400 transition-transform ${bookingTestsOpen ? 'rotate-180' : ''}`}>⌄</span>
               </button>
               {bookingTestsOpen && <div className="border-t border-slate-100 px-4 pb-4">
-
-{/* 개인 마음이음 */}
-{bookingProgram.includes("개인 마음이음") && (
-  <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-    <p className="text-xs font-bold text-slate-700 mb-3">
-      개인 마음이음 기본 검사
-    </p>
-
-    <div className="grid grid-cols-1 gap-2 mb-3">
-      {[
-        "TCI 기질 및 성격검사(기본)"
-      ].map((test) => (
-        <div key={test} className="flex items-center gap-2 p-2 rounded-lg border border-slate-100 bg-white">
-          <span className="text-emerald-600 text-xs font-bold">✓</span>
-          <span className="text-xs text-slate-700 font-semibold">{test}</span>
-        </div>
-      ))}
-    </div>
-
-
-    <p className="text-xs font-bold text-slate-700 mb-3">
-      유료 추가검사 (+30,000원/건)
-    </p>
-    <div className="grid grid-cols-2 gap-2 mb-4">
-      {[
-        "MMPI-2 다면적 인성검사",
-        "회복탄력성 검사",
-        "대인관계문제검사",
-        "직무스트레스 검사",
-        "진로·직업흥미 검사"
-      ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-slate-100 bg-white">
-          <input
-            type="checkbox"
-            checked={selectedTests.includes(test)}
-            onChange={() => toggleTest(test)}
-          />
-          <span className="text-xs text-slate-700">{test}</span>
-        </label>
-      ))}
-    </div>
-
-    <p className="text-xs font-bold text-slate-700 mb-3">
-      무료 추가검사
-    </p>
-    <div className="grid grid-cols-2 gap-2">
-      {[
-        "문장완성검사(무료)",
-        "집-나무-사람 그림검사(무료)",
-        "우울검사(무료)",
-        "불안검사(무료)",
-        "스트레스검사(무료)"
-      ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-slate-100 bg-white">
-          <input
-            type="checkbox"
-            checked={selectedTests.includes(test)}
-            onChange={() => toggleTest(test)}
-          />
-          <span className="text-xs text-slate-700">{test}</span>
-        </label>
-      ))}
-    </div>
-  </div>
-)}
-
-{/* 부모-자녀 마음이음 */}
-{bookingProgram.includes("부모-자녀 마음이음") && (
-  <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
-    <p className="text-xs font-bold text-emerald-700 mb-3">
-      부모-자녀 마음이음 기본 검사
-    </p>
-
-    <div className="grid grid-cols-1 gap-2 mb-4">
-      {[
-        "PAT 부모양육태도검사(기본)",
-        "KCDI 아동발달검사(기본)"
-      ].map((test) => (
-        <div key={test} className="flex items-center gap-2 p-2 rounded-lg border border-emerald-100 bg-white">
-          <span className="text-emerald-600 text-xs font-bold">✓</span>
-          <span className="text-xs text-slate-700 font-semibold">{test}</span>
-        </div>
-      ))}
-    </div>
-
-    <p className="text-xs font-bold text-emerald-700 mb-3">
-      유료 추가검사 (+30,000원/건)
-    </p>
-
-    <div className="grid grid-cols-2 gap-2">
-      {[
-        "행동관찰",
-        "STS 기질검사",
-        "부모 TCI 기질 및 성격검사"
-      ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-emerald-100 bg-white">
-          <input
-            type="checkbox"
-            checked={selectedTests.includes(test)}
-            onChange={() => {
-                // [MOD-20260712-PARENT-BOOKING-011]
-                // 행동관찰 선택 시 찾아가는(대면)으로 자동 변경하고,
-                // 행동관찰 해제 시 찾아오는(대면)으로 되돌립니다.
-                if (test === '행동관찰') {
-                    const willSelect = !selectedTests.includes(test);
-                    toggleTest(test);
-                    setBookingType(willSelect ? '찾아가는(대면)' : '찾아오는(대면)');
-                    return;
-                }
-                toggleTest(test);
-            }}
-          />
-          <span className="text-xs text-slate-700">{test}</span>
-        </label>
-      ))}
-    </div>
-  </div>
-)}
 
 {/* 부부 마음이음 */}
 {bookingProgram.includes("부부 마음이음") && (
@@ -7045,8 +6948,61 @@ if (userAge === 'parent') {
   </div>
 )}
 
+{/* 부모-자녀 마음이음 */}
+{bookingProgram.includes("부모-자녀 마음이음") && (
+  <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+    <p className="text-xs font-bold text-emerald-700 mb-3">
+      부모-자녀 마음이음 기본 검사
+    </p>
+
+    <div className="grid grid-cols-1 gap-2 mb-4">
+      {[
+        "PAT 부모양육태도검사(기본)",
+        "KCDI 아동발달검사(기본)"
+      ].map((test) => (
+        <div key={test} className="flex items-center gap-2 p-2 rounded-lg border border-emerald-100 bg-white">
+          <span className="text-emerald-600 text-xs font-bold">✓</span>
+          <span className="text-xs text-slate-700 font-semibold">{test}</span>
+        </div>
+      ))}
+    </div>
+
+    <p className="text-xs font-bold text-emerald-700 mb-3">
+      유료 추가검사 (+30,000원/건)
+    </p>
+
+    <div className="grid grid-cols-2 gap-2">
+      {[
+        "행동관찰",
+        "STS 기질검사",
+        "부모 TCI 기질 및 성격검사"
+      ].map((test) => (
+        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-emerald-100 bg-white">
+          <input
+            type="checkbox"
+            checked={selectedTests.includes(test)}
+            onChange={() => {
+                // 행동관찰 선택 시 찾아가는(대면)으로 자동 변경하고,
+                // 행동관찰 해제 시 찾아오는(대면)으로 되돌립니다.
+                if (test === '행동관찰') {
+                    const willSelect = !selectedTests.includes(test);
+                    toggleTest(test);
+                    setBookingType(willSelect ? '찾아가는(대면)' : '찾아오는(대면)');
+                    return;
+                }
+                toggleTest(test);
+            }}
+          />
+          <span className="text-xs text-slate-700">{test}</span>
+        </label>
+      ))}
+    </div>
+  </div>
+)}
+
               </div>}
             </section>
+            )}
 
             {/* 3. 상담 방식 선택 - React 상태 접기 */}
             <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -8175,8 +8131,8 @@ if (userAge === 'parent') {
                         <div className="w-full max-w-5xl h-[92vh] rounded-[2rem] bg-white shadow-2xl overflow-hidden flex flex-col">
                             <div className="border-b border-slate-100 px-5 py-4 sm:px-7 flex items-center justify-between gap-4">
                                 <div>
-                                    <p className="text-xs font-extrabold text-violet-700">검토·승인 결과보고서 기반</p>
-                                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">AI 결과상담</h3>
+                                    <p className="text-xs font-extrabold text-violet-700">24시간 예약 가능한 비대면 AI 상담</p>
+                                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">24시 AI상담(비대면)</h3>
                                     <p className="mt-1 text-xs text-slate-500">
                                         {aiResultSessionPhase === 'closed'
                                             ? '상담이 종료되었습니다.'
@@ -8203,18 +8159,16 @@ if (userAge === 'parent') {
                             <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0">
                                 <aside className="hidden lg:block lg:col-span-4 border-r border-slate-100 bg-violet-50/40 p-5 overflow-y-auto">
                                     <div className="rounded-2xl bg-white border border-violet-100 p-4">
-                                        <p className="text-xs font-extrabold text-violet-700">상담자료</p>
-                                        <h4 className="mt-2 text-sm font-extrabold text-slate-900">
-                                            {activeApprovedReport?.title || '심리검사 결과보고서'}
-                                        </h4>
+                                        <p className="text-xs font-extrabold text-violet-700">이용 안내</p>
+                                        <h4 className="mt-2 text-sm font-extrabold text-slate-900">24시 AI상담(비대면)</h4>
                                         <p className="mt-2 text-xs text-slate-500">
-                                            {activeApprovedReport?.testType || '검사결과'} · 임상심리사 승인
+                                            예약한 시간부터 60분 동안 이용할 수 있습니다.
                                         </p>
                                     </div>
                                     <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs text-amber-900 leading-relaxed">
-                                        AI 결과상담은 승인된 결과보고서를 전반적으로 설명하고,
-                                        내담자의 실제 경험과 연결해 이해하도록 돕습니다.
-                                        진단을 새로 내리거나 보고서에 없는 내용을 단정하지 않습니다.
+                                        상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러울 때,
+                                        원하는 시간에 AI와 편안하게 이야기를 나눌 수 있습니다.
+                                        AI 상담은 진단이나 응급의료를 대신하지 않습니다.
                                     </div>
                                 </aside>
 
@@ -8258,7 +8212,7 @@ if (userAge === 'parent') {
                                             <div>
                                                 {aiResultSessionPhase === 'closing-pending' && (
                                                     <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-800">
-                                                        예약된 50분이 완료되었습니다. 입력 중이던 내용이 있다면 마지막으로 보내 주세요. 마지막 답변과 종결 안내가 완료된 뒤 상담이 종료됩니다.
+                                                        예약된 60분이 완료되었습니다. 입력 중이던 내용이 있다면 마지막으로 보내 주세요. 마지막 답변과 종결 안내가 완료된 뒤 상담이 종료됩니다.
                                                     </div>
                                                 )}
                                                 <div className="flex gap-3">

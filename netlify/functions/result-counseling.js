@@ -142,6 +142,71 @@ const buildPrompt = ({ mode, reportText, integratedReportText, messages, clinica
     .join("\n");
 
   const integratedText = clean(integratedReportText);
+  const hasAssessmentContext = Boolean(clean(reportText) || integratedText);
+
+  if (!hasAssessmentContext) {
+    const generalCommon = `
+당신은 모두의 마음연구소의 24시 AI상담 상담자입니다.
+이 상담은 상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러운 이용자가 60분 동안 편안하게 자신의 고민과 감정을 이야기할 수 있도록 돕는 비대면 AI 상담입니다.
+
+반드시 지킬 원칙:
+- 진단을 내리거나 치료를 단정하지 않습니다.
+- 이용자의 감정과 경험을 먼저 이해하고, 질문은 한 번에 하나만 사용합니다.
+- 같은 조언이나 표현을 반복하지 않습니다.
+- 성급하게 해결책부터 제시하지 말고, 먼저 문제의 맥락과 감정을 충분히 탐색합니다.
+- 이용자가 원하는 경우에만 구체적인 선택지나 작은 실천을 최대 3개 이내로 제안합니다.
+- 쉬운 한국어와 존댓말을 사용합니다.
+- 자살·자해·타해 위험이 드러나면 일반 상담을 멈추고 즉각적인 안전 확보와 주변 도움 요청을 우선 안내합니다.
+- AI 상담은 응급의료나 전문적인 진단·치료를 대신하지 않는다는 한계를 필요할 때 분명히 안내합니다.
+`;
+
+    if (mode === "overview") {
+      return `${generalCommon}
+상담 시작 단계입니다.
+짧고 따뜻하게 인사한 뒤, 오늘 가장 이야기하고 싶은 고민이나 마음을 편안하게 말해도 된다고 안내하세요.
+이용자가 아직 구체적인 고민을 말하지 않았으므로 추정하지 말고 열린 질문 하나로 끝내세요.
+4~6문장, 450자 이내로 작성하세요.`;
+    }
+
+    if (mode === "closing") {
+      return `${generalCommon}
+예약된 60분의 상담 시간이 완료되어 상담을 종결하는 단계입니다.
+
+상담 대화:
+${conversation || "대화 내용 없음"}
+
+오늘 나눈 이야기에서 핵심 감정이나 고민을 1~2가지로 짧게 정리하고, 이용자가 표현한 강점이나 버텨온 힘이 있다면 함께 짚어주세요.
+새로운 질문이나 과제를 제시하지 말고, 상담 시간이 완료되어 오늘 상담을 마무리한다는 사실을 분명히 안내하세요.
+4~7문장, 450자 이내로 작성하세요.`;
+    }
+
+    if (mode === "summary") {
+      return `${generalCommon}
+아래 상담 대화를 바탕으로 상담 마무리 정리를 작성하세요.
+
+상담 대화:
+${conversation || "대화 내용 없음"}
+
+구성:
+- 오늘 이야기한 핵심 고민과 감정
+- 이용자가 스스로 알아차린 점
+- 확인된 강점이나 지지 자원
+- 앞으로 필요할 경우 더 살펴볼 주제
+
+새로운 사실이나 진단을 만들지 말고, 450~750자의 따뜻하고 완결된 상담정리로 작성하세요.`;
+    }
+
+    return `${generalCommon}
+현재 상담 대화:
+${conversation || "아직 대화가 시작되지 않았습니다."}
+
+응답 원칙:
+- 이용자의 마지막 말을 먼저 정확히 이해하고 반응합니다.
+- 감정 반영과 맥락 탐색을 우선하고, 필요할 때만 질문 하나를 사용합니다.
+- 이용자가 직접 묻는 질문에는 먼저 답하되 단정하지 않습니다.
+- 조언이 필요해 보이더라도 서둘러 결론내지 말고 이용자의 선택권을 남깁니다.
+- 2~6문장, 전체 700자 이내로 완결되게 작성하세요.`;
+  }
 
   const common = `
 당신은 모두의 마음연구소의 "AI 결과 해석상담사"입니다.
@@ -200,7 +265,7 @@ ${integratedText || "제공되지 않음"}
 
   if (mode === "closing") {
     return `${common}
-예약된 50분의 상담 시간이 완료되어 상담을 종결하는 단계입니다.
+예약된 60분의 상담 시간이 완료되어 상담을 종결하는 단계입니다.
 
 상담 대화:
 ${conversation || "대화 내용 없음"}
@@ -385,9 +450,9 @@ export const handler = async (event) => {
     const integratedReportText = clean(body.integratedReportText);
     const messages = normalizeMessages(body.messages);
 
-    if (!reportText) {
-      return jsonResponse({ error: "업로드된 심리검사 결과를 찾을 수 없습니다." }, 400);
-    }
+    // 심리검사 결과는 AI상담의 이용 조건이 아닙니다.
+    // 검사자료가 있으면 결과 기반 상담, 없으면 일반 24시 AI상담으로 진행합니다.
+    // 통합 심리평가보고서만 있는 경우에도 검사 맥락으로 활용할 수 있습니다.
 
     const allUserText = messages
       .filter((message) => message.role === "user")

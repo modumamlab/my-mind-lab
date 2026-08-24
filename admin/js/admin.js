@@ -383,9 +383,12 @@ function getPaymentInfo(r){
   // 'AI(비대면)'에도 '대면' 글자가 포함되므로 includes('대면')만으로 판단하면 안 됩니다.
   const isNonFace=/AI|Zoom|화상|전화|비대면/i.test(type);
   const counselingFee=isNonFace?20000:50000;
-  const counselingLabel=isNonFace?'비대면상담비 20,000원':'대면상담비 50,000원';
+  const isPersonalCounseling=program.includes('개인 마음상담');
+  const counselingLabel=isPersonalCounseling
+    ? (isNonFace?'개인 마음상담(비대면) 20,000원':'개인 마음상담(대면) 50,000원')
+    : (isNonFace?'비대면상담비 20,000원':'대면상담비 50,000원');
 
-  const basicTestCount=(program.includes('부부')||program.includes('부모-자녀'))?2:1;
+  const basicTestCount=isPersonalCounseling?0:((program.includes('부부')||program.includes('부모-자녀'))?2:1);
   const basicTestFee=basicTestCount*30000;
 
   const extras=r.reportTests||r.includedTests||r.extraTests||r.selectedTests||r.additionalTests||[];
@@ -395,10 +398,10 @@ function getPaymentInfo(r){
     : 0;
   const extraTestFee=paidExtraCount*30000;
 
-  const parts=[
-    counselingLabel,
-    `기본검사 ${basicTestCount}건 ${basicTestFee.toLocaleString()}원`
-  ];
+  const parts=[counselingLabel];
+  if(basicTestCount>0){
+    parts.push(`기본검사 ${basicTestCount}건 ${basicTestFee.toLocaleString()}원`);
+  }
   if(paidExtraCount){
     parts.push(`추가검사 ${paidExtraCount}건 ${extraTestFee.toLocaleString()}원`);
   }
@@ -438,6 +441,7 @@ function reportTestGroups(r){
   // [MML-REPORT-35] 프로그램별 기본검사는 보고서 생성의 필수 기준입니다.
   // 저장된 이전 환경설정이 남아 있어도 현재 운영 기준을 우선 적용합니다.
   const canonicalDefaults={
+    '개인 마음상담':[],
     '개인 마음이음':['TCI 기질 및 성격검사'],
     '부부 마음이음':['신청자 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
     '부모-자녀 마음이음':['K-CDI 아동발달검사','PAT 부모양육태도검사']
@@ -464,6 +468,7 @@ function requestedTests(r){
   // 예약에는 추가검사만 저장되는 경우가 있으므로 기본검사와 추가검사를 여기서 합칩니다.
   const program=programBaseName(r?.bookingProgram||r?.program||'');
   const canonicalDefaults={
+    '개인 마음상담':[],
     '개인 마음이음':['TCI 기질 및 성격검사'],
     '부부 마음이음':['신청자 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
     '부모-자녀 마음이음':['PAT 부모양육태도검사','K-CDI 아동발달검사']
@@ -500,6 +505,7 @@ function programBaseName(program){
   if(/개별\s*심리검사|개별검사/i.test(raw)) return '개별 심리검사';
   if(/부모\s*[-·]?\s*자녀|부모자녀|양육|영유아/i.test(raw)) return '부모-자녀 마음이음';
   if(/부부|커플|배우자/i.test(raw)) return '부부 마음이음';
+  if(/개인\s*마음상담/i.test(raw)) return '개인 마음상담';
   return '개인 마음이음';
 }
 function shortTestName(test){
@@ -820,7 +826,7 @@ function updateScheduleWithHistory(id,patch,changeType){
 }
 function updateCounselingMethod(id,value){
   const isAi=isAiCounselingMethod(value);
-  updateScheduleWithHistory(id,{type:value,aiCounseling:isAi,counselingDurationMinutes:isAi?50:null,reportRequired:isAi},'상담방식 변경');
+  updateScheduleWithHistory(id,{type:value,aiCounseling:isAi,counselingDurationMinutes:isAi?60:null,reportRequired:isAi},'상담방식 변경');
 }
 function updateCounselingTime(id,value){
   const reservation=state.reservations.find(r=>String(r.id)===String(id));
@@ -874,7 +880,7 @@ function saveCurrentReservationChanges(id){
   updateScheduleWithHistory(id,{
     date,time,type,
     aiCounseling:isAi,
-    counselingDurationMinutes:isAi?50:null,
+    counselingDurationMinutes:isAi?60:null,
     reportRequired:isAi,
     reservationUpdatedAt:new Date().toISOString()
   },'예약정보 변경');
@@ -903,7 +909,7 @@ function createAdminReservation(){
     id,name,phone,date,time,type,program,selectedTests,requestedTests:selectedTests,
     status:'예약신청',source:'관리자 직접등록',adminCreated:true,
     aiCounseling:isAiCounselingMethod(type),
-    counselingDurationMinutes:isAiCounselingMethod(type)?50:null,
+    counselingDurationMinutes:isAiCounselingMethod(type)?60:null,
     reportRequired:isAiCounselingMethod(type),
     createdAt:now.toISOString(),updatedAt:now.toISOString(),
     reservationNumber:`ADM-${String(now.getFullYear()).slice(-2)}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(id).slice(-4)}`
@@ -945,7 +951,7 @@ function updateReservationTimeOptions(id){
 window.updateReservationTimeOptions=updateReservationTimeOptions;
 
 function approveReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));const caseNumber=r?.caseNumber||findExistingCaseNumber(r||{},state.reservations)||nextCaseNumber(r||{},state.reservations);updateReservation(id,{status:'예약승인',caseNumber,approvedAt:new Date().toLocaleString()});}
-function markPaymentComplete(id){updateReservation(id,{status:'결제완료',paidAt:new Date().toLocaleString()});}
+function markPaymentComplete(id){const r=state.reservations.find(x=>String(x.id)===String(id));const isPersonal=programBaseName(r?.program||r?.bookingProgram||'')==='개인 마음상담';updateReservation(id,isPersonal?{status:'상담준비',paidAt:new Date().toLocaleString(),counselingReadyAt:new Date().toLocaleString()}:{status:'결제완료',paidAt:new Date().toLocaleString()});}
 function sendTestLinks(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]=ts[t]&&ts[t]!=='미발송'?ts[t]:'발송완료');updateReservation(id,{status:'검사발송',testStatuses:ts,testLinksSentAt:new Date().toLocaleString()});}
 function markTestComplete(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]='검사완료');updateReservation(id,{status:'검사완료',testStatuses:ts,testCompletedAt:new Date().toLocaleString()});}
 function markCounselingReady(id){updateReservation(id,{status:'상담준비',counselingReadyAt:new Date().toLocaleString()});}
@@ -1942,7 +1948,6 @@ function automatedTasks(){
       add(8,'사례개념화 초안','검사결과와 상담기록을 통합한 사례개념화 초안을 준비할 수 있습니다.','사례 열기',`openTodayTaskPage('cases','${r.id}')`);
 
     if(approvedReport && !r.aiResultCounselingEnabled)
-      add(9,'AI 결과상담 승인 검토','공개 승인된 결과보고서가 있습니다. AI 결과상담 사용 여부를 결정해 주세요.','회원 전자차트',`openTodayTaskPage('members','${r.id}')`);
 
     if(status==='상담준비') add(10,'상담 시작 준비','전자차트와 참고자료를 확인한 뒤 상담을 시작해 주세요.','상담 시작',`openTodayTaskPage('journal','${r.id}')`);
     if(status==='상담진행') add(11,'상담기록 마무리','회기기록을 저장하고 상담완료 처리를 해 주세요.','상담모드',`openTodayTaskPage('journal','${r.id}')`);
@@ -2726,7 +2731,7 @@ function resultUploadsView(){
     const bDate=`${b.date||''} ${b.time||''}`;
     return bDate.localeCompare(aDate);
   });
-  const activeAi=rows.filter(r=>r.aiResultCounselingEnabled===true).length;
+  const aiReservations=rows.filter(r=>isAiCounselingMethod(r.type)).length;
   const aiCompleted=rows.filter(r=>!!r.aiResultCounselingCompletedAt).length;
   const pendingReservations=rows.filter(r=>!['상담완료','종결','예약취소'].includes(normalizeStatus(r.status))).length;
 
@@ -2734,7 +2739,7 @@ function resultUploadsView(){
     <div class="rounded-[2rem] bg-gradient-to-r from-slate-950 via-indigo-950 to-violet-950 p-6 text-white shadow-xl sm:p-8">
       <p class="text-xs font-extrabold text-violet-300">PSYCHOLOGICAL TEST OPERATIONS</p>
       <h2 class="mt-2 text-2xl font-extrabold">심리검사 예약 · AI 상담 관리</h2>
-      <p class="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">심리검사 예약정보와 진행상태를 확인하고, 결과보고서가 준비된 회원의 AI 결과상담을 활성화합니다. 검사결과 파일 업로드와 분석은 심리평가센터에서 진행합니다.</p>
+      <p class="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">심리검사와 상담 예약정보를 확인하고 진행상태를 관리합니다. 24시 AI상담은 별도 관리자 승인 없이 예약시간에 이용할 수 있습니다. 검사결과 파일 업로드와 분석은 심리평가센터에서 진행합니다.</p>
       <div class="mt-5 flex flex-wrap gap-2">
         <button onclick="setMenu('reservation')" class="rounded-xl bg-white px-4 py-2 text-xs font-extrabold text-slate-900">예약관리 열기</button>
         <button onclick="setMenu('interpretation')" class="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-extrabold text-white">심리평가센터 열기</button>
@@ -2744,15 +2749,15 @@ function resultUploadsView(){
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
       ${card('전체 예약',rows.length+'건','심리검사·상담 예약','📅','blue')}
       ${card('진행 중',pendingReservations+'건','종결·취소 제외','⏳','orange')}
-      ${card('AI 상담 활성',activeAi+'명','회원별 활성화','🤖','purple')}
+      ${card('AI 상담 예약',aiReservations+'건','승인 없이 예약시간 이용','🤖','purple')}
       ${card('AI 상담 완료',aiCompleted+'건','상담 완료 기록','✅','emerald')}
     </div>
 
     <div class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
       <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 class="text-xl font-extrabold">예약 확인 및 AI 결과상담 활성화</h2>
-          <p class="mt-1 text-sm text-slate-500">예약일정 · 프로그램명 · 검사명 · 상담방식을 확인하고 진행상태와 AI 상담 이용 여부를 관리합니다.</p>
+          <h2 class="text-xl font-extrabold">예약 확인 및 AI 상담 관리</h2>
+          <p class="mt-1 text-sm text-slate-500">예약일정 · 프로그램명 · 검사명 · 상담방식을 확인하고 진행상태를 관리합니다. 24시 AI상담은 관리자 승인 없이 예약시간에 자동 이용됩니다.</p>
         </div>
         <div class="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs font-bold text-indigo-700">결과 업로드는 심리평가센터에서 관리</div>
       </div>
@@ -2761,10 +2766,10 @@ function resultUploadsView(){
         const tests=requestedTests(r).map(shortTestName);
         const st=normalizeStatus(r.status);
         const uploads=state.resultUploads.filter(x=>String(x.reservationId)===String(r.id));
-        const enabled=r.aiResultCounselingEnabled===true;
+        const isAiReservation=isAiCounselingMethod(r.type);
         const completed=!!r.aiResultCounselingCompletedAt;
-        const aiLabel=completed?'상담 완료':enabled?'활성':'비활성';
-        const aiClass=completed?'bg-emerald-100 text-emerald-700':enabled?'bg-violet-100 text-violet-700':'bg-slate-100 text-slate-500';
+        const aiLabel=completed?'상담 완료':isAiReservation?'예약시간 자동 이용':'해당 없음';
+        const aiClass=completed?'bg-emerald-100 text-emerald-700':isAiReservation?'bg-violet-100 text-violet-700':'bg-slate-100 text-slate-500';
         const reservationId=JSON.stringify(String(r.id));
         return `<article class="rounded-3xl border border-slate-100 bg-slate-50 p-5">
           <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -2791,10 +2796,7 @@ function resultUploadsView(){
             </div>
 
             <div class="w-full space-y-3 xl:w-64">
-              <label class="flex items-center justify-between gap-3 rounded-2xl border ${enabled?'border-violet-200 bg-violet-50':'border-slate-200 bg-white'} px-4 py-3 text-sm font-extrabold">
-                <span>AI 결과상담 활성화</span>
-                <input type="checkbox" ${enabled?'checked':''} ${completed?'disabled':''} onchange='toggleAiResultCounseling(${reservationId},this.checked)' class="h-5 w-5"/>
-              </label>
+              ${isAiReservation?'<div class="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-xs font-extrabold text-violet-700">24시 AI상담 · 관리자 승인 불필요</div>':''}
               <select onchange='updateReservation(${reservationId},{status:this.value})' class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold">
                 ${STATUS.map(x=>`<option value="${x}" ${st===x?'selected':''}>${x}</option>`).join('')}
               </select>
@@ -3396,7 +3398,7 @@ function settingsView(){const st=getOperatingSettings();const allMethods=['장�
   <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><h3 class="text-lg font-extrabold">예약 운영시간</h3><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3"><label class="text-xs font-bold text-slate-500">시작시간<input id="setting-open-time" type="time" value="${esc(st.openTime)}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label><label class="text-xs font-bold text-slate-500">종료시간<input id="setting-close-time" type="time" value="${esc(st.closeTime)}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label><label class="text-xs font-bold text-slate-500">예약 간격<select id="setting-interval" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"><option value="30" ${Number(st.intervalMinutes)===30?'selected':''}>30분</option><option value="60" ${Number(st.intervalMinutes)===60?'selected':''}>60분</option></select></label></div><p class="mt-3 text-xs text-slate-400">현재 생성되는 예약시간: ${buildCounselingTimes(st).join(', ')}</p></section>
   <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><h3 class="text-lg font-extrabold">사용 상담방식</h3><div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">${allMethods.map(m=>`<label class="flex items-center justify-between rounded-2xl border border-slate-200 p-4 text-sm font-bold"><span>${esc(m)}</span><input type="checkbox" ${st.enabledMethods.includes(m)?'checked':''} onchange="toggleOperatingMethod('${m}',this.checked)" class="h-5 w-5"></label>`).join('')}</div></section>
   <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><h3 class="text-lg font-extrabold">프로그램별 기본검사</h3><p class="mt-1 text-xs text-slate-400">검사명은 쉼표로 구분합니다. 예약·전자차트의 신청검사 표시에 자동 반영됩니다.</p><div class="mt-4 space-y-4"><label class="block text-xs font-bold text-slate-500">개인 마음이음<input id="setting-tests-personal" value="${esc((st.programDefaultTests['개인 마음이음']||[]).join(', '))}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label><label class="block text-xs font-bold text-slate-500">부부 마음이음<input id="setting-tests-couple" value="${esc((st.programDefaultTests['부부 마음이음']||[]).join(', '))}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label><label class="block text-xs font-bold text-slate-500">부모-자녀 마음이음<input id="setting-tests-parent" value="${esc((st.programDefaultTests['부모-자녀 마음이음']||[]).join(', '))}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label></div></section>
-  <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><h3 class="text-lg font-extrabold">업무 자동화 기준</h3><div class="mt-4 space-y-3"><label class="flex items-center justify-between rounded-2xl bg-slate-50 p-4 text-sm font-bold"><span>진행상태에 따라 다음 업무 자동 생성</span><input id="setting-auto-rules" type="checkbox" ${st.autoRules?'checked':''} class="h-5 w-5"></label><label class="flex items-center justify-between rounded-2xl bg-slate-50 p-4 text-sm font-bold"><span>승인된 결과보고서가 있어야 AI 결과상담 승인</span><input id="setting-ai-report" type="checkbox" ${st.aiApprovalRequiresReport?'checked':''} class="h-5 w-5"></label></div></section>
+  <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><h3 class="text-lg font-extrabold">업무 자동화 기준</h3><div class="mt-4 space-y-3"><label class="flex items-center justify-between rounded-2xl bg-slate-50 p-4 text-sm font-bold"><span>진행상태에 따라 다음 업무 자동 생성</span><input id="setting-auto-rules" type="checkbox" ${st.autoRules?'checked':''} class="h-5 w-5"></label></div></section>
   <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h3 class="text-lg font-extrabold">데이터 백업·복원</h3><p class="mt-1 text-xs leading-relaxed text-slate-400">예약, 검사결과, 보고서, 사례개념화, 회기기록과 운영설정을 하나의 JSON 파일로 보관합니다.</p></div><span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">최근 백업: ${(()=>{const v=localStorage.getItem('modumam_last_backup_at');return v?new Date(v).toLocaleString('ko-KR'):'기록 없음'})()}</span></div><div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3"><button onclick="downloadOperatingBackup()" class="rounded-2xl bg-slate-900 py-3 text-sm font-extrabold text-white">백업 파일 다운로드</button><select id="backup-restore-mode" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold"><option value="merge">현재 데이터에 병합</option><option value="replace">현재 데이터 전체 교체</option></select><button onclick="openBackupRestore()" class="rounded-2xl border border-slate-200 bg-white py-3 text-sm font-extrabold">백업 파일 복원</button></div><input id="backup-restore-file" type="file" accept="application/json,.json" class="hidden" onchange="restoreOperatingBackup(this)"><div class="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-800"><strong>복원 전 확인:</strong> 전체 교체는 현재 상담운영 데이터를 삭제한 후 백업 내용으로 바꿉니다. 중요한 변경 전에는 먼저 새 백업을 내려받아 주세요.</div></section>
   <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="flex items-center justify-between gap-3"><div><h3 class="text-lg font-extrabold">관리자 변경기록</h3><p class="mt-1 text-xs text-slate-400">최근 저장·백업·복원 동작을 최대 300건까지 기록합니다.</p></div><button onclick="clearAuditLog()" class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600">기록 비우기</button></div><div class="mt-4">${auditLogView()}</div></section>
   <div class="grid grid-cols-1 gap-3 sm:grid-cols-3"><button onclick="saveOperatingSettings()" class="rounded-2xl bg-emerald-600 py-3 text-sm font-extrabold text-white">설정 저장</button><button onclick="resetOperatingSettings()" class="rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold">기본값 복원</button><button onclick="location.href='/'" class="rounded-2xl border border-slate-200 bg-white py-3 text-sm font-bold">사용자 페이지</button></div>
