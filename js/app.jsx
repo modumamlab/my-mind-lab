@@ -350,6 +350,10 @@
 // 구글 시트 연동 URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMfIWhWhl02eEgmJvXO_JGjfNNkvjQy2EFxTwB3UsMz9jU2LbqCQItC_CkReKPlOW-Ig/exec';
 
+// [RC2.1] 회원 인증은 사용자 앱(Supabase) 한 곳에서 처리합니다.
+const USER_APP_URL = 'https://modumam-app.netlify.app';
+const openUserAppAuth = () => { window.location.assign(USER_APP_URL); };
+
 // 구글 시트 저장 함수
 async function submitSignup(userData) {
   try {
@@ -1474,8 +1478,7 @@ setIsAuthModalOpen(false);
 
                 if (!isLoggedIn && !savedUser) {
                     // v28 수정: AI 마음대화는 회원 전용이므로 alert 대신 회원가입/로그인 팝업을 바로 엽니다.
-                    setAuthMode('signup');
-                    setIsAuthModalOpen(true);
+                    openUserAppAuth();
                     return;
                 }
 
@@ -3987,8 +3990,7 @@ const userText = pendingInput;
                 }
 
                 if (!isLoggedIn && !savedUser) {
-                    setAuthMode('login');
-                    setIsAuthModalOpen(true);
+                    openUserAppAuth();
                     return;
                 }
 
@@ -5200,7 +5202,7 @@ if (userAge === 'parent') {
                 ) : (
                     <button
                         type="button"
-                        onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }}
+                        onClick={openUserAppAuth}
                         className="text-slate-600 hover:text-slate-900 transition-colors"
                     >
                         로그인
@@ -5325,14 +5327,14 @@ if (userAge === 'parent') {
                         <div className="flex flex-col">
                             <button
                                 type="button"
-                                onClick={() => { setIsMobileMenuOpen(false); setAuthMode('login'); setIsAuthModalOpen(true); }}
+                                onClick={() => { setIsMobileMenuOpen(false); openUserAppAuth(); }}
                                 className="min-h-12 w-full rounded-xl px-3 text-left text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                             >
                                 로그인
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { setIsMobileMenuOpen(false); setAuthMode('signup'); setIsAuthModalOpen(true); }}
+                                onClick={() => { setIsMobileMenuOpen(false); openUserAppAuth(); }}
                                 className="min-h-12 w-full rounded-xl px-3 text-left text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                             >
                                 회원가입
@@ -6469,7 +6471,7 @@ if (userAge === 'parent') {
                                 {!isLoggedIn && !currentUser && (
                                     <div className="mt-6 rounded-3xl bg-amber-50 border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                         <p className="text-sm text-amber-900 font-bold">AI 마음대화 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
-                                        <button onClick={() => { setAuthMode('signup'); setIsAuthModalOpen(true); }} className="bg-slate-900 text-white rounded-full px-5 py-3 text-sm font-bold">회원가입하기</button>
+                                        <button onClick={openUserAppAuth} className="bg-slate-900 text-white rounded-full px-5 py-3 text-sm font-bold">회원가입하기</button>
                                     </div>
                                 )}
                             </div>
