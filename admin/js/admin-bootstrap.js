@@ -171,7 +171,7 @@ console.info('[MML] ADMIN-BOOTSTRAP-260725-STEP25 loaded');
   }
 
   async function startClinical(){
-    const loaderPath='./js/modules/clinical/bootstrap/clinical-loader.js?v=20260724-clinical-loader-v5';
+    const loaderPath='./js/modules/clinical/bootstrap/clinical-loader.js?v=20260830-app-reservation-sync-v28';
 
     try{
       if(!global.MMLClinicalLoader?.loadClinicalPlatform){
@@ -220,7 +220,7 @@ console.info('[MML] ADMIN-BOOTSTRAP-260725-STEP25 loaded');
         at:now()
       });
       console.warn('[MML Clinical] 선택 모듈 연결 실패. 관리자 기본 기능은 계속 실행합니다.',error);
-      return null;
+      return error;
     }
   }
 

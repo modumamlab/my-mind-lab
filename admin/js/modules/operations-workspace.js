@@ -259,18 +259,15 @@ function reservationView(){
       const reservationId=JSON.stringify(String(r.id));
       const isAppApplication=String(r.applicationSource||'')==='modumam-app-v1'||String(r.appApplicationId||'').startsWith('APP-');
 
-      // 앱의 '검사 신청'은 상담예약이 아닙니다.
-      // 관리자가 실제 일정을 지정하기 전까지 날짜/시간/상담방식을 모두 미정으로 표시합니다.
-      const hasAdminSchedule=Boolean(
-        r.reservationScheduledAt ||
-        r.scheduleConfirmedAt ||
-        r.adminScheduledAt ||
-        (String(r.time||'').trim() && !['온라인 심리검사'].includes(String(r.type||'').trim()))
-      );
-      const isUnscheduledApp=isAppApplication&&!hasAdminSchedule;
-      const scheduleDate=isUnscheduledApp?'':String(r.date||'');
-      const scheduleTime=isUnscheduledApp?'':String(r.time||'');
-      const scheduleMethod=isUnscheduledApp?'':String(r.type||'');
+      // 앱에서 선택한 희망 검사일·시간을 관리자 예약 일정에 즉시 반영합니다.
+      // 관리자가 별도로 변경한 일정이 있으면 r.date/r.time을 우선하고,
+      // 아직 없으면 앱 신청값(preferredDate/preferredTime)을 사용합니다.
+      const requestedDate=String(r.preferredDate||r.applicationForm?.preferredDate||'').trim();
+      const requestedTime=String(r.preferredTime||r.applicationForm?.preferredTime||'').trim();
+      const scheduleDate=String(r.date||requestedDate||'').trim();
+      const scheduleTime=String(r.time||requestedTime||'').trim();
+      const scheduleMethod=String(r.type||'온라인 심리검사').trim();
+      const isUnscheduledApp=isAppApplication&&!scheduleDate&&!scheduleTime;
 
       const methodOptions=[
         ...(isUnscheduledApp?['<option value="" selected>상담방식 미정</option>']:[]),
@@ -284,7 +281,9 @@ function reservationView(){
       const scheduleLabel=isUnscheduledApp
         ? '일정 미정'
         : [scheduleDate,scheduleTime].filter(Boolean).join(' ')||'일정 미정';
-      const methodLabel=isUnscheduledApp?'상담방식 미정':counselingMethodLabel(r.type||'');
+      const methodLabel=isAppApplication&&scheduleMethod==='온라인 심리검사'
+        ? '온라인 심리검사'
+        : (isUnscheduledApp?'상담방식 미정':counselingMethodLabel(scheduleMethod));
 
       return `<section class="rounded-[1.6rem] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -310,7 +309,7 @@ function reservationView(){
 
         <div class="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
           <div class="rounded-xl bg-slate-50 px-3 py-2.5">
-            <p class="text-[10px] font-bold text-slate-400">일정</p>
+            <p class="text-[10px] font-bold text-slate-400">${isAppApplication?'앱 신청 일정':'일정'}</p>
             <p class="mt-1 truncate text-xs font-extrabold ${isUnscheduledApp?'text-amber-700':'text-slate-800'}">${esc(scheduleLabel)}</p>
           </div>
           <div class="rounded-xl bg-slate-50 px-3 py-2.5">

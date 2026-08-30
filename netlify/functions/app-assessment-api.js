@@ -66,7 +66,8 @@ function publicStatus(row) {
     return '검사완료';
   }
   if (['검사발송', '검사링크발송', '검사진행', '검사진행중'].includes(status)) return '검사진행중';
-  if (['예약승인', '결제완료'].includes(status)) return '신청접수';
+  if (status === '예약승인') return '예약확정';
+  if (status === '결제완료') return '예약확정';
   return '신청접수';
 }
 
@@ -137,7 +138,7 @@ exports.handler = async (event) => {
         return response(400, { ok: false, error: '저장할 예약 정보가 없습니다.' });
       }
 
-      const next = mergeRows(incoming, current).slice(0, 3000);
+      const next = mergeRows(current, incoming).slice(0, 3000);
       await store.setJSON(KEY, next);
 
       return response(200, {
@@ -156,6 +157,25 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST') {
+    if (body?.applicationType === 'inquiry') {
+      const name = cleanText(body?.name, 80);
+      const phone = cleanText(body?.phone, 30);
+      const email = cleanText(body?.email, 160);
+      const category = cleanText(body?.category, 40) || '이용문의';
+      const content = cleanText(body?.content, 2000);
+      if (!name || !phone || !content) return response(400,{ok:false,error:'문의 필수 항목을 확인해 주세요.'});
+      try {
+        const inquiryStore = getStore({ name: 'modumam-inquiries-v1', consistency: 'strong' });
+        const key='inquiries';
+        const rows=(await inquiryStore.get(key,{type:'json'}).catch(()=>[])) || [];
+        const inquiry={id:`INQ-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,name,phone,email,category,content,status:'접수',createdAt:new Date().toISOString()};
+        await inquiryStore.setJSON(key,[inquiry,...(Array.isArray(rows)?rows:[])]);
+        return response(201,{ok:true,inquiry:{id:inquiry.id,status:inquiry.status,createdAt:inquiry.createdAt}});
+      } catch(error) {
+        console.error('[app-assessment-api] inquiry create failed',error);
+        return response(503,{ok:false,error:'문의 저장에 실패했습니다.',detail:String(error?.message||error)});
+      }
+    }
     let body = {};
     try {
       body = JSON.parse(event.body || '{}');
@@ -169,9 +189,66 @@ exports.handler = async (event) => {
     const testId = text(body.testId, 40);
     const testName = text(body.testName, 120);
     const provider = text(body.provider, 40);
-    const note = text(body.note, 1000);
+    const note = text(body.chiefComplaint || body.note, 1000);
+    const consultationMethod = text(body.consultationMethod, 20);
+    const allowedConsultationMethods = new Set(['대면상담','비대면상담']);
+    const preferredDate = text(body.preferredDate || body.date, 10);
+    const preferredTime = text(body.preferredTime || body.time, 5);
+    const allowedTimes = new Set(Array.from({length:17}, (_,i) => { const total=9*60+i*30; return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`; }));
+    const seoulToday = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    const applicationType = text(body.applicationType, 30);
+    const isCounselingApplication = applicationType === 'counseling';
 
-    if (!name || !email || phone.length < 9 || !allowedTests.has(testId) || !allowedProviders.has(provider)) {
+    if (isCounselingApplication) {
+      if (!name || phone.length < 9 || note.length < 2 || !allowedConsultationMethods.has(consultationMethod) || !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || preferredDate < seoulToday || !allowedTimes.has(preferredTime)) {
+        return response(400, { ok: false, error: '마음상담 신청정보를 확인해 주세요.' });
+      }
+
+      const now = new Date();
+      const id = `APP-${now.getTime()}-${crypto.randomBytes(3).toString('hex')}`;
+      const accessToken = token();
+      const counselingFee = consultationMethod === '대면상담' ? 50000 : 20000;
+      const reservation = {
+        id, name, phone, email, concern: note, chiefComplaint: note, type: consultationMethod, consultationMethod,
+        counselingFee, testFee: 0, estimatedTotal: counselingFee,
+        date: preferredDate, time: preferredTime, preferredDate, preferredTime,
+        applicationDate: now.toISOString().slice(0, 10),
+        program: '개인 마음상담', bookingProgram: '개인 마음상담', bookingCategory: 'counseling',
+        extraTests: [], selectedTests: [], additionalTests: [],
+        appApplicationId: id, appAccessToken: accessToken, applicationSource: 'modumam-app-v1', applicationType: 'counseling',
+        applicationForm: { email, concern: note, chiefComplaint: note, submittedAt: now.toISOString(), consultationMethod, preferredDate, preferredTime },
+        consentForm: { privacy: true, counseling: true, signedAt: now.toISOString(), documentVersion: '앱 마음상담 신청 v1' },
+        status: '승인대기', createdAt: now.toISOString()
+      };
+      try {
+        const current = rows(await store.get(KEY, { type: 'json' }).catch(() => null));
+        const next = [reservation, ...current.filter(r => String(r.appApplicationId || '') !== id)].slice(0, 3000);
+        await store.setJSON(KEY, next);
+        return response(201, {
+          ok: true,
+          application: {
+            id,
+            accessToken,
+            status: '신청접수',
+            createdAt: now.toISOString(),
+            preferredDate,
+            preferredTime,
+            consultationMethod,
+            counselingFee,
+            chiefComplaint: note
+          }
+        });
+      } catch (error) {
+        console.error('[app-assessment-api] counseling create failed', error);
+        return response(503, {
+          ok: false,
+          error: '마음상담 신청 저장에 실패했습니다.',
+          detail: String(error?.message || error)
+        });
+      }
+    }
+
+    if (!name || !email || phone.length < 9 || !allowedConsultationMethods.has(consultationMethod) || !allowedTests.has(testId) || !allowedProviders.has(provider) || !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || preferredDate < seoulToday || !allowedTimes.has(preferredTime)) {
       return response(400, { ok: false, error: '필수 신청정보를 확인해 주세요.' });
     }
 
@@ -189,9 +266,15 @@ exports.handler = async (event) => {
       name,
       phone,
       email,
-      type: '온라인 심리검사',
-      date: '',
-      time: '',
+      type: consultationMethod,
+      consultationMethod,
+      counselingFee: consultationMethod === '대면상담' ? 50000 : 20000,
+      testFee: 30000,
+      estimatedTotal: (consultationMethod === '대면상담' ? 50000 : 20000) + 30000,
+      date: preferredDate,
+      time: preferredTime,
+      preferredDate,
+      preferredTime,
       applicationDate: now.toISOString().slice(0, 10),
       program: `개별 심리검사 (${testName})`,
       bookingProgram: '개별 심리검사',
@@ -205,7 +288,10 @@ exports.handler = async (event) => {
       applicationForm: {
         email,
         concern: note,
-        submittedAt: now.toISOString()
+        submittedAt: now.toISOString(),
+        consultationMethod,
+        preferredDate,
+        preferredTime
       },
       consentForm: {
         privacy: true,
@@ -242,7 +328,9 @@ exports.handler = async (event) => {
         id,
         accessToken,
         status: '신청접수',
-        createdAt: now.toISOString()
+        createdAt: now.toISOString(),
+        preferredDate,
+        preferredTime
       }
     });
   }
@@ -273,7 +361,9 @@ exports.handler = async (event) => {
           id,
           status: publicStatus(row),
           testUrl: text(row.testUrl || row.assessmentUrl, 1000),
-          updatedAt: text(row.updatedAt || row.createdAt, 80)
+          updatedAt: text(row.updatedAt || row.createdAt, 80),
+          preferredDate: text(row.preferredDate || row.date, 10),
+          preferredTime: text(row.preferredTime || row.time, 5)
         }
       });
     } catch (error) {

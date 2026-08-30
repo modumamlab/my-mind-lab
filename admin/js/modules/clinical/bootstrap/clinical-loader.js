@@ -13,7 +13,6 @@
     'composer/index.js',
     'review/self-review.js',
     'review/integration-validator.js',
-    'report-engine.js',
     'counseling-session-service.js',
     'counseling-case-bridge.js',
     'case-concept-bridge.js',
@@ -31,7 +30,7 @@
 
   const loaderScript = global.document && global.document.currentScript;
   const AUTOLOAD_ENABLED = !(loaderScript && String(loaderScript.dataset.autoload || '').toLowerCase() === 'false');
-  const LOADER_VERSION = '20260724-clinical-loader-v7-compatible-module';
+  const LOADER_VERSION = '20260830-clinical-loader-v26';
   let loadPromise = null;
 
   let loadState = {

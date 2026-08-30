@@ -9,7 +9,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     location.hostname.endsWith('.local');
 
   const mode = isLocal ? 'development' : 'production';
-  const build = '20260808-direct-comprehensive-s20-fix2';
+  const build = '20260830-app-schedule-apply-v30';
 
   const core = [
     {
@@ -93,7 +93,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260825-ai-button-restore-v1',
+      src:'./js/modules/operations-workspace.js?v=20260830-app-approval-sync-v32',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260830-journal-two-stage-ai-v24',
+      src:'./js/admin.js?v=20260830-counseling-intake-v43',
       required:true
     },
     {
@@ -283,7 +283,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'integration-check',
-      src:'./js/admin-integration-check.js?v=20260724-integration-check-v1',
+      src:'./js/admin-integration-check.js?v=20260830-app-schedule-apply-v30',
       required:false
     },
     {

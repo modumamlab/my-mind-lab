@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260830-JOURNAL-TWO-STAGE-AI-V24 loaded');
+console.info('[MML] BUILD 20260830-COUNSELING-SAVE-FIX-V45 loaded');
 
 const STATUS=["예약신청","예약승인","결제완료","검사발송","검사완료","결과업로드","상담준비","상담진행","상담완료","종결","취소요청","예약취소"];
 const STATUS_ALIASES={'승인대기':'예약신청','예약확정':'예약승인','결제대기':'예약승인','검사링크발송':'검사발송','검사진행':'검사발송','결과작성':'결과업로드','상담예정':'상담준비'};
@@ -104,6 +104,7 @@ function excludeDeletedReservations(rows){const deleted=deletedReservationIds();
 
 const LEGACY_RESERVATION_SERVER_API='/.netlify/functions/reservations-api';
 const APP_RESERVATION_SERVER_API='/.netlify/functions/app-assessment-api?admin=1';
+const APP_RESERVATION_PRODUCTION_API='https://modumam-lab.netlify.app/.netlify/functions/app-assessment-api?admin=1';
 
 async function fetchReservationSource(url,label){
   try{
@@ -125,10 +126,20 @@ async function fetchReservationSource(url,label){
 }
 
 async function loadServerReservations(){
-  const [legacyResult,appResult]=await Promise.all([
+  const isLocalAdmin=['localhost','127.0.0.1'].includes(location.hostname);
+  const [legacyResult,appLocalResult,appProductionResult]=await Promise.all([
     fetchReservationSource(LEGACY_RESERVATION_SERVER_API,'홈페이지 예약 서버'),
-    fetchReservationSource(APP_RESERVATION_SERVER_API,'앱 검사신청 서버')
+    fetchReservationSource(APP_RESERVATION_SERVER_API,'앱 검사신청 서버(로컬)'),
+    isLocalAdmin
+      ? fetchReservationSource(APP_RESERVATION_PRODUCTION_API,'앱 검사신청 서버(배포)')
+      : Promise.resolve({ok:true,rows:[]})
   ]);
+  const appRows=mergeReservationsById(appProductionResult.rows,appLocalResult.rows);
+  const appResult={
+    ok:appLocalResult.ok||appProductionResult.ok,
+    rows:appRows,
+    error:[appLocalResult.error,appProductionResult.error].filter(Boolean).join(' / ')
+  };
 
   // 서버 외에도 브라우저 기본저장소·수신함을 항상 보존하여
   // 어느 한 서버가 비어 있거나 일시 실패해도 기존 예약이 사라지지 않게 합니다.
@@ -294,6 +305,11 @@ function persistReports(rows){
 
 // [MOD-20260714-RESERVATION-LIVE-SYNC]
 // 사용자 페이지에서 새 예약이 저장되면 관리자 화면이 최신 localStorage를 다시 읽습니다.
+function reservationStatusRevision(row){
+  const raw=String(row?.statusRevision||row?.statusUpdatedAtIso||'').trim();
+  const time=raw?Date.parse(raw):NaN;
+  return Number.isFinite(time)?time:0;
+}
 function mergeReservationsById(...lists){
   const map=new Map();
   const deleted=deletedReservationIds();
@@ -301,7 +317,17 @@ function mergeReservationsById(...lists){
     if(deleted.has(String(item?.id||'')))return;
     const key=String(item.id || `${item.name||''}-${item.phone||''}-${item.date||''}-${item.time||''}`);
     const previous=map.get(key)||{};
-    map.set(key,{...previous,...item});
+    const previousRevision=reservationStatusRevision(previous);
+    const incomingRevision=reservationStatusRevision(item);
+    const incomingIsOlder=previousRevision>0 && incomingRevision>0 && incomingRevision<previousRevision;
+    const incomingHasNoRevision=previousRevision>0 && incomingRevision===0;
+    if(incomingIsOlder || incomingHasNoRevision){
+      // 다른 저장소의 오래된 복사본이 최신 진행상태를 되돌리지 못하게 한다.
+      const keepStatus={status:previous.status,statusHistory:previous.statusHistory,statusUpdatedAt:previous.statusUpdatedAt,statusUpdatedAtIso:previous.statusUpdatedAtIso,statusRevision:previous.statusRevision,statusUpdateUnread:previous.statusUpdateUnread};
+      map.set(key,{...previous,...item,...keepStatus});
+    }else{
+      map.set(key,{...previous,...item});
+    }
   });
   return [...map.values()].sort((a,b)=>{
     const aTime=String(a.updatedAt||a.createdAt||a.date||a.id||'');
@@ -406,37 +432,34 @@ function esc(v){return String(v||'').replaceAll('&','&amp;').replaceAll('<','&lt
 function statusClass(s){const n=normalizeStatus(s);if(['상담완료','종결'].includes(n))return'bg-emerald-100 text-emerald-700';if(['상담준비','상담진행'].includes(n))return'bg-teal-100 text-teal-700';if(n==='결과업로드')return'bg-purple-100 text-purple-700';if(n==='검사완료')return'bg-violet-100 text-violet-700';if(n==='검사발송')return'bg-indigo-100 text-indigo-700';if(n==='결제완료')return'bg-emerald-100 text-emerald-700';if(n==='예약승인')return'bg-blue-100 text-blue-700';if(n==='취소요청')return'bg-orange-100 text-orange-700';if(n==='예약취소')return'bg-rose-100 text-rose-700';return'bg-amber-100 text-amber-700'}
 function getPaymentInfo(r){
   const type=String(r.type||'').trim();
-  const program=programBaseName(r.program||'');
 
-  // 'AI(비대면)'에도 '대면' 글자가 포함되므로 includes('대면')만으로 판단하면 안 됩니다.
+  // 'AI(비대면)'에도 '대면' 글자가 포함되므로 비대면 여부를 먼저 판별합니다.
   const isNonFace=/AI|Zoom|화상|전화|비대면/i.test(type);
   const counselingFee=isNonFace?20000:50000;
-  const isPersonalCounseling=program.includes('개인 마음상담');
-  const counselingLabel=isPersonalCounseling
-    ? (isNonFace?'개인 마음상담(비대면) 20,000원':'개인 마음상담(대면) 50,000원')
-    : (isNonFace?'비대면상담비 20,000원':'대면상담비 50,000원');
+  const counselingLabel=`상담비 ${counselingFee.toLocaleString()}원`;
 
-  const basicTestCount=isPersonalCounseling?0:((program.includes('부부')||program.includes('부모-자녀'))?2:1);
-  const basicTestFee=basicTestCount*30000;
+  // 결제안내에는 '기본검사 1건' 같은 표현 대신 실제 심리검사명을 표시합니다.
+  // requestedTests()가 프로그램 기본검사와 신청자가 선택한 검사를 중복 없이 합쳐 줍니다.
+  const tests=requestedTests(r);
+  const freeKeywords=['무료'];
+  const testParts=[];
+  let testFee=0;
 
-  const extras=r.reportTests||r.includedTests||r.extraTests||r.selectedTests||r.additionalTests||[];
-  const freeKeywords=['무료','기본','문장완성검사','집-나무-사람','그림검사','우울검사','불안검사','스트레스검사'];
-  const paidExtraCount=Array.isArray(extras)
-    ? extras.filter(test=>!freeKeywords.some(keyword=>String(test).includes(keyword))).length
-    : 0;
-  const extraTestFee=paidExtraCount*30000;
-
-  const parts=[counselingLabel];
-  if(basicTestCount>0){
-    parts.push(`기본검사 ${basicTestCount}건 ${basicTestFee.toLocaleString()}원`);
-  }
-  if(paidExtraCount){
-    parts.push(`추가검사 ${paidExtraCount}건 ${extraTestFee.toLocaleString()}원`);
-  }
+  tests.forEach(test=>{
+    const name=String(test||'').replace(/\s*\(무료\)\s*/g,'').trim();
+    if(!name)return;
+    const isFree=freeKeywords.some(keyword=>String(test).includes(keyword));
+    if(isFree){
+      testParts.push(`${name} 무료`);
+    }else{
+      testFee+=30000;
+      testParts.push(`${name} 30,000원`);
+    }
+  });
 
   return{
-    total:(counselingFee+basicTestFee+extraTestFee).toLocaleString()+'원',
-    detail:parts.join(' + ')
+    total:(counselingFee+testFee).toLocaleString()+'원',
+    detail:[counselingLabel,...testParts].join(' + ')
   };
 }
 function normTest(value){
@@ -724,6 +747,8 @@ async function updateReservation(id,patch){
       history.unshift({id:Date.now(),before:normalizeStatus(r.status),after:patch.status||'',changedAt});
       next.statusHistory=history.slice(0,30);
       next.statusUpdatedAt=changedAt;
+      next.statusUpdatedAtIso=new Date().toISOString();
+      next.statusRevision=next.statusUpdatedAtIso;
       next.statusUpdateUnread=true;
     }
     updatedReservation=next;
@@ -909,17 +934,19 @@ function saveCurrentReservationChanges(id){
 
   const date=document.getElementById(`reservation-date-${id}`)?.value?.trim()||'';
   const time=document.getElementById(`reservation-time-${id}`)?.value?.trim()||'';
-  const type=document.getElementById(`reservation-method-${id}`)?.value?.trim()||'';
+  let type=document.getElementById(`reservation-method-${id}`)?.value?.trim()||'';
 
   const isAppApplication=String(reservation.applicationSource||'')==='modumam-app-v1'||String(reservation.appApplicationId||'').startsWith('APP-');
+  const isOnlineAssessment=isAppApplication && String(reservation.type||'')==='온라인 심리검사';
+  if(isOnlineAssessment && !type) type='온라인 심리검사';
   const scheduleStarted=Boolean(date||time);
   if(isAppApplication&&!scheduleStarted){
-    alert('앱에서 접수된 검사신청은 아직 예약시간이 정해지지 않았습니다.\n예약일과 시간을 지정할 때만 저장해 주세요.');
+    alert('앱에서 선택한 검사 예약일과 시간을 확인해 주세요.');
     return;
   }
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('상담일자를 올바르게 선택해 주세요.');return;}
-  const allowedTimes=counselingTimesForMethod(type);
-  if(!allowedTimes.includes(time)){alert(isAiCounselingMethod(type)?'24시 AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'대면·화상 상담은 09:00~17:00 사이에서 선택해 주세요.');return;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('예약일을 올바르게 선택해 주세요.');return;}
+  const allowedTimes=isOnlineAssessment?buildCounselingTimes():counselingTimesForMethod(type);
+  if(!allowedTimes.includes(time)){alert(isAiCounselingMethod(type)?'24시 AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'예약시간은 09:00~17:00 사이에서 선택해 주세요.');return;}
   if(!type){alert('상담방식을 선택해 주세요.');return;}
 
   const changed=date!==String(reservation.date||'') || time!==String(reservation.time||'') || type!==String(reservation.type||'');
@@ -931,7 +958,8 @@ function saveCurrentReservationChanges(id){
     aiCounseling:isAi,
     counselingDurationMinutes:isAi?60:null,
     reportRequired:isAi,
-    reservationUpdatedAt:new Date().toISOString()
+    reservationUpdatedAt:new Date().toISOString(),
+    scheduleConfirmedAt:new Date().toISOString()
   },'예약정보 변경');
   alert('예약정보가 저장되었습니다.\n\n오늘 업무·전자차트·사용자 예약정보에 동일하게 반영됩니다.');
 }
@@ -1039,6 +1067,11 @@ function markPaymentComplete(id){
 function sendTestLinks(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]=ts[t]&&ts[t]!=='미발송'?ts[t]:'발송완료');updateReservation(id,{status:'검사발송',testStatuses:ts,testLinksSentAt:new Date().toLocaleString()});}
 function markTestComplete(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const ts={...(r.testStatuses||{})};requestedTests(r).forEach(t=>ts[t]='검사완료');updateReservation(id,{status:'검사완료',testStatuses:ts,testCompletedAt:new Date().toLocaleString()});}
 function markCounselingReady(id){updateReservation(id,{status:'상담준비',counselingReadyAt:new Date().toLocaleString()});}
+function isCounselingOnlyReservation(r){
+  const category=String(r?.bookingCategory||'').toLowerCase();
+  const program=programBaseName(r?.bookingProgram||r?.program||'');
+  return category==='counseling'||program==='개인 마음상담'||String(r?.applicationType||'')==='counseling';
+}
 function nextActionLabel(r){const st=normalizeStatus(r.status);if(st==='취소요청')return '취소 요청 처리';if(st==='예약신청')return '예약 승인';if(st==='예약승인')return '결제 확인';if(st==='결제완료')return '검사 링크 발송';if(st==='검사발송')return '검사 완료 확인';if(st==='검사완료')return '결과 업로드';if(st==='결과업로드')return '상담 준비';if(st==='상담준비')return '상담 시작';if(st==='상담진행')return '상담 완료';if(st==='상담완료')return '종결';return '완료';}
 async function runNextAction(id){
   const r=state.reservations.find(
@@ -1052,8 +1085,11 @@ async function runNextAction(id){
 
   const reservationId=r.id;
   const st=normalizeStatus(r.status);
+  const counselingOnly=isCounselingOnlyReservation(r);
 
   if(st==='예약신청')return approveReservation(reservationId);
+  if(counselingOnly && st==='예약승인')return markPaymentComplete(reservationId);
+  if(counselingOnly && st==='결제완료')return markCounselingReady(reservationId);
   if(st==='예약승인')return markPaymentComplete(reservationId);
   if(st==='결제완료')return sendTestLinks(reservationId);
   if(st==='검사발송')return markTestComplete(reservationId);
@@ -1104,14 +1140,14 @@ if(!window.__MML_RESERVATION_NEXT_CLICK_BOUND__){
       const before=normalizeStatus(target.status);
       await Promise.resolve(runNextAction(reservationId));
 
-      // 승인/상태 변경 뒤 서버 기준 상태를 한 번 다시 읽어 관리자 카드와 맞춥니다.
-      await refreshSharedOperatingData(false);
+      // updateReservation이 서버 기준본 저장을 완료한 뒤 반환하므로 그 결과를 먼저 검증한다.
+      // 이후 여러 예약 저장소를 다시 읽더라도 statusRevision이 최신 상태를 보호한다.
       const updated=state.reservations.find(row=>String(row.id)===reservationId);
       const after=normalizeStatus(updated?.status);
-
       if(before===after){
         throw new Error(`상태가 변경되지 않았습니다. 현재 상태: ${after||before}`);
       }
+      await refreshSharedOperatingData(false);
     }catch(error){
       console.error('[예약 다음단계 클릭]',error);
       alert(error?.message||'예약 상태 변경에 실패했습니다.');
@@ -1421,9 +1457,44 @@ window.restoreCancelledReservation=restoreCancelledReservation;
 window.approveReservationCancellation=approveReservationCancellation;
 window.rejectReservationCancellation=rejectReservationCancellation;
 
+function addPsychTestToCounseling(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));
+  if(!r)return;
+  const options=['TCI 기질 및 성격검사','MMPI-2 다면적 인성검사','PAI 성격평가질문지','SCT 문장완성검사','HTP 그림검사','PHQ-9 우울검사','GAD-7 불안검사'];
+  const choice=prompt('추가할 심리검사명을 입력해 주세요.\n\n'+options.join('\n'),options[0]);
+  if(!choice)return;
+  const test=normTest(choice);
+  if(!test)return;
+  const existing=requestedTests(r);
+  if(existing.some(x=>shortTestName(x)===shortTestName(test))){alert('이미 추가된 검사입니다.');return;}
+  const additional=[...(Array.isArray(r.additionalTests)?r.additionalTests:[]),test];
+  const testStatuses={...(r.testStatuses||{}),[test]:'결제대기'};
+  updateReservation(id,{additionalTests:additional,extraTests:additional,testStatuses,additionalTestStatus:'결제대기',additionalTestFee:(additional.length*30000),additionalTestUpdatedAt:new Date().toLocaleString('ko-KR')});
+  alert(`${test}가 추가되었습니다. 추가 검사비는 30,000원입니다.`);
+}
+window.addPsychTestToCounseling=addPsychTestToCounseling;
 function copyText(t){navigator.clipboard.writeText(t).then(()=>alert('복사되었습니다.'))}
-function copyPaymentMessage(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const p=getPaymentInfo(r);copyText(`${r.name}님, 안녕하세요.\n모두의 마음연구소입니다.\n\n예약 신청이 확인되었습니다.\n\n■ 신청 프로그램\n${programBaseName(r.program)}\n\n■ 상담 방식\n${r.type}\n\n■ 희망 일정\n${r.date} ${r.time}\n\n■ 결제 금액\n${p.total}\n${p.detail}\n\n■ 입금 계좌\n카카오뱅크 3333-21-2787124\n예금주 : 백인영\n\n입금 확인 후 검사 링크를 발송해 드리겠습니다.\n\n감사합니다.\n모두의 마음연구소`)}
+function paymentGuideMessage(r){
+  const p=getPaymentInfo(r);
+  return `${r.name}님, 안녕하세요.\n모두의 마음연구소입니다.\n\n예약 신청이 확인되었습니다.\n\n■ 신청 프로그램\n${programBaseName(r.program)}\n\n■ 상담 방식\n${r.type}\n\n■ 희망 일정\n${r.date} ${r.time}\n\n■ 결제 금액\n${p.total}\n${p.detail}\n\n■ 입금 계좌\n카카오뱅크 3333-21-2787124\n예금주 : 모두의 마음연구소\n\n입금 확인 후 검사 링크를 발송해 드리겠습니다.\n\n감사합니다.\n모두의 마음연구소`;
+}
+function normalizeSmsPhone(phone){return String(phone||'').replace(/[^0-9+]/g,'');}
+function openSmsComposer(r,message){
+  const phone=normalizeSmsPhone(r?.phone);
+  if(!phone){alert('내담자 전화번호가 없습니다.');return;}
+  // 안내문구는 기존 생성 문구를 그대로 사용합니다. PC에 SMS 처리 앱이 없을 경우를 대비해 클립보드에도 복사합니다.
+  const openComposer=()=>{
+    const body=encodeURIComponent(message);
+    window.location.href=`sms:${phone}?body=${body}`;
+  };
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(message).catch(()=>{}).finally(openComposer);
+  }else openComposer();
+}
+function copyPaymentMessage(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;copyText(paymentGuideMessage(r))}
+function sendPaymentSms(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;openSmsComposer(r,paymentGuideMessage(r))}
 window.copyPaymentMessage=copyPaymentMessage;
+window.sendPaymentSms=sendPaymentSms;
 const TEST_PROVIDER_PORTALS={
   insight:{name:'인싸이트검사',defaultUrl:'https://inpsyt.co.kr/mypage/dashboard/list'},
   maumsarang:{name:'마음사랑검사',defaultUrl:'https://mscore.kr/'}
@@ -1450,10 +1521,8 @@ function openTestProviderUrl(provider){
 window.saveTestProviderUrl=saveTestProviderUrl;
 window.openTestProviderUrl=openTestProviderUrl;
 
-function copyTestGuide(id){
-  const r=state.reservations.find(x=>String(x.id)===String(id));
-  if(!r)return;
-  copyText(`${r.name}님, 안녕하세요.
+function testGuideMessage(r){
+  return `${r.name}님, 안녕하세요.
 모두의 마음연구소입니다.
 
 입금이 정상적으로 확인되었습니다. 감사합니다.
@@ -1474,9 +1543,16 @@ ${requestedTests(r).map(t=>'- '+t).join('\n')}
 검사 진행 중 궁금한 사항이 있으시면 편하게 문의해 주세요.
 
 감사합니다.
-모두의 마음연구소`)
+모두의 마음연구소`;
 }
+function copyTestGuide(id){
+  const r=state.reservations.find(x=>String(x.id)===String(id));
+  if(!r)return;
+  copyText(testGuideMessage(r));
+}
+function sendTestGuideSms(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;openSmsComposer(r,testGuideMessage(r))}
 window.copyTestGuide=copyTestGuide;
+window.sendTestGuideSms=sendTestGuideSms;
 
 function copyDocumentReminder(id){
   const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;
@@ -2001,7 +2077,7 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
       <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
-            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260830-JOURNAL-TWO-STAGE-AI-V24</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
+            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260830-COUNSELING-SAVE-FIX-V45</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2">
               <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
               <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>
@@ -2120,6 +2196,8 @@ function focusedNextTaskBlock(r){
       </div>
     </div>`;
 
+  const counselingOnly=isCounselingOnlyReservation(r);
+
   if(status==='예약신청'){
     return wrap(
       '예약 신청내용 확인',
@@ -2135,15 +2213,24 @@ function focusedNextTaskBlock(r){
       '결제 안내 및 확인',
       '결제안내 메시지를 복사해 발송한 뒤 입금이 확인되면 결제확인을 눌러 주세요.',
       `<button type="button" onclick='copyPaymentMessage(${id})' class="rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-700">결제안내 복사</button>
+       <button type="button" onclick='sendPaymentSms(${id})' class="rounded-xl border border-sky-200 bg-white px-4 py-3 text-xs font-extrabold text-sky-700">문자 보내기</button>
        <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-slate-900 px-4 py-3 text-xs font-extrabold text-white">결제 확인</button>`
     );
   }
 
   if(status==='결제완료'){
+    if(counselingOnly){
+      return wrap(
+        '상담 준비',
+        '마음상담 신청은 심리검사 단계 없이 상담 준비로 바로 이동합니다.',
+        `<button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">상담 준비</button>`
+      );
+    }
     return wrap(
       '검사 안내 및 발송',
       '신청한 검사기관 사이트에서 검사를 등록하고 검사안내 메시지를 발송해 주세요.',
       `<button type="button" onclick='copyTestGuide(${id})' class="rounded-xl border border-indigo-200 bg-white px-4 py-3 text-xs font-extrabold text-indigo-700">검사안내 복사</button>
+       <button type="button" onclick='sendTestGuideSms(${id})' class="rounded-xl border border-sky-200 bg-white px-4 py-3 text-xs font-extrabold text-sky-700">문자 보내기</button>
        <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-indigo-600 px-4 py-3 text-xs font-extrabold text-white">검사발송 완료</button>`
     );
   }
@@ -2178,7 +2265,7 @@ function focusedNextTaskBlock(r){
     return wrap(
       '상담 시작 준비',
       '예약일정과 상담자료를 확인한 뒤 상담을 시작해 주세요.',
-      `<button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">상담 시작</button>`
+      `<button type="button" onclick='addPsychTestToCounseling(${id})' class="rounded-xl border border-violet-200 bg-white px-4 py-3 text-xs font-extrabold text-violet-700">심리검사 추가</button> <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">상담 시작</button>`
     );
   }
 
@@ -2186,7 +2273,7 @@ function focusedNextTaskBlock(r){
     return wrap(
       '상담 진행',
       '상담기록과 필요한 기록을 작성한 뒤 상담완료로 이동해 주세요.',
-      `<button type="button" onclick='saveCurrentReservationChanges(${id})' class="rounded-xl border border-blue-200 bg-white px-4 py-3 text-xs font-extrabold text-blue-700">변경사항 저장</button>
+      `<button type="button" onclick='addPsychTestToCounseling(${id})' class="rounded-xl border border-violet-200 bg-white px-4 py-3 text-xs font-extrabold text-violet-700">심리검사 추가</button> <button type="button" onclick='saveCurrentReservationChanges(${id})' class="rounded-xl border border-blue-200 bg-white px-4 py-3 text-xs font-extrabold text-blue-700">변경사항 저장</button>
        <button type="button" onclick="setMenu('counseling')" class="rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-700">상담기록</button>
        <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">상담 완료</button>`
     );
