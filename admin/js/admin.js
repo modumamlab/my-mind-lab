@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] ADMIN-260725-REFACTOR-FOUNDATION-STEP25 loaded');
+console.info('[MML] BUILD 20260830-JOURNAL-TWO-STAGE-AI-V24 loaded');
 
 const STATUS=["예약신청","예약승인","결제완료","검사발송","검사완료","결과업로드","상담준비","상담진행","상담완료","종결","취소요청","예약취소"];
 const STATUS_ALIASES={'승인대기':'예약신청','예약확정':'예약승인','결제대기':'예약승인','검사링크발송':'검사발송','검사진행':'검사발송','결과작성':'결과업로드','상담예정':'상담준비'};
@@ -87,7 +87,7 @@ async function replaceIndexedReservations(rows){
   db.close();
 }
 
-let state={counselingJournalTab:'sessions',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,legacyReservationServerCount:0,appReservationServerCount:0,reservationSyncError:''};
+let state={counselingJournalTab:'sessions',selectedJournalCaseId:'',activeJournalSessionCaseId:'',activeJournalReservationId:'',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:load('modumam_reservations',[]),clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,legacyReservationServerCount:0,appReservationServerCount:0,reservationSyncError:''};
 const REPORT_TEST_OPTIONS=['TCI','MMPI-2','PAI','SCT','HTP','STS','PAT','K-CDI','PHQ-9','GAD-7'];
 function sanitizeReportTests(value){const raw=Array.isArray(value)?value:String(value||'').split(/[,·]/);return [...new Set(raw.map(x=>String(x||'').trim()).filter(x=>REPORT_TEST_OPTIONS.includes(x)))]}
 function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',program:'개별 심리검사',testType:'TCI',selectedTests:['TCI'],title:'',summary:'',mindProfile:'',individualTests:'',emotionState:'',thinkingRelationship:'',stressDaily:'',plan:'',strength:'',caution:'',reportType:'summaryReport',summaryReport:true,status:'작성중',approvedForClient:false}}
@@ -1989,7 +1989,6 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
         <p class="px-3 pt-4 pb-1 text-[10px] font-extrabold tracking-wider text-slate-300">COUNSELING</p>
         ${sideNavButton('journal','📝','상담일지','상담 진행·회기 작성')}
         ${sideNavButton('intake','👁','AI 모니터링','AI 결과상담 실시간 확인')}
-        ${sideNavButton('counseling','📂','상담기록','저장 기록·축어록 관리')}
         <p class="px-3 pt-4 pb-1 text-[10px] font-extrabold tracking-wider text-slate-300">CENTER</p>
         ${sideNavButton('clinicalTimeline','🧭','사례관리','사례개념화·개입계획·회기·종결')}
         ${sideNavButton('clinicalDss','🩺','AI 임상지원','위험·일관성·근거 점검')}
@@ -2002,13 +2001,13 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
       <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
-            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260720-REQUEST-LINKED-CLIENT-REPORT-V8</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
+            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260830-JOURNAL-TWO-STAGE-AI-V24</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2">
               <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
               <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>
             </div>
           </div>
-          <nav class="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">${navButton('dashboard','오늘 업무')}${navButton('clients','내담자')}${navButton('members','전자차트')}${navButton('reservation','예약')}${navButton('interpretation','심리평가')}${navButton('journal','상담일지')}${navButton('intake','AI모니터링')}${navButton('counseling','상담기록')}${navButton('clinicalTimeline','사례관리')}${navButton('clinicalDss','임상지원')}${navButton('statistics','통계')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 rounded-xl bg-rose-50 px-4 py-2 text-xs font-extrabold text-rose-600">로그아웃</button></nav>
+          <nav class="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">${navButton('dashboard','오늘 업무')}${navButton('clients','내담자')}${navButton('members','전자차트')}${navButton('reservation','예약')}${navButton('interpretation','심리평가')}${navButton('journal','상담일지')}${navButton('intake','AI모니터링')}${navButton('clinicalTimeline','사례관리')}${navButton('clinicalDss','임상지원')}${navButton('statistics','통계')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 rounded-xl bg-rose-50 px-4 py-2 text-xs font-extrabold text-rose-600">로그아웃</button></nav>
         </div>
       </header>
       <section class="p-4 sm:p-6 lg:p-8">${content}</section>
@@ -2414,6 +2413,11 @@ function casesView() {
       <div class="space-y-7">
         ${cases.map(c => {
           const f = c.formulation || {};
+          const theoryOptions=['통합적 사례개념화','인지행동치료(CBT)','인간중심상담','정신역동','애착이론','해결중심 단기상담','현실치료','게슈탈트','아들러 개인심리학','가족체계이론','수용전념치료(ACT)','변증법적 행동치료(DBT)'];
+          const selectedTheory=f.theoreticalOrientation||'통합적 사례개념화';
+          const isCustomTheory=Boolean(selectedTheory&&!theoryOptions.includes(selectedTheory));
+          const caseMaterials=load('modumam_case_materials_'+c.caseId,[]);
+          const caseMaterialLoading=Boolean(window.MMLCaseMaterialLoading?.[c.caseId]);
           const cp = counselingPlanForCase(c.caseId);
           const sv = counselingSupervisionForCase(c.caseId);
           const rq = counselingRecordQualityForCase(c.caseId);
@@ -2461,6 +2465,24 @@ function casesView() {
                         ${(c.sessions||[]).some(s=>s.reviewStatus!=='상담자 검토 완료')?`<span class="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-extrabold text-amber-700">검토 대기 ${(c.sessions||[]).filter(s=>s.reviewStatus!=='상담자 검토 완료').length}건 제외</span>`:''}
                       </div>
                       <div class="mt-3 flex flex-wrap gap-2">${sourceBadges.length?sourceBadges.map(x=>`<span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-extrabold text-emerald-700">✓ ${esc(x)}</span>`).join(''):'<span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-extrabold text-amber-700">연결된 분석자료 없음</span>'}</div>
+                      <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label class="text-xs font-extrabold text-slate-600">사례개념화 이론
+                          <select id="cf-theory-${c.caseId}" onchange="toggleCaseTheoryInput('${c.caseId}')" class="mt-2 w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-slate-800">
+                            ${theoryOptions.map(theory=>`<option value="${esc(theory)}" ${!isCustomTheory&&selectedTheory===theory?'selected':''}>${esc(theory)}</option>`).join('')}
+                            <option value="custom" ${isCustomTheory?'selected':''}>직접 입력</option>
+                          </select>
+                        </label>
+                        <label id="cf-theory-custom-wrap-${c.caseId}" class="text-xs font-extrabold text-slate-600 ${isCustomTheory?'':'hidden'}">직접 입력할 이론
+                          <input id="cf-theory-custom-${c.caseId}" value="${esc(isCustomTheory?selectedTheory:(f.customTheory||''))}" placeholder="예: 대상관계이론, 인지처리치료" class="mt-2 w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm">
+                        </label>
+                      </div>
+                      <div class="mt-4 rounded-2xl border border-dashed border-purple-200 bg-purple-50/50 p-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div><p class="text-sm font-extrabold text-purple-800">사례개념화 참고자료</p><p class="mt-1 text-[11px] leading-relaxed text-purple-600">접수지·상담메모·외부 보고서 등의 PDF, 이미지, TXT를 올리면 AI가 내용을 읽어 생성 근거에 포함합니다.</p></div>
+                          <label class="cursor-pointer rounded-xl bg-purple-600 px-4 py-3 text-center text-xs font-extrabold text-white ${caseMaterialLoading?'pointer-events-none opacity-50':''}">${caseMaterialLoading?'자료 분석 중...':'자료 업로드'}<input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain" class="hidden" ${caseMaterialLoading?'disabled':''} onchange="uploadCaseMaterial('${c.caseId}',this.files[0])"></label>
+                        </div>
+                        ${caseMaterials.length?`<div class="mt-3 space-y-2">${caseMaterials.map(item=>`<div class="flex items-start justify-between gap-3 rounded-xl border border-purple-100 bg-white p-3"><div class="min-w-0"><p class="truncate text-xs font-extrabold text-slate-800">${esc(item.fileName||'사례자료')}</p><p class="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500">${esc(item.summary||'분석 요약 없음')}</p></div><button type="button" onclick="deleteCaseMaterial('${c.caseId}','${esc(item.id)}')" class="shrink-0 rounded-lg border border-rose-100 px-2 py-1 text-[10px] font-extrabold text-rose-600">삭제</button></div>`).join('')}</div>`:'<p class="mt-3 text-[10px] font-bold text-slate-400">추가된 사례자료가 없습니다.</p>'}
+                      </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
                       <button type="button" data-case-draft-action="generate" data-case-id="${esc(c.caseId)}" ${state.caseDraftLoading[c.caseId]?'disabled':''} class="rounded-xl bg-purple-600 px-4 py-3 text-xs font-extrabold text-white disabled:opacity-50">${state.caseDraftLoading[c.caseId]?'생성 중...':f.aiGeneratedAt?'AI 다시 생성':'AI 사례개념화 생성'}</button>
@@ -2483,6 +2505,7 @@ function casesView() {
                     <button onclick="saveCaseFormulation('${c.caseId}')" class="rounded-xl bg-slate-900 px-5 py-3 text-xs font-extrabold text-white">사례개념화 저장</button>
                   </div>
                   <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <label class="lg:col-span-2 text-xs font-extrabold text-purple-600">선택 이론의 관점과 핵심기제<textarea id="cf-theory-perspective-${c.caseId}" rows="5" placeholder="선택한 이론에서 이 사례를 이해하는 핵심개념과 변화기제" class="mt-2 w-full rounded-2xl border border-purple-100 bg-purple-50/40 px-4 py-3 text-sm leading-relaxed">${esc(f.theoryPerspective||'')}</textarea></label>
                     <label class="text-xs font-extrabold text-slate-500">주호소<textarea id="cf-complaint-${c.caseId}" rows="4" placeholder="내담자가 호소하는 핵심 어려움" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.complaint||'')}</textarea></label>
                     <label class="text-xs font-extrabold text-slate-500">현재 문제와 기능 영향<textarea id="cf-current-${c.caseId}" rows="4" placeholder="현재 문제와 일상·관계·기능에 미치는 영향" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.currentProblem||'')}</textarea></label>
                     <label class="text-xs font-extrabold text-slate-500">촉발요인<textarea id="cf-trigger-${c.caseId}" rows="4" placeholder="최근 어려움이 시작되거나 악화된 계기" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed">${esc(f.trigger||'')}</textarea></label>
@@ -3589,7 +3612,7 @@ function systemHealthCheck(){return window.MMLHealth?.runHealthCheck?.()||null}
 function systemStorageCleanup(options={}){return window.MMLHealth?.cleanup?.(options)||null}
 function exportSystemDiagnostics(){return window.MMLHealth?.exportDiagnostics?.()||null}
 
-function render(){ensureReservationIdentifiers();const root=document.getElementById('app');if(!state.authed){root.innerHTML=loginView();return}if(state.counselingModeId){root.innerHTML=counselingModeView();return}const views={dashboard:dashboardView,clients:clientManagementView,reservation:reservationView,interpretation:testInterpretationView,intake:intakeView,cases:casesView,journal:counselingJournalEntryView,counseling:counselingJournalView,clinicalTimeline:clinicalTimelineView,clinicalDss:clinicalDssView,termination:terminationView,documents:documentsView,report:reportView,members:membersView,statistics:statisticsView,settings:settingsView};root.innerHTML=(views[state.menu]||dashboardView)()}
+function render(){ensureReservationIdentifiers();const root=document.getElementById('app');if(!state.authed){root.innerHTML=loginView();return}if(state.counselingModeId){root.innerHTML=counselingModeView();return}const views={dashboard:dashboardView,clients:clientManagementView,reservation:reservationView,interpretation:testInterpretationView,intake:intakeView,cases:casesView,journal:counselingJournalView,counseling:counselingJournalView,clinicalTimeline:clinicalTimelineView,clinicalDss:clinicalDssView,termination:terminationView,documents:documentsView,report:reportView,members:membersView,statistics:statisticsView,settings:settingsView};root.innerHTML=(views[state.menu]||dashboardView)()}
 
 // 다른 탭의 사용자 예약 저장을 관리자 화면에 자동 반영합니다.
 window.addEventListener('storage',(event)=>{
@@ -3762,8 +3785,6 @@ async function toggleAiCounselingActivation(reservationId,nextEnabled){
   return true;
 }
 window.toggleAiCounselingActivation=toggleAiCounselingActivation;
-
-
 
 
 

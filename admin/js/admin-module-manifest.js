@@ -75,13 +75,13 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'outcomes-workspace',
-      src:'./js/modules/outcomes-workspace.js?v=20260724-modular-v26',
+      src:'./js/modules/outcomes-workspace.js?v=20260830-journal-two-stage-ai-v24',
       required:true,
       dependsOn:['data-store']
     },
     {
       id:'clinical-documents',
-      src:'./js/modules/clinical-documents.js?v=20260724-modular-v27',
+      src:'./js/modules/clinical-documents.js?v=20260830-journal-two-stage-ai-v24',
       required:true,
       dependsOn:['data-store','print-engine']
     },
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260825-ai-simple-gate-v1',
+      src:'./js/admin.js?v=20260830-journal-two-stage-ai-v24',
       required:true
     },
     {
