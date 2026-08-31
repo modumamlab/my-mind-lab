@@ -93,7 +93,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260831-rc3-10-workflow-load-fix-v1',
+      src:'./js/modules/operations-workspace.js?v=20260831-rc3-11-ai-60min-v1',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260831-rc3-10-workflow-load-fix-v1',
+      src:'./js/admin.js?v=20260831-rc3-11-ai-60min-v1',
       required:true
     },
     {

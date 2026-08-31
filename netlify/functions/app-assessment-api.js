@@ -10,7 +10,7 @@ const response = (statusCode, body) => ({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, X-MML-Admin-Password',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-MML-Admin-Password',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
   },
   body: JSON.stringify(body)
@@ -69,6 +69,25 @@ function publicStatus(row) {
   if (status === '예약승인') return '예약확정';
   if (status === '결제완료') return '예약확정';
   return '신청접수';
+}
+
+function aiAccessPayload(row) {
+  const enabled = row?.aiCounselingEnabled === true || row?.aiEnabled === true || row?.aiResultCounselingEnabled === true;
+  const startedAt = text(row?.aiCounselingStartedAt, 80);
+  const expiresAt = text(row?.aiCounselingExpiresAt, 80);
+  const nowMs = Date.now();
+  const expiresMs = expiresAt ? Date.parse(expiresAt) : NaN;
+  const expired = Boolean(startedAt && Number.isFinite(expiresMs) && nowMs >= expiresMs);
+  const remainingMs = startedAt && Number.isFinite(expiresMs) ? Math.max(0, expiresMs - nowMs) : (enabled ? 60 * 60 * 1000 : 0);
+  return {
+    enabled,
+    started: Boolean(startedAt),
+    startedAt,
+    expiresAt,
+    expired,
+    remainingMs,
+    status: !enabled ? 'disabled' : expired ? 'expired' : startedAt ? 'active' : 'ready'
+  };
 }
 
 exports.handler = async (event) => {
@@ -154,6 +173,35 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST') {
+    let body = {};
+    try { body = JSON.parse(event.body || '{}'); }
+    catch (_) { return response(400, { ok:false, error:'요청 형식이 올바르지 않습니다.' }); }
+
+    if (body?.action === 'ai-start') {
+      const id = text(body.id, 100);
+      const accessToken = text(body.token, 100);
+      if (!id || !accessToken) return response(400, { ok:false, error:'AI 상담 시작정보가 필요합니다.' });
+      try {
+        const current = rows(await store.get(KEY, { type:'json' }).catch(() => null));
+        const index = current.findIndex(r => String(r.appApplicationId || r.id || '') === id && String(r.appAccessToken || '') === accessToken);
+        if (index < 0) return response(404, { ok:false, error:'신청내역을 찾을 수 없습니다.' });
+        const row = current[index];
+        const access = aiAccessPayload(row);
+        if (!access.enabled) return response(403, { ok:false, error:'관리자가 AI 해석상담을 아직 활성화하지 않았습니다.', aiAccess:access });
+        if (access.expired) return response(403, { ok:false, error:'AI 해석상담 60분 이용시간이 종료되었습니다.', aiAccess:access });
+        if (!access.started) {
+          const started = new Date();
+          const expires = new Date(started.getTime() + 60 * 60 * 1000);
+          current[index] = { ...row, aiCounselingStartedAt:started.toISOString(), aiCounselingExpiresAt:expires.toISOString(), aiResultCounselingStartedAt:started.toISOString(), updatedAt:started.toISOString() };
+          await store.setJSON(KEY, current);
+          return response(200, { ok:true, aiAccess:aiAccessPayload(current[index]) });
+        }
+        return response(200, { ok:true, aiAccess:access });
+      } catch (error) {
+        return response(503, { ok:false, error:'AI 상담을 시작하지 못했습니다.', detail:String(error?.message || error) });
+      }
+    }
+
     if (body?.applicationType === 'inquiry') {
       const name = cleanText(body?.name, 80);
       const phone = cleanText(body?.phone, 30);
@@ -173,13 +221,6 @@ exports.handler = async (event) => {
         return response(503,{ok:false,error:'문의 저장에 실패했습니다.',detail:String(error?.message||error)});
       }
     }
-    let body = {};
-    try {
-      body = JSON.parse(event.body || '{}');
-    } catch (_) {
-      return response(400, { ok: false, error: '요청 형식이 올바르지 않습니다.' });
-    }
-
     const name = text(body.name, 80);
     const email = text(body.email, 160).toLowerCase();
     const phone = normalizePhone(body.phone);
@@ -330,6 +371,20 @@ exports.handler = async (event) => {
         preferredTime
       }
     });
+  }
+
+  if (event.httpMethod === 'GET' && String(event.queryStringParameters?.action || '') === 'ai-access') {
+    const id = text(event.queryStringParameters?.id, 100);
+    const accessToken = text(event.queryStringParameters?.token, 100);
+    if (!id || !accessToken) return response(400, { ok:false, error:'AI 상담 이용정보가 필요합니다.' });
+    try {
+      const current = rows(await store.get(KEY, { type:'json' }).catch(() => null));
+      const row = current.find(r => String(r.appApplicationId || r.id || '') === id && String(r.appAccessToken || '') === accessToken);
+      if (!row) return response(404, { ok:false, error:'신청내역을 찾을 수 없습니다.' });
+      return response(200, { ok:true, aiAccess:aiAccessPayload(row) });
+    } catch (error) {
+      return response(503, { ok:false, error:'AI 상담 이용상태를 확인하지 못했습니다.', detail:String(error?.message || error) });
+    }
   }
 
   if (event.httpMethod === 'GET') {

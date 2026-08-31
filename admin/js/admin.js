@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260831-RC3.10-WORKFLOW-LOAD-FIX loaded');
+console.info('[MML] BUILD 20260831-RC3.11-AI-60MIN loaded');
 
 const STATUS=["예약신청","예약승인","결제완료","검사발송","검사완료","결과업로드","상담준비","상담진행","상담완료","종결","취소요청","예약취소"];
 const STATUS_ALIASES={'승인대기':'예약신청','예약확정':'예약승인','결제대기':'예약승인','검사링크발송':'검사발송','검사진행':'검사발송','결과작성':'결과업로드','상담예정':'상담준비'};
@@ -3667,14 +3667,16 @@ function renderAiCounselingActivationControl(reservation){
   const id = String(reservation?.id || '');
 
   if(enabled){
+    const startedAt=reservation?.aiCounselingStartedAt||'';
+    const expiresAt=reservation?.aiCounselingExpiresAt||'';
+    const expired=Boolean(startedAt&&expiresAt&&Date.now()>=Date.parse(expiresAt));
+    const statusText=expired?'이용 종료':startedAt?'이용 중':'시작 대기';
     return `
-      <button
-        type="button"
-        data-mml-action="ai-counseling-toggle"
-        data-reservation-id="${id}"
-        data-next-enabled="false"
-        class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-700"
-      >AI 상담 활성</button>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-700">AI 상담 ${statusText}</span>
+        <button type="button" data-mml-action="ai-counseling-toggle" data-reservation-id="${id}" data-next-enabled="false" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-600">비활성화</button>
+        ${expired?`<button type="button" data-mml-action="ai-counseling-toggle" data-reservation-id="${id}" data-next-enabled="true" class="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-extrabold text-violet-700">60분 재부여</button>`:''}
+      </div>
     `;
   }
 
@@ -3712,12 +3714,24 @@ async function toggleAiCounselingActivation(reservationId,nextEnabled){
     return false;
   }
 
-  await updateReservation(reservationId,{
+  const nowIso=new Date().toISOString();
+  const wasStarted=Boolean(reservation.aiCounselingStartedAt);
+  const wasExpired=wasStarted && reservation.aiCounselingExpiresAt && Date.now()>=Date.parse(reservation.aiCounselingExpiresAt);
+  const patch={
     aiCounselingEnabled:!!nextEnabled,
     aiEnabled:!!nextEnabled,
     aiResultCounselingEnabled:!!nextEnabled,
     aiCounselingActivatedAt:nextEnabled ? new Date().toLocaleString('ko-KR') : ''
-  });
+  };
+  // 종료된 이용권을 다시 활성화하면 새 60분 이용권으로 재부여합니다.
+  if(nextEnabled && wasExpired){
+    patch.aiCounselingStartedAt='';
+    patch.aiCounselingExpiresAt='';
+    patch.aiResultCounselingStartedAt='';
+    patch.aiResultCounselingCompletedAt='';
+    patch.aiCounselingRegrantedAt=nowIso;
+  }
+  await updateReservation(reservationId,patch);
   return true;
 }
 window.toggleAiCounselingActivation=toggleAiCounselingActivation;
