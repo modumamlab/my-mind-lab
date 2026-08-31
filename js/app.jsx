@@ -37,6 +37,39 @@
             request.onerror = () => reject(request.error || new Error("예약 저장소를 열 수 없습니다."));
         });
 
+        // [RC2.14] 관리자 테스트 초기화가 실행된 뒤 홈페이지가 닫혀 있었더라도
+        // 다음 접속 시 과거 예약 캐시(localStorage + IndexedDB)를 먼저 비웁니다.
+        const TEST_DATA_RESET_AT_KEY = "modumam_test_data_reset_at";
+        const USER_TEST_DATA_RESET_APPLIED_AT_KEY = "modumam_user_test_data_reset_applied_at";
+        const hasPendingTestDataReset = () => {
+            try {
+                const resetAt = Number(localStorage.getItem(TEST_DATA_RESET_AT_KEY) || 0);
+                const appliedAt = Number(localStorage.getItem(USER_TEST_DATA_RESET_APPLIED_AT_KEY) || 0);
+                return resetAt > appliedAt;
+            } catch (e) { return false; }
+        };
+        const clearUserReservationCachesForTestReset = async () => {
+            let resetAt = Date.now();
+            try { resetAt = Number(localStorage.getItem(TEST_DATA_RESET_AT_KEY) || resetAt) || resetAt; } catch (e) {}
+            try {
+                localStorage.setItem("modumam_reservations", "[]");
+                localStorage.setItem("modumam_reservation_inbox", "[]");
+                localStorage.removeItem("modumam_last_reservation");
+            } catch (e) {}
+            try {
+                const db = await openModumamDatabase();
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(MODUMAM_RESERVATION_STORE, "readwrite");
+                    tx.objectStore(MODUMAM_RESERVATION_STORE).clear();
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error || new Error("예약 캐시 초기화 실패"));
+                    tx.onabort = () => reject(tx.error || new Error("예약 캐시 초기화 중단"));
+                });
+                db.close();
+            } catch (e) {}
+            try { localStorage.setItem(USER_TEST_DATA_RESET_APPLIED_AT_KEY, String(resetAt)); } catch (e) {}
+        };
+
         const saveReservationToServer = async (reservation) => {
             const response = await fetch('/.netlify/functions/reservations-api', {
                 method: 'POST',
@@ -347,40 +380,44 @@
             );
         };
 
-// 구글 시트 연동 URL
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMfIWhWhl02eEgmJvXO_JGjfNNkvjQy2EFxTwB3UsMz9jU2LbqCQItC_CkReKPlOW-Ig/exec';
-
-// [RC2.1] 회원 인증은 사용자 앱(Supabase) 한 곳에서 처리합니다.
-const USER_APP_URL = 'https://modumam-app.netlify.app';
-const openUserAppAuth = () => { window.location.assign(USER_APP_URL); };
-
-// 구글 시트 저장 함수
-async function submitSignup(userData) {
-  try {
-    await fetch(SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: userData.name,
-        phone: userData.phone,
-        email: userData.email
-      })
-    });
-
-    console.log('구글 시트 저장 성공');
-
-  } catch (error) {
-    console.error('구글 시트 저장 실패', error);
-  }
+// 홈페이지 회원 인증은 Netlify Function을 통해 Supabase Auth와 연결합니다.
+// 모바일 앱과 동일한 Supabase 프로젝트를 사용하되 화면 이동은 서로 독립적으로 유지합니다.
+const HOME_AUTH_ENDPOINT = '/.netlify/functions/home-auth';
+const HOME_AUTH_SESSION_KEY = 'modumamSupabaseSession';
+// 기존 localStorage 전용 로그인은 더 이상 인증으로 인정하지 않습니다.
+if (!localStorage.getItem(HOME_AUTH_SESSION_KEY)) {
+    try { localStorage.removeItem('modumamUser'); } catch (_) {}
 }
-        
 
-        // [MOD-20260824-USER-RESERVATION-CACHE-RESET-V1]
+async function requestHomeAuth(action, payload = {}) {
+    const response = await fetch(HOME_AUTH_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...payload })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || '회원 인증 처리 중 오류가 발생했습니다.');
+    return data;
+}
+
+function saveHomeAuthSession(session, profile = {}) {
+    if (session) localStorage.setItem(HOME_AUTH_SESSION_KEY, JSON.stringify(session));
+    const user = session?.user || {};
+    const metadata = user.user_metadata || {};
+    const member = {
+        name: profile.name || metadata.name || '',
+        phone: String(profile.phone || metadata.phone || '').replace(/[^0-9]/g, ''),
+        email: user.email || profile.email || '',
+        userId: user.id || '',
+        loginAt: new Date().toLocaleString()
+    };
+    localStorage.setItem('modumamUser', JSON.stringify(member));
+    return member;
+}
+
+        // [RC3.1.1-USER-RESERVATION-CACHE-RESET-V2]
         // 기존 예약 데이터 전체 초기화 이후 사용자 브라우저에 남아 있는 오래된 예약 캐시도 제거합니다.
-        const USER_RESERVATION_RESET_KEY = "modumam_user_reservation_reset_20260824_v1";
+        const USER_RESERVATION_RESET_KEY = "modumam_user_reservation_reset_20260831_v2";
         const clearLegacyUserReservationCacheOnce = async () => {
             if (localStorage.getItem(USER_RESERVATION_RESET_KEY) === "done") return;
             try {
@@ -457,6 +494,7 @@ async function submitSignup(userData) {
             // Reservation State
            const [reservations, setReservations] = useState(() => {
                try {
+                   if (hasPendingTestDataReset()) return [];
                    const saved = JSON.parse(localStorage.getItem("modumam_reservations") || "[]");
                    return Array.isArray(saved) ? saved.filter(item => Number(item?.id) !== 1 || item?.phone !== '010-1234-5678') : [];
                } catch (e) {
@@ -467,6 +505,11 @@ async function submitSignup(userData) {
            useEffect(() => {
                let active = true;
                const refreshMyReservationsOnce = async () => {
+                   if (hasPendingTestDataReset()) {
+                       await clearUserReservationCachesForTestReset();
+                       if (!active) return;
+                       setReservations([]);
+                   }
                    let indexedRows = [];
                    try { indexedRows = await getReservationsFromIndexedDB(); } catch (e) {}
                    if (!active) return;
@@ -786,8 +829,19 @@ async function submitSignup(userData) {
             // 회원가입 및 로그인 제어용 State
             const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
             const [authMode, setAuthMode] = useState('signup');
-            const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('modumamUser'));
+            const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem(HOME_AUTH_SESSION_KEY));
             const [authForm, setAuthForm] = useState({ name: '', phone: '', email: '', password: '' });
+            const [authError, setAuthError] = useState('');
+            const [authSubmitting, setAuthSubmitting] = useState(false);
+
+            // RC2.7: 회원가입 화면은 기존 로그인 자동완성 값이 남지 않도록 항상 새 입력 상태로 시작합니다.
+            useEffect(() => {
+                if (isAuthModalOpen && authMode === 'signup') {
+                    setAuthForm({ name: '', phone: '', email: '', password: '' });
+                    setAuthError('');
+                }
+            }, [isAuthModalOpen, authMode]);
+
             const [isIntakeModalOpen, setIsIntakeModalOpen] = useState(false);
             const [isAdminPageOpen, setIsAdminPageOpen] = useState(false);
             const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
@@ -894,12 +948,30 @@ async function submitSignup(userData) {
                     try {
                         const saved = JSON.parse(localStorage.getItem("modumam_reservations") || "[]");
                         const localRows = Array.isArray(saved) ? saved : [];
-                        setReservations((current) => mergeReservationRows(current, localRows));
+                        // RC2.13: 관리자 초기화로 저장소가 비워졌다면 현재 React 상태도 즉시 비웁니다.
+                        // 기존 merge 방식은 []와 병합해도 화면의 과거 예약이 남는 문제가 있었습니다.
+                        setReservations((current) => localRows.length ? mergeReservationRows(current, localRows) : []);
                     } catch (e) {}
                 };
                 window.addEventListener("storage", reloadReservationsFromLocal);
+
+                let resetChannel = null;
+                try {
+                    resetChannel = new BroadcastChannel('modumam_operating_sync');
+                    resetChannel.onmessage = async (event) => {
+                        if (event?.data?.type !== 'test-data-reset') return;
+                        try {
+                            localStorage.setItem(TEST_DATA_RESET_AT_KEY, String(event?.data?.at || Date.now()));
+                            localStorage.removeItem(USER_TEST_DATA_RESET_APPLIED_AT_KEY);
+                        } catch (e) {}
+                        await clearUserReservationCachesForTestReset();
+                        setReservations([]);
+                    };
+                } catch (e) {}
+
                 return () => {
                     window.removeEventListener("storage", reloadReservationsFromLocal);
+                    try { resetChannel?.close(); } catch (e) {}
                 };
             }, []);
 
@@ -1262,80 +1334,59 @@ async function submitSignup(userData) {
 
             
   // 가입/로그인 완료 버튼 처리 함수 (수정본)
-const handleAuthSubmit = async (e) => { // async 키워드 추가 필수
+const handleAuthSubmit = async (e) => {
     e.preventDefault();
-    
-    if (authMode === 'signup') {
-        // [수정] 구글 시트로 데이터 전송이 완료될 때까지 기다림
-        await submitSignup(authForm);
-        
-        const templateParams = {
-            name: authForm.name,
-            phone: authForm.phone,
-            email: authForm.email,
-            date: new Date().toLocaleString()
-        };
-        
-        // 이메일 발송 로직
-        window.emailjs.send(
-            'service_4bvn32a',    // Service ID
-            'template_kp5prue',   // Template ID
-            templateParams,
-            'mrZ6YoiEw9fnGUGpB'   // Public Key
-        )
-        .then((response) => {
-            console.log('관리자 메일 발송 성공!', response.status);
-            alert(`${authForm.name}님, 회원가입이 완료되었습니다.`);
-localStorage.setItem('modumamUser', JSON.stringify({ name: authForm.name, phone: authForm.phone, email: authForm.email, joinedAt: new Date().toLocaleString() }));
-setIsLoggedIn(true);
-setIsAuthModalOpen(false);
+    setAuthError('');
 
-// ===== [MOD-20260711-001] 수정 START =====
-// 회원가입 완료 후 AI 마음대화 자동 실행 제거
-// AI 마음대화는 사용자가 'AI 마음대화 시작하기' 버튼을 눌렀을 때만 열립니다.
-// ===== [MOD-20260711-001] 수정 END =====
-})
-        .catch((err) => {
-            console.error('메일 발송 실패:', err);
-            localStorage.setItem('modumamUser', JSON.stringify({ name: authForm.name, phone: authForm.phone, email: authForm.email, joinedAt: new Date().toLocaleString() }));
-            setIsLoggedIn(true);
-setIsAuthModalOpen(false);
+    const email = String(authForm.email || '').trim();
+    const password = String(authForm.password || '');
+    const name = String(authForm.name || '').trim();
+    const phone = String(authForm.phone || '').replace(/[^0-9]/g, '');
 
-// ===== [MOD-20260711-002] 수정 START =====
-// 관리자 메일 발송 실패 시에도 회원가입은 유지하되,
-// AI 마음대화 팝업은 자동으로 열지 않습니다.
-// ===== [MOD-20260711-002] 수정 END =====
-        });
-        
-    } else {
-    // [MOD-20260713-RESULT-IDENTITY-FIX]
-    // 검사결과는 회원 이름 또는 연락처로 연결되므로 빈 정보 로그인을 허용하지 않습니다.
-    const loginName = String(authForm.name || '').trim();
-    const loginPhone = String(authForm.phone || '').replace(/[^0-9]/g, '');
-    if (!loginName || loginPhone.length < 8) {
-        alert('검사결과와 예약내역을 안전하게 연결하려면 이름과 연락처를 모두 입력해 주세요.');
+    if (authMode === 'signup' && (!name || phone.length < 8)) {
+        setAuthError('이름과 연락처를 정확히 입력해 주세요.');
         return;
     }
 
-    alert('로그인되었습니다.');
-    localStorage.setItem('modumamUser', JSON.stringify({
-        name: loginName,
-        phone: loginPhone,
-        email: String(authForm.email || '').trim(),
-        loginAt: new Date().toLocaleString()
-    }));
-    setIsLoggedIn(true);
-    setIsAuthModalOpen(false);
-
-    // ===== [MOD-20260711-003] 수정 START =====
-    // 로그인 후 AI 마음대화 자동 실행 제거
-    // 로그인 완료 후에는 홈페이지에 그대로 머무릅니다.
-    // ===== [MOD-20260711-003] 수정 END =====
-}
-    
-    setAuthForm({ name: '', phone: '', email: '', password: '' });
+    setAuthSubmitting(true);
+    try {
+        if (authMode === 'signup') {
+            const result = await requestHomeAuth('signup', { email, password, name, phone });
+            if (result.session) {
+                saveHomeAuthSession(result.session, { name, phone, email });
+                setIsLoggedIn(true);
+                setIsAuthModalOpen(false);
+            } else {
+                setAuthMode('login');
+                setAuthError('회원가입이 완료되었습니다. 이메일 인증을 마친 뒤 로그인해 주세요.');
+            }
+        } else {
+            const result = await requestHomeAuth('login', { email, password });
+            saveHomeAuthSession(result.session, { email });
+            setIsLoggedIn(true);
+            setIsAuthModalOpen(false);
+        }
+        if (authMode === 'login' || localStorage.getItem(HOME_AUTH_SESSION_KEY)) {
+            setAuthForm({ name: '', phone: '', email: '', password: '' });
+        }
+    } catch (error) {
+        console.error('[HOME AUTH ERROR]', error);
+        const message = String(error?.message || '로그인 처리 중 오류가 발생했습니다.');
+        if (/Invalid login credentials/i.test(message)) {
+            setAuthError('이메일 또는 비밀번호가 올바르지 않습니다.');
+        } else if (/Email not confirmed/i.test(message)) {
+            setAuthError('이메일 인증이 완료되지 않았습니다. 받은 메일의 인증 링크를 확인해 주세요.');
+        } else if (/already registered|already been registered/i.test(message)) {
+            setAuthError('이미 가입된 이메일입니다. 로그인해 주세요.');
+        } else if (/환경변수|configuration/i.test(message)) {
+            setAuthError('로그인 서버 설정을 확인할 수 없습니다. 로컬 실행 환경의 Supabase 설정을 확인해 주세요.');
+        } else {
+            setAuthError(message);
+        }
+    } finally {
+        setAuthSubmitting(false);
+    }
 };
-            
 
 
             const scrollAiChatToBottom = () => {
@@ -1478,7 +1529,8 @@ setIsAuthModalOpen(false);
 
                 if (!isLoggedIn && !savedUser) {
                     // v28 수정: AI 마음대화는 회원 전용이므로 alert 대신 회원가입/로그인 팝업을 바로 엽니다.
-                    openUserAppAuth();
+                    setAuthMode('signup');
+                    setIsAuthModalOpen(true);
                     return;
                 }
 
@@ -2165,9 +2217,19 @@ const userText = pendingInput;
                         title: getAssessmentReportAutoTitle(reservation, tests)
                     });
                 }
-                // 구버전에서 assessmentReportRequested만 저장된 경우에는 종합보고서 신청으로 호환합니다.
+                // RC3.3: 구버전 단일 boolean만 남아 있어도 실제 검사 수를 기준으로 복원합니다.
+                // 1개 검사는 개별보고서, 2개 이상 또는 마음이음 프로그램만 종합보고서입니다.
                 if (!items.length && reservation.assessmentReportRequested === true) {
-                    items.push({ key: 'integrated', reportType: 'integrated', testCode: '', title: '심리검사 종합보고서' });
+                    const bookedTests = typeof requestedTests === 'function'
+                        ? requestedTests(reservation).map(normalizeAssessmentReportTestName).filter(Boolean)
+                        : [];
+                    const uniqueBookedTests = [...new Set(bookedTests)];
+                    if (!isMindConnectionReportProgram(reservation) && uniqueBookedTests.length === 1) {
+                        const testCode = uniqueBookedTests[0];
+                        items.push({ key: `individual:${testCode}`, reportType: 'individual', testCode, title: `${testCode} 개별 심리검사 보고서` });
+                    } else {
+                        items.push({ key: 'integrated', reportType: 'integrated', testCode: '', title: getAssessmentReportAutoTitle(reservation, uniqueBookedTests) });
+                    }
                 }
                 return items;
             };
@@ -3116,6 +3178,7 @@ const userText = pendingInput;
                     status: 'requested',
                     clientName: String(targetReservation.name || targetReservation.clientName || currentName || ''),
                     phone: String(targetReservation.phone || targetReservation.clientPhone || currentPhone || ''),
+                    email: String(targetReservation.email || targetReservation.clientEmail || targetReservation.assessmentApplication?.email || currentEmail || ''),
                     program: String(targetReservation.bookingProgram || targetReservation.program || ''),
                     date: String(targetReservation.date || targetReservation.bookingDate || ''),
                     time: String(targetReservation.time || targetReservation.bookingTime || ''),
@@ -3990,7 +4053,8 @@ const userText = pendingInput;
                 }
 
                 if (!isLoggedIn && !savedUser) {
-                    openUserAppAuth();
+                    setAuthMode('login');
+                    setIsAuthModalOpen(true);
                     return;
                 }
 
@@ -4004,6 +4068,7 @@ const userText = pendingInput;
             ===================================================== */
             const handleLogout = () => {
                 localStorage.removeItem('modumamUser');
+                localStorage.removeItem(HOME_AUTH_SESSION_KEY);
                 setIsLoggedIn(false);
                 setAuthForm({ name: '', phone: '', email: '', password: '' });
                 setIsMobileMenuOpen(false);
@@ -4983,6 +5048,7 @@ if (userAge === 'parent') {
             }
             const currentPhone = String(currentUser?.phone || authForm.phone || '').replace(/[^0-9]/g, '');
             const currentName = String(currentUser?.name || authForm.name || '').trim();
+            const currentEmail = String(currentUser?.email || authForm.email || '').trim();
 
             /* =====================================================
                [MOD-20260716-REPORT-PASSWORD]
@@ -5202,7 +5268,7 @@ if (userAge === 'parent') {
                 ) : (
                     <button
                         type="button"
-                        onClick={openUserAppAuth}
+                        onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }}
                         className="text-slate-600 hover:text-slate-900 transition-colors"
                     >
                         로그인
@@ -5327,14 +5393,14 @@ if (userAge === 'parent') {
                         <div className="flex flex-col">
                             <button
                                 type="button"
-                                onClick={() => { setIsMobileMenuOpen(false); openUserAppAuth(); }}
+                                onClick={() => { setIsMobileMenuOpen(false); setAuthMode('login'); setIsAuthModalOpen(true); }}
                                 className="min-h-12 w-full rounded-xl px-3 text-left text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                             >
                                 로그인
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { setIsMobileMenuOpen(false); openUserAppAuth(); }}
+                                onClick={() => { setIsMobileMenuOpen(false); setAuthMode('signup'); setIsAuthModalOpen(true); }}
                                 className="min-h-12 w-full rounded-xl px-3 text-left text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
                             >
                                 회원가입
@@ -5685,7 +5751,7 @@ if (userAge === 'parent') {
 
                                 {/* [MOD-20260710-006] 마이페이지는 회원이면 접근 가능하도록 안내 문구 수정 */}
                                 {isLoggedIn || currentUser ? (
-                                    <div className="mb-6 rounded-3xl bg-emerald-50 border border-emerald-100 p-5 text-sm text-emerald-900 leading-relaxed">
+                                    <div className="mb-4 rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-xs text-emerald-900 leading-relaxed">
                                         나의 마음기록에 오신 것을 환영합니다. 마음기록과 결과확인은 심리검사 신청·결제 후 순차적으로 열립니다.
                                     </div>
                                 ) : null}
@@ -5699,25 +5765,25 @@ if (userAge === 'parent') {
                                    - AI 마음상담: 마음리포트와 마음체크 기록 통합
                                    - 심리검사 결과 / 상담·예약 내역은 기존 연결 유지
                                 ===================================================== */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <button
                                         type="button"
                                         onClick={() => setMyRecordPanel('today')}
-                                        className={`group text-left rounded-3xl border p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${myRecordPanel === 'today' ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-100 bg-white'}`}
+                                        className={`group text-left rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all ${myRecordPanel === 'today' ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-100 bg-white'}`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                                                <Icon name="pencil" className="w-6 h-6" />
+                                            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                                <Icon name="pencil" className="w-5 h-5" />
                                             </div>
                                             <span className="text-xs font-extrabold text-emerald-700 bg-white border border-emerald-100 rounded-full px-3 py-1">
                                                 {todayMindNotes.length}건
                                             </span>
                                         </div>
-                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">오늘의 마음</h3>
-                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                        <h3 className="mt-3 text-sm font-extrabold text-slate-900">오늘의 마음</h3>
+                                        <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
                                             오늘의 마음을 내 말로 직접 기록하고 다시 확인합니다.
                                         </p>
-                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-emerald-700">
+                                        <span className="inline-flex items-center mt-3 text-[11px] font-extrabold text-emerald-700">
                                             마음 기록하기 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
                                         </span>
                                     </button>
@@ -5725,21 +5791,21 @@ if (userAge === 'parent') {
                                     <button
                                         type="button"
                                         onClick={() => setMyRecordPanel('ai')}
-                                        className={`group text-left rounded-3xl border p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${myRecordPanel === 'ai' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-100 bg-white'}`}
+                                        className={`group text-left rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all ${myRecordPanel === 'ai' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-100 bg-white'}`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
-                                                <Icon name="message-square" className="w-6 h-6" />
+                                            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                                                <Icon name="message-square" className="w-5 h-5" />
                                             </div>
                                             <span className="text-xs font-extrabold text-amber-700 bg-white border border-amber-100 rounded-full px-3 py-1">
                                                 {mindRecords.length + userIntakeSummaries.length}건
                                             </span>
                                         </div>
-                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">AI 마음상담</h3>
-                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                        <h3 className="mt-3 text-sm font-extrabold text-slate-900">AI 마음상담</h3>
+                                        <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
                                             AI 마음리포트와 AI 마음대화 기록을 한곳에서 확인합니다.
                                         </p>
-                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-amber-700">
+                                        <span className="inline-flex items-center mt-3 text-[11px] font-extrabold text-amber-700">
                                             상담 기록 보기 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
                                         </span>
                                     </button>
@@ -5747,21 +5813,21 @@ if (userAge === 'parent') {
                                     <button
                                         type="button"
                                         onClick={() => setMyRecordPanel('results')}
-                                        className={`group text-left rounded-3xl border p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${myRecordPanel === 'results' ? 'border-indigo-200 bg-indigo-50/60' : 'border-slate-100 bg-white'}`}
+                                        className={`group text-left rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all ${myRecordPanel === 'results' ? 'border-indigo-200 bg-indigo-50/60' : 'border-slate-100 bg-white'}`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                                                <Icon name="layout-list" className="w-6 h-6" />
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                                <Icon name="layout-list" className="w-5 h-5" />
                                             </div>
                                             <span className="text-xs font-extrabold text-indigo-700 bg-white border border-indigo-100 rounded-full px-3 py-1">
                                                 {getPublishedAssessmentReportCardsForCurrentUser().length + getPendingAssessmentReportCardsForCurrentUser().length}건
                                             </span>
                                         </div>
-                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">심리검사 보고서</h3>
-                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                        <h3 className="mt-3 text-sm font-extrabold text-slate-900">심리검사 보고서</h3>
+                                        <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
                                             신청한 개별·종합보고서의 작성 상태와 승인된 보고서를 확인합니다.
                                         </p>
-                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-indigo-700">
+                                        <span className="inline-flex items-center mt-3 text-[11px] font-extrabold text-indigo-700">
                                             보고서 신청·확인 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
                                         </span>
                                     </button>
@@ -5769,21 +5835,21 @@ if (userAge === 'parent') {
                                     <button
                                         type="button"
                                         onClick={() => setMyRecordPanel('reservations')}
-                                        className={`group text-left rounded-3xl border p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${myRecordPanel === 'reservations' ? 'border-slate-300 bg-slate-100/70' : 'border-slate-100 bg-white'}`}
+                                        className={`group text-left rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all ${myRecordPanel === 'reservations' ? 'border-slate-300 bg-slate-100/70' : 'border-slate-100 bg-white'}`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
-                                                <Icon name="calendar" className="w-6 h-6" />
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+                                                <Icon name="calendar" className="w-5 h-5" />
                                             </div>
                                             <span className="text-xs font-extrabold text-slate-600 bg-slate-50 border border-slate-100 rounded-full px-3 py-1">
                                                 {userReservations.length}건
                                             </span>
                                         </div>
-                                        <h3 className="mt-5 text-base font-extrabold text-slate-900">상담·예약 내역</h3>
-                                        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                                        <h3 className="mt-3 text-sm font-extrabold text-slate-900">상담·예약 내역</h3>
+                                        <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
                                             상담 및 심리검사 예약 내역과 진행상황을 확인합니다.
                                         </p>
-                                        <span className="inline-flex items-center mt-5 text-xs font-extrabold text-slate-700">
+                                        <span className="inline-flex items-center mt-3 text-[11px] font-extrabold text-slate-700">
                                             예약·상담 보기 <Icon name="chevron-right" className="w-4 h-4 ml-1" />
                                         </span>
                                     </button>
@@ -5794,7 +5860,7 @@ if (userAge === 'parent') {
                                 {/* =====================================================
                                    [MOD-20260710-018] 오늘의 마음 직접 기록 / AI 마음상담 통합 기록
                                 ===================================================== */}
-                                <div className="mt-6 rounded-[2rem] border border-slate-100 bg-slate-50/70 p-5 sm:p-7">
+                                <div className="mt-4 rounded-[1.5rem] border border-slate-100 bg-slate-50/70 p-4 sm:p-5">
                                     {myRecordPanel === 'reservations' ? (
                                         <div>
                                             <div className="mb-5">
@@ -6037,7 +6103,7 @@ if (userAge === 'parent') {
                                                     })}
                                                 </div>
                                             ) : (
-                                                <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                                                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
                                                     <p className="text-sm font-bold text-slate-700">예약 내역이 없습니다.</p>
                                                     <p className="mt-2 text-xs text-slate-500">
                                                         상담 또는 심리검사를 신청하면 예약 내역이 이곳에 표시됩니다.
@@ -6047,18 +6113,18 @@ if (userAge === 'parent') {
                                         </div>
                                     ) : myRecordPanel === 'results' ? (
                                         <div>
-                                            <div className="mb-5">
-                                                <h3 className="text-lg font-extrabold text-slate-900">심리검사 보고서</h3>
+                                            <div className="mb-3">
+                                                <h3 className="text-base font-extrabold text-slate-900">심리검사 보고서 신청</h3>
                                                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                                    보고서를 신청하고, 임상심리사가 검토·승인한 보고서를 확인할 수 있습니다.
+                                                    보고서는 홈페이지에 공개하지 않습니다. 신청 후 임상심리사가 검토한 최종 보고서를 확인된 이메일로 발송합니다.
                                                 </p>
                                             </div>
 
-                                            <div className="mb-6">
+                                            <div className="mb-4">
                                                 <button
                                                     type="button"
                                                     onClick={() => openAssessmentReportApplication()}
-                                                    className="w-full rounded-2xl bg-indigo-600 px-5 py-4 text-sm font-extrabold text-white hover:bg-indigo-700"
+                                                    className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-indigo-700"
                                                 >
                                                     보고서 신청
                                                 </button>
@@ -6074,51 +6140,31 @@ if (userAge === 'parent') {
                                             ) : null}
 
                                             {(getReportEligibleReservationsForCurrentUser().length || getPublishedAssessmentReportCardsForCurrentUser().length) ? (
-                                                <div className="space-y-7">
+                                                <div className="space-y-4">
                                                     {getPublishedAssessmentReportCardsForCurrentUser().length ? (
                                                         <div>
                                                             <div className="mb-3 flex items-center justify-between gap-3">
-                                                                <h4 className="text-sm font-extrabold text-slate-800">열람 가능한 보고서</h4>
-                                                                <span className="text-[11px] font-bold text-emerald-700">관리자 승인 완료</span>
+                                                                <h4 className="text-sm font-extrabold text-slate-800">발송 준비 완료</h4>
+                                                                <span className="text-[11px] font-bold text-emerald-700">관리자 검토 완료</span>
                                                             </div>
-                                                            <div className="space-y-4">
-                                                                {getPublishedAssessmentReportCardsForCurrentUser().map(({ publication, reservation, item, report }) => (
-                                                                    <article key={publication.reportId} className="rounded-3xl border border-emerald-100 bg-white p-5 sm:p-6 shadow-sm">
-                                                                        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                                                            <div className="space-y-3">
+                                                                {getPublishedAssessmentReportCardsForCurrentUser().map(({ publication, reservation, item }) => (
+                                                                    <article key={publication.reportId} className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+                                                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                                                             <div>
-                                                                                <div className="mb-3 flex flex-wrap items-center gap-2">
-                                                                                    <span className="rounded-full bg-indigo-100 px-3 py-1 text-[11px] font-extrabold text-indigo-700">
-                                                                                        {reservation.program || '심리검사'}
-                                                                                    </span>
-                                                                                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-extrabold text-emerald-700">
-                                                                                        승인 완료 · 열람 가능
-                                                                                    </span>
-                                                                                </div>
-                                                                                <h4 className="text-base font-extrabold text-slate-900">{item.title}</h4>
-                                                                                <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                                                                                    {item.reportType === 'individual'
-                                                                                        ? `${item.testCode || '해당'} 검사결과를 바탕으로 임상심리사가 검토·승인한 개별 보고서입니다.`
-                                                                                        : '여러 심리검사 결과를 통합하여 임상심리사가 검토·승인한 종합보고서입니다.'}
-                                                                                </p>
-                                                                                {publication.approvedAt ? (
-                                                                                    <p className="mt-2 text-[11px] font-bold text-slate-400">
-                                                                                        승인일 {String(publication.approvedAt).slice(0, 10).replaceAll('-', '.')}
-                                                                                    </p>
-                                                                                ) : null}
+                                                                                <h4 className="text-sm font-extrabold text-slate-900">{item.title}</h4>
+                                                                                <p className="mt-2 text-xs text-slate-500">홈페이지에서는 보고서 내용을 열람하거나 저장할 수 없습니다. 관리자 확인 후 등록된 이메일로 발송됩니다.</p>
                                                                             </div>
-                                                                            <div className="flex flex-wrap gap-2">
-                                                                                <button type="button" onClick={() => openApprovedAssessmentReport(report, false)} className="rounded-2xl bg-emerald-700 px-5 py-3 text-xs font-extrabold text-white hover:bg-emerald-800">보고서 열람</button>
-                                                                                <button type="button" onClick={() => openApprovedAssessmentReport(report, true)} className="rounded-2xl border border-emerald-200 bg-white px-5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50">PDF 저장</button>
-                                                                            </div>
+                                                                            <span className="rounded-full bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-700">이메일 발송 준비</span>
                                                                         </div>
                                                                     </article>
                                                                 ))}
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center">
-                                                            <p className="text-sm font-bold text-slate-700">아직 열람 가능한 보고서가 없습니다.</p>
-                                                            <p className="mt-2 text-xs text-slate-500">관리자 검토와 승인이 완료되면 이곳에 자동으로 표시됩니다.</p>
+                                                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
+                                                            <p className="text-sm font-bold text-slate-700">아직 발송 준비된 보고서가 없습니다.</p>
+                                                            <p className="mt-2 text-xs text-slate-500">신청 후 관리자 작성·검토가 완료되면 이메일 발송 단계로 진행됩니다.</p>
                                                         </div>
                                                     )}
 
@@ -6159,9 +6205,9 @@ if (userAge === 'parent') {
                                                     ) : null}
                                                 </div>
                                             ) : (
-                                                <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                                                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-center">
                                                     <p className="text-sm font-bold text-slate-700">확인 가능한 심리검사 보고서가 없습니다.</p>
-                                                    <p className="mt-2 text-xs text-slate-500">보고서를 신청하면 작성 및 검토 상태가 이곳에 표시됩니다.</p>
+                                                    <p className="mt-2 text-xs text-slate-500">보고서를 신청하면 작성·검토 및 이메일 발송 상태가 이곳에 표시됩니다.</p>
                                                 </div>
                                             )}
                                         </div>
@@ -6471,7 +6517,7 @@ if (userAge === 'parent') {
                                 {!isLoggedIn && !currentUser && (
                                     <div className="mt-6 rounded-3xl bg-amber-50 border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                         <p className="text-sm text-amber-900 font-bold">AI 마음대화 예약 진행을 위해 회원가입 또는 로그인이 필요합니다.</p>
-                                        <button onClick={openUserAppAuth} className="bg-slate-900 text-white rounded-full px-5 py-3 text-sm font-bold">회원가입하기</button>
+                                        <button onClick={() => { setAuthMode('signup'); setIsAuthModalOpen(true); }} className="bg-slate-900 text-white rounded-full px-5 py-3 text-sm font-bold">회원가입하기</button>
                                     </div>
                                 )}
                             </div>
@@ -7921,15 +7967,17 @@ if (userAge === 'parent') {
                 </div>
             )}
 
-            <form onSubmit={handleAuthSubmit} className="space-y-4">
+            <form key={authMode} onSubmit={handleAuthSubmit} autoComplete={authMode === 'signup' ? 'off' : 'on'} className="space-y-4">
                 {/* [MOD-20260713-RESULT-LOGIN-FIELDS-FIX]
                     검사결과는 이름·연락처로 연결되므로 회원가입과 로그인 모두 입력받습니다. */}
+                {authMode === 'signup' && (
                 <>
                     <div>
                         <label className="block text-xs font-bold text-slate-600 mb-1.5">이름</label>
                         <input
                             type="text"
                             required
+                            autoComplete="off"
                             placeholder="예약 시 입력한 이름"
                             value={authForm.name}
                             onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
@@ -7942,6 +7990,7 @@ if (userAge === 'parent') {
                         <input
                             type="tel"
                             required
+                            autoComplete="off"
                             placeholder="예약 시 입력한 연락처"
                             value={authForm.phone}
                             onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
@@ -7949,12 +7998,14 @@ if (userAge === 'parent') {
                         />
                     </div>
                 </>
+                )}
 
                 <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1.5">이메일 주소</label>
                     <input
                         type="email"
                         required
+                        autoComplete={authMode === 'signup' ? 'off' : 'username'}
                         placeholder="example@email.com"
                         value={authForm.email}
                         onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
@@ -7967,6 +8018,7 @@ if (userAge === 'parent') {
                     <input
                         type="password"
                         required
+                        autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                         placeholder="••••••••"
                         value={authForm.password}
                         onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
@@ -8011,11 +8063,18 @@ if (userAge === 'parent') {
                     </div>
                 )}
 
+                {authError && (
+                    <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold leading-relaxed text-rose-700">
+                        {authError}
+                    </div>
+                )}
+
                 <button
                     type="submit"
-                    className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-colors shadow-lg mt-2"
+                    disabled={authSubmitting}
+                    className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors shadow-lg mt-2"
                 >
-                    {authMode === 'signup' ? '회원가입하고 AI 마음 상담 시작하기' : '로그인'}
+                    {authSubmitting ? '처리 중...' : (authMode === 'signup' ? '회원가입하고 AI 마음 상담 시작하기' : '로그인')}
                 </button>
             </form>
 
@@ -8025,7 +8084,7 @@ if (userAge === 'parent') {
 
                     <button
                         type="button"
-                        onClick={() => setAuthMode(authMode === 'signup' ? 'login' : 'signup')}
+                        onClick={() => { setAuthError(''); setAuthForm({ name: '', phone: '', email: '', password: '' }); setAuthMode(authMode === 'signup' ? 'login' : 'signup'); }}
                         className="text-indigo-600 font-bold ml-1.5 hover:underline"
                     >
                         {authMode === 'signup' ? '로그인하기' : '회원가입하기'}

@@ -2,7 +2,7 @@ const { getStore, connectLambda } = require('@netlify/blobs');
 const crypto = require('crypto');
 
 const STORE_NAME = 'modumam-reservations-v1';
-const KEY = 'reservations';
+const KEY = 'reservations-v2';
 
 const response = (statusCode, body) => ({
   statusCode,
@@ -11,7 +11,7 @@ const response = (statusCode, body) => ({
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, X-MML-Admin-Password',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
   },
   body: JSON.stringify(body)
 });
@@ -95,6 +95,11 @@ exports.handler = async (event) => {
 
   const isAdminRequest = String(event.queryStringParameters?.admin || '') === '1';
 
+  // RC3.2: 운영 안전을 위해 예약 전체 삭제 API를 노출하지 않습니다.
+  if (event.httpMethod === 'DELETE' && isAdminRequest) {
+    return response(405, { ok: false, error: '예약 전체 삭제 API는 비활성화되었습니다.' });
+  }
+
   if (event.httpMethod === 'GET' && isAdminRequest) {
     if (!adminAuthorized(event)) {
       return response(401, { ok: false, error: '관리자 인증이 필요합니다.' });
@@ -129,16 +134,8 @@ exports.handler = async (event) => {
     }
 
     try {
-      const current = rows(await store.get(KEY, { type: 'json' }).catch(() => null));
-      const incoming = Array.isArray(body.reservations)
-        ? body.reservations
-        : (body.reservation ? [body.reservation] : []);
-
-      if (!incoming.length) {
-        return response(400, { ok: false, error: '저장할 예약 정보가 없습니다.' });
-      }
-
-      const next = mergeRows(current, incoming).slice(0, 3000);
+      // RC3.2: 관리자 PUT은 전체 기준본 교체입니다.
+      const next = rows(Array.isArray(body.reservations) ? body.reservations : []).slice(0, 3000);
       await store.setJSON(KEY, next);
 
       return response(200, {

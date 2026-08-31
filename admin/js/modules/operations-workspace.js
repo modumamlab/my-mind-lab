@@ -1,4 +1,4 @@
-console.info('[MML] OPERATIONS-WORKSPACE-MODULE-V30-SHARED-PROVIDER loaded');
+console.info('[MML] OPERATIONS-WORKSPACE-MODULE-RC2.11-RESET-VISIBLE loaded');
 
 // 오늘 상담은 dashboardView 안에 통합되었습니다.
 
@@ -161,40 +161,40 @@ function dashboardView(){
 function reservationSyncStatus(){
   const primary=load('modumam_reservations',[]).length;
   const inbox=load('modumam_reservation_inbox',[]).length;
-  return `<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3"><div><p class="text-xs font-extrabold text-sky-900">예약 저장소 확인</p><p class="mt-1 text-[11px] text-sky-700">홈페이지 서버 ${state.legacyReservationServerCount||0}건 · 앱 검사신청 ${state.appReservationServerCount||0}건 · IndexedDB ${state.reservationDbCount||0}건 · 기본 저장소 ${primary}건 · 예약 수신함 ${inbox}건 · 현재 표시 ${state.reservations.length}건</p>${state.reservationSyncError?`<p class="mt-1 text-[11px] font-bold text-rose-600">저장소 오류: ${esc(state.reservationSyncError)}</p>`:''}</div><button onclick="refreshSharedOperatingData(true)" class="rounded-xl bg-sky-700 px-4 py-2 text-xs font-extrabold text-white">예약 새로 불러오기</button></div>`;
+  return `<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3"><div><p class="text-xs font-extrabold text-sky-900">예약 데이터</p><p class="mt-1 text-[11px] text-sky-700">서버 기준 ${state.reservations.length}건</p>${state.reservationSyncError?`<p class="mt-1 text-[11px] font-bold text-rose-600">서버 오류: ${esc(state.reservationSyncError)}</p>`:''}</div><button type="button" onclick="refreshSharedOperatingData(true)" class="rounded-xl bg-sky-700 px-4 py-2 text-xs font-extrabold text-white">예약 새로 불러오기</button></div>`;
 }
 function adminReservationCreatePanel(){
   const today=new Date().toISOString().slice(0,10);
   const defaultMethod=COUNSELING_METHODS[0]||'장소 조율(대면)';
   const defaultTimes=counselingTimesForMethod(defaultMethod);
   const defaultTests=(OPERATING_SETTINGS.programDefaultTests?.['개인 마음이음']||['TCI 기질 및 성격검사']).join(', ');
-  return `<section class="rounded-[2rem] border border-indigo-100 bg-white p-5 shadow-sm sm:p-6">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+  return `<section class="rounded-[1.5rem] border border-indigo-100 bg-white p-4 shadow-sm">
+    <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <p class="text-xs font-extrabold text-indigo-600">ADMIN DIRECT RESERVATION</p>
-        <h3 class="mt-1 text-xl font-extrabold text-slate-950">관리자 직접 예약등록</h3>
-        <p class="mt-1 text-xs leading-relaxed text-slate-500">전화·현장·테스트 예약을 관리자가 직접 등록합니다. 저장 즉시 예약관리와 심리평가센터에서 같은 예약을 사용합니다.</p>
+        <h3 class="mt-0.5 text-lg font-extrabold text-slate-950">관리자 직접 예약등록</h3>
+        <p class="mt-1 text-[11px] leading-relaxed text-slate-500">전화·현장·테스트 예약을 직접 등록합니다. 저장 즉시 예약관리와 심리평가센터에서 같은 예약을 사용합니다.</p>
       </div>
       <span class="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-[11px] font-extrabold text-indigo-700">기존 저장 로직 복구</span>
     </div>
-    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div class="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
       <label class="text-xs font-extrabold text-slate-500">내담자 이름
-        <input id="admin-reservation-name" type="text" placeholder="홍길동" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+        <input id="admin-reservation-name" type="text" placeholder="홍길동" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
       </label>
       <label class="text-xs font-extrabold text-slate-500">연락처
-        <input id="admin-reservation-phone" type="tel" placeholder="010-0000-0000" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+        <input id="admin-reservation-phone" type="tel" placeholder="010-0000-0000" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
       </label>
       <label class="text-xs font-extrabold text-slate-500">예약일
-        <input id="admin-reservation-date" type="date" value="${today}" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+        <input id="admin-reservation-date" type="date" value="${today}" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
       </label>
       <label class="text-xs font-extrabold text-slate-500">예약시간
-        <select id="admin-reservation-time" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">${defaultTimes.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+        <select id="admin-reservation-time" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">${defaultTimes.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
       </label>
       <label class="text-xs font-extrabold text-slate-500">상담방식
-        <select id="admin-reservation-method" onchange="updateAdminReservationTimeOptions()" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">${COUNSELING_METHODS.map(method=>`<option value="${esc(method)}">${esc(counselingMethodLabel(method))}</option>`).join('')}</select>
+        <select id="admin-reservation-method" onchange="updateAdminReservationTimeOptions()" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">${COUNSELING_METHODS.map(method=>`<option value="${esc(method)}">${esc(counselingMethodLabel(method))}</option>`).join('')}</select>
       </label>
       <label class="text-xs font-extrabold text-slate-500">서비스 / 프로그램
-        <select id="admin-reservation-program" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+        <select id="admin-reservation-program" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
           <option value="개별 심리검사">개별 심리검사</option>
           <option value="개인 마음이음">개인 마음이음</option>
           <option value="부부 마음이음">부부 마음이음</option>
@@ -202,29 +202,33 @@ function adminReservationCreatePanel(){
         </select>
       </label>
       <label class="text-xs font-extrabold text-slate-500 md:col-span-2">신청 검사 <span class="font-medium text-slate-400">(쉼표로 구분)</span>
-        <input id="admin-reservation-tests" type="text" value="${esc(defaultTests)}" placeholder="TCI, MMPI-2" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900">
+        <input id="admin-reservation-tests" type="text" value="${esc(defaultTests)}" placeholder="TCI, MMPI-2" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
       </label>
     </div>
-    <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-      <button type="button" onclick="createAdminReservation()" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-indigo-700">예약 등록</button>
+    <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+      <button type="button" onclick="createAdminReservation()" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-indigo-700">예약 등록</button>
     </div>
   </section>`;
 }
 function reservationView(){
-  return layout(`${reservationSyncStatus()}<div class="space-y-5">
-    <div class="rounded-[2rem] bg-slate-950 p-6 text-white">
+  return layout(`${reservationSyncStatus()}<div class="space-y-3">
+    <div class="rounded-[1.5rem] bg-slate-950 p-4 text-white">
       <p class="text-xs font-extrabold text-emerald-300">RESERVATION WORKFLOW</p>
-      <h2 class="mt-2 text-2xl font-extrabold">예약·검사 운영</h2>
-      <p class="mt-2 text-sm text-slate-300">예약 진행상태와 AI 결과상담 활성화를 한 화면에서 관리합니다. 검사결과 분석과 보고서 작성은 심리평가센터에서 진행합니다.</p>
+      <h2 class="mt-1 text-xl font-extrabold">예약·검사 운영</h2>
+      <p class="mt-1 text-xs text-slate-300">예약 진행상태와 AI 결과상담 활성화를 한 화면에서 관리합니다. 검사결과 분석과 보고서 작성은 심리평가센터에서 진행합니다.</p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        
+        <span class="text-[11px] text-slate-400">회원계정·환경설정·검사기관 링크는 삭제하지 않습니다.</span>
+      </div>
     </div>
 
-    <section class="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div class="mb-3">
-        <p class="text-base font-extrabold text-slate-900">검사기관 바로가기 · 공통 링크</p>
+    <section class="rounded-[1.25rem] border border-slate-200 bg-white p-3.5 shadow-sm">
+      <div class="mb-2">
+        <p class="text-sm font-extrabold text-slate-900">검사기관 바로가기 · 공통 링크</p>
         <p class="mt-1 text-[11px] text-slate-500">검사기관 주소를 한 번 저장하면 모든 예약에서 공통으로 사용합니다.</p>
       </div>
-      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div class="rounded-2xl border border-rose-100 bg-rose-50/50 p-3">
+      <div class="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <div class="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5">
           <p class="text-[10px] font-extrabold text-rose-500">MAUMSARANG</p>
           <p class="mt-1 text-sm font-extrabold text-slate-900">마음사랑검사</p>
           <div class="mt-2 flex flex-wrap gap-2">
@@ -237,7 +241,7 @@ function reservationView(){
               class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-extrabold text-rose-600">사이트 열기</button>
           </div>
         </div>
-        <div class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3">
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/50 p-2.5">
           <p class="text-[10px] font-extrabold text-indigo-500">INPSYT</p>
           <p class="mt-1 text-sm font-extrabold text-slate-900">인싸이트검사</p>
           <div class="mt-2 flex flex-wrap gap-2">
@@ -328,9 +332,8 @@ function reservationView(){
 
         <div class="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
           <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div class="min-w-0">
-              <p class="text-xs font-extrabold">${esc(autoStatusDescription(r))}</p>
-              <div class="mt-2">${operationPipeline(r)}</div>
+            <div class="min-w-0 flex-1">
+              ${operationPipeline(r)}
             </div>
             ${r.aiResultCounselingCompletedAt
               ? `<span class="shrink-0 rounded-full bg-emerald-100 px-3 py-1.5 text-[11px] font-bold text-emerald-700">AI 상담 완료</span>`
@@ -658,7 +661,7 @@ function memberReservationSection(c){
   const rows=(c.reservations||[]).slice().sort((a,b)=>`${b.date||''} ${b.time||''}`.localeCompare(`${a.date||''} ${a.time||''}`));
   return `<section class="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
     <div class="mb-5 flex items-center justify-between gap-3"><div><p class="text-xs font-extrabold text-emerald-700">RESERVATION WORKFLOW</p><h3 class="mt-1 text-lg font-extrabold">예약 진행상태 정리</h3></div><span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">${rows.length}건</span></div>
-    <div class="space-y-4">${rows.length?rows.map(r=>`<article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span><p class="text-sm font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4"><div><p class="text-[10px] font-bold text-slate-400">예약일정</p><p class="mt-1 text-xs font-extrabold">${esc(r.date||'미정')} ${esc(r.time||'')}</p></div><div><p class="text-[10px] font-bold text-slate-400">검사명</p><p class="mt-1 text-xs font-extrabold">${esc(requestedTests(r).map(shortTestName).join(', ')||'없음')}</p></div><div><p class="text-[10px] font-bold text-slate-400">상담방법</p><p class="mt-1 text-xs font-extrabold">${esc(r.type||'미정')}</p></div><div><p class="text-[10px] font-bold text-slate-400">최근 변경</p><p class="mt-1 text-xs font-extrabold">${esc(r.statusUpdatedAt||r.scheduleUpdatedAt||r.updatedAt||'기록 없음')}</p></div></div></div><button onclick="setMenu('reservation')" class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">예약관리</button></div><div class="mt-4">${operationPipeline(r)}</div></article>`).join(''):'<p class="text-sm text-slate-400">예약 기록이 없습니다.</p>'}</div>
+    <div class="space-y-4">${rows.length?rows.map(r=>`<article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between"><div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${statusClass(r.status)}">${esc(normalizeStatus(r.status))}</span><p class="text-sm font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4"><div><p class="text-[10px] font-bold text-slate-400">예약일정</p><p class="mt-1 text-xs font-extrabold">${esc(r.date||'미정')} ${esc(r.time||'')}</p></div><div><p class="text-[10px] font-bold text-slate-400">검사명</p><p class="mt-1 text-xs font-extrabold">${esc(requestedTests(r).map(shortTestName).join(', ')||'없음')}</p></div><div><p class="text-[10px] font-bold text-slate-400">상담방법</p><p class="mt-1 text-xs font-extrabold">${esc(r.type||'미정')}</p></div><div><p class="text-[10px] font-bold text-slate-400">최근 변경</p><p class="mt-1 text-xs font-extrabold">${esc(r.statusUpdatedAt||r.scheduleUpdatedAt||r.updatedAt||'기록 없음')}</p></div></div></div><button onclick="setMenu('reservation')" class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold">예약관리</button></div><div class="mt-4">${operationPipeline(r)}</div></article>`).join(''):'<p class="text-sm text-slate-400">예약 기록이 없습니다.</p>'}</div>
   </section>`;
 }
 

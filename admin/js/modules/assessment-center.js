@@ -291,7 +291,18 @@ function saveAssessmentAnalysis(id){
   save('modumam_assessment_analyses',state.assessmentAnalyses);syncClinicalAssessmentRecord(state.assessmentAnalyses[index].reservationId);alert('개별 심리검사 전문 해석 보고서를 저장했습니다.');render();
 }
 function assessmentCenterIndividualReportForAnalysis(analysisId){
-  return (state.reports||[]).find(r=>r.individualAssessmentReport===true&&String(r.analysisId)===String(analysisId))||null;
+  const reports=Array.isArray(state.reports)?state.reports:[];
+  const analyses=Array.isArray(state.assessmentAnalyses)?state.assessmentAnalyses:[];
+  const analysis=analyses.find(a=>String(a?.id||'')===String(analysisId))||null;
+  // RC3.3: analysisId가 저장/동기화 과정에서 달라져도 같은 예약+같은 검사 보고서를 복원합니다.
+  // 이 fallback이 없으면 저장된 개별보고서가 있어도 '수정' 버튼이 사라집니다.
+  return reports.find(r=>r.individualAssessmentReport===true&&String(r.analysisId||'')===String(analysisId))
+    ||(analysis?reports.find(r=>
+      r.individualAssessmentReport===true
+      &&String(r.reservationId||'')===String(analysis.reservationId||'')
+      &&assessmentTestKey(r.testType||'')===assessmentTestKey(analysis.testType||'')
+    ):null)
+    ||null;
 }
 function assessmentCenterIntegratedReportForReservation(reservationId){
   // 심리평가센터의 원본은 AI 종합해석보고서(integratedAssessmentReport)입니다.

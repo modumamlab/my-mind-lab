@@ -2125,11 +2125,12 @@ function openDerivedAssessmentReportForm(id){
   </style>
   <div class="mml-derived-form-shell">
     <div class="mml-derived-form-toolbar">
-      <div><h2>${report?.audience==='counselor'?'상담자용 종합보고서 작성':'심리검사 종합보고서 작성'}</h2><p>검사별 분석과 AI 통합해석을 바탕으로 생성된 정식 종합보고서를 검토·수정한 뒤 저장하세요. <span class="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-extrabold text-indigo-700">Signature S25</span></p><div style="margin-top:8px"><span data-derived-status style="display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;background:${report.approvedForClient?'#dcfce7':'#f1f5f9'};color:${report.approvedForClient?'#166534':'#475569'}">${report.approvedForClient?'승인완료 · 사용자 열람 가능':report.status==='saved'?'저장완료 · 승인대기':'작성 중'}</span></div></div>
+      <div><h2>${report?.audience==='counselor'?'상담자용 종합보고서 작성':'심리검사 종합보고서 작성'}</h2><p>검사별 분석과 AI 통합해석을 바탕으로 생성된 정식 종합보고서를 검토·수정한 뒤 저장하세요. <span class="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-extrabold text-indigo-700">Signature S25</span></p><div style="margin-top:8px"><span data-derived-status style="display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;background:${report.approvedForClient?'#dcfce7':'#f1f5f9'};color:${report.approvedForClient?'#166534':'#475569'}">${report.approvedForClient?'승인완료 · 이메일 발송 가능':report.status==='saved'?'저장완료 · 승인대기':'작성 중'}</span></div></div>
       <div class="mml-derived-form-actions">
         <button id="mml-derived-edit-toggle" onclick="toggleDerivedAssessmentReportEdit(true)" style="border:1px solid #9bb8ad;background:#fff;color:#245244">수정</button>
         <button onclick="saveDerivedAssessmentReportFromForm(${report.id},false)" style="border:0;background:#285f4e;color:#fff">저장</button>
         <button onclick="approveDerivedAssessmentReportFromForm(${report.id})" style="border:0;background:${report.approvedForClient?'#b45309':'#4338ca'};color:#fff">${report.approvedForClient?'승인취소':'승인'}</button>
+        <button onclick="sendDerivedAssessmentReportEmail(${report.id})" style="border:0;background:#0f766e;color:#fff">이메일 발송</button>
         <button onclick="printDerivedAssessmentReportForm()" style="border:1px solid #d97706;background:#fff;color:#b45309">PDF</button>
         <button onclick="document.getElementById('mml-derived-report-editor')?.remove()" style="border:1px solid #cbd5e1;background:#fff;color:#475569">닫기</button>
       </div>
@@ -2407,6 +2408,50 @@ function assessmentReportRequestForReservation(reservationId,clientName='',clien
     __standaloneReportRequest:true
   }));
   const rows=[...localRows,...runtimeRows,...requestRows].filter(Boolean);
+
+  // RC3.3: 전용 보고서 신청 저장소가 있으면 그 신청 유형을 최우선 기준으로 사용합니다.
+  // 예약의 검사 개수나 과거 필드로 다시 계산하면 개별보고서 신청이 종합보고서로 바뀌는 문제가 생깁니다.
+  const directStandalone=(Array.isArray(standaloneRequests)?standaloneRequests:[]).filter(row=>
+    row&&row.status!=='cancelled'&&reservationId&&String(row.reservationId||'')===String(reservationId)
+  );
+  if(directStandalone.length){
+    const targetRow=runtimeRows.find(r=>String(r?.id||'')===String(reservationId))
+      ||localRows.find(r=>String(r?.id||'')===String(reservationId))||{};
+    const directTypes=[...new Set(directStandalone.map(row=>row.reportType==='individual'?'individual':'integrated'))];
+    const individualTests=[...new Set(directStandalone
+      .filter(row=>row.reportType==='individual')
+      .map(row=>normalizeReportRequestTestName(row.testCode||''))
+      .filter(Boolean))];
+    const integratedRow=directStandalone.find(row=>row.reportType!=='individual');
+    const allTests=[...new Set([
+      ...individualTests,
+      ...(Array.isArray(integratedRow?.tests)?integratedRow.tests.map(normalizeReportRequestTestName):[])
+    ].filter(Boolean))];
+    const requestedAt=directStandalone.map(row=>row.requestedAt||row.updatedAt||'').filter(Boolean).sort().at(-1)||'';
+    const individual=directTypes.includes('individual');
+    const comprehensive=directTypes.includes('integrated');
+    return {
+      ...targetRow,
+      id:targetRow.id||reservationId,
+      assessmentReportRequested:true,
+      assessmentReportRequestedAt:requestedAt,
+      assessmentReportTypes:directTypes,
+      assessmentIndividualReportRequested:individual,
+      assessmentIntegratedReportRequested:comprehensive,
+      comprehensiveReportRequested:comprehensive,
+      assessmentIndividualTests:allTests,
+      assessmentReportApplication:{
+        ...(targetRow.assessmentReportApplication||{}),
+        reportTypes:directTypes,
+        individualReportRequested:individual,
+        integratedReportRequested:comprehensive,
+        comprehensiveReportRequested:comprehensive,
+        individualTests:allTests,
+        submittedAt:requestedAt
+      }
+    };
+  }
+
   const normName=v=>String(v||'').replace(/\s+/g,'').toLowerCase();
   const normPhone=v=>String(v||'').replace(/[^0-9]/g,'');
   const normDate=v=>String(v||'').replace(/[^0-9]/g,'');
@@ -2720,16 +2765,45 @@ async function publishDerivedAssessmentReport(id){
   try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-approved'});}catch(error){console.warn('[MML] 종합보고서 공개 인덱스 즉시 갱신 실패',error);}
   try{window.MMLSyncEngine?.exportClientSnapshot?.({publish:true});}catch(error){console.warn('[MML] 종합보고서 사용자 스냅샷 갱신 실패',error);}
   mmlDerivedApprovalLocks.delete(lockKey);
-  alert('관리자 승인이 완료되어 심리검사 종합보고서를 홈페이지에서 열람할 수 있습니다.');
+  alert('관리자 승인이 완료되었습니다. 보고서는 홈페이지에 공개되지 않으며 이메일 발송 버튼으로 전달할 수 있습니다.');
   render();
 }
+async function sendDerivedAssessmentReportEmail(id){
+  const report=derivedAssessmentReportById(id);
+  if(!report){alert('발송할 보고서를 찾지 못했습니다.');return;}
+  if(!report.approvedForClient){alert('관리자 승인 후 이메일로 발송할 수 있습니다.');return;}
+  const reservation=(state.reservations||[]).find(r=>String(r.id||'')===String(report.reservationId||''))||{};
+  const email=String(reservation.email||reservation.clientEmail||reservation.assessmentApplication?.email||report.email||report.clientEmail||'').trim();
+  if(!email){alert('예약 정보에 보고서를 받을 이메일이 없습니다. 내담자 이메일을 먼저 확인해 주세요.');return;}
+  if(!confirm(`${email} 주소로 승인된 보고서를 발송할까요?`))return;
+  let approvedHtml=String(report.approvedReportHtml||'').trim();
+  if(!approvedHtml){
+    try{approvedHtml=await captureApprovedDerivedAssessmentReportHtml(report.id);}catch(error){alert(error.message||'승인 보고서 원본을 준비하지 못했습니다.');return;}
+  }
+  try{
+    const response=await fetch('/.netlify/functions/report-email',{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':(typeof ADMIN_PASSWORD!=='undefined'?ADMIN_PASSWORD:'modumam2026')},body:JSON.stringify({to:email,clientName:reservation.name||reservation.clientName||report.clientName||'',reportTitle:report.title||'심리검사 보고서',reportHtml:approvedHtml,reportId:String(report.id||''),reservationId:String(report.reservationId||'')})});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(body.error||`이메일 발송 실패 (${response.status})`);
+    const now=new Date().toISOString();
+    const rows=derivedAssessmentReports();
+    const idx=rows.findIndex(x=>String(x.id)===String(id));
+    if(idx>=0){rows[idx]={...rows[idx],emailDeliveryStatus:'sent',emailDeliveredTo:email,emailDeliveredAt:now,emailMessageId:body.id||'',updatedAt:now};saveDerivedAssessmentReports(rows);}
+    alert(`${email} 주소로 보고서를 발송했습니다.`);
+    render();
+  }catch(error){
+    console.error('[MML] 보고서 이메일 발송 실패',error);
+    alert(error.message||'보고서 이메일 발송에 실패했습니다.');
+  }
+}
+window.sendDerivedAssessmentReportEmail=sendDerivedAssessmentReportEmail;
+
 function toggleDerivedAssessmentReportApproval(id){
   const lockKey=String(id);
   if(mmlDerivedApprovalLocks.has(lockKey))return;
   const report=derivedAssessmentReportById(id);
   if(!report)return;
   if(!report.approvedForClient){publishDerivedAssessmentReport(id);return;}
-  if(!confirm('승인을 취소하여 내담자 열람을 중단할까요?'))return;
+  if(!confirm('승인을 취소하여 이메일 발송 가능 상태를 해제할까요?'))return;
   mmlDerivedApprovalLocks.add(lockKey);
   const rows=derivedAssessmentReports();
   const idx=rows.findIndex(x=>String(x.id)===String(id));
@@ -2754,7 +2828,7 @@ function toggleDerivedAssessmentReportApproval(id){
   try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-revoked'});}catch(error){console.warn('[MML] 종합보고서 승인취소 공개 인덱스 갱신 실패',error);}
   try{window.MMLSyncEngine?.exportClientSnapshot?.({publish:true});}catch(_){}
   mmlDerivedApprovalLocks.delete(lockKey);
-  alert('승인을 취소했습니다. 홈페이지에서는 더 이상 보고서를 열람할 수 없습니다.');
+  alert('승인을 취소했습니다. 이메일 발송 가능 상태가 해제되었습니다.');
   render();
 }
 window.toggleDerivedAssessmentReportApproval=toggleDerivedAssessmentReportApproval;

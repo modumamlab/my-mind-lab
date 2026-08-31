@@ -9,7 +9,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     location.hostname.endsWith('.local');
 
   const mode = isLocal ? 'development' : 'production';
-  const build = '20260830-app-schedule-apply-v30';
+  const build = '20260831-rc3-5-cancel-chip-removed-v1';
 
   const core = [
     {
@@ -87,13 +87,13 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260811-title-number-s54',
+      src:'./js/modules/assessment-reports.js?v=20260831-rc33-request-type-fix',
       required:true,
       dependsOn:['data-store','print-engine']
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260830-app-approval-sync-v32',
+      src:'./js/modules/operations-workspace.js?v=20260831-rc3-10-workflow-load-fix-v1',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260830-counseling-intake-v43',
+      src:'./js/admin.js?v=20260831-rc3-10-workflow-load-fix-v1',
       required:true
     },
     {

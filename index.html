@@ -49,7 +49,7 @@
       const errorBox = document.getElementById('startup-error');
 
       try {
-        const response = await fetch('./js/app.jsx?v=20260825-ai-one-row-v1', { cache: 'no-store' });
+        const response = await fetch('./js/app.jsx?v=20260831-rc2-14-persistent-reset-v1', { cache: 'no-store' });
         if (!response.ok) {
           throw new Error('app.jsx를 불러오지 못했습니다. HTTP ' + response.status);
         }
