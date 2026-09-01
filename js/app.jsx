@@ -725,6 +725,11 @@ function saveHomeAuthSession(session, profile = {}) {
             }, [bookingType]);
             const [bookingProgram, setBookingProgram] = useState('개인 마음상담');
             const [selectedTests, setSelectedTests] = useState([]);
+            useEffect(() => {
+                if (bookingProgram === '개인 마음상담' && is24HourAiBooking) {
+                    setBookingType('Zoom(비대면)');
+                }
+            }, [bookingProgram, bookingType]);
             const [bookingAlert, setBookingAlert] = useState(null);
             const [bookingTestsOpen, setBookingTestsOpen] = useState(false);
             const [bookingMethodOpen, setBookingMethodOpen] = useState(true);
@@ -753,12 +758,12 @@ function saveHomeAuthSession(session, profile = {}) {
                     },
                     '24시 AI상담(비대면)': {
                         title: '24시 AI상담(비대면)',
-                        text: '상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러울 때, 원하는 시간에 60분 동안 AI와 편안하게 상담할 수 있습니다.'
+                        text: '심리검사 신청 시 60분 AI 해석상담을 무료로 제공합니다. 검사비는 별도이며, 관리자 활성화 후 AI 상담 시작을 누른 시점부터 60분간 이용할 수 있습니다.'
                     },
                     // 기존 저장 예약 호환
                     'AI(비대면)': {
                         title: '24시 AI상담(비대면)',
-                        text: '상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러울 때, 원하는 시간에 60분 동안 AI와 편안하게 상담할 수 있습니다.'
+                        text: '심리검사 신청 시 60분 AI 해석상담을 무료로 제공합니다. 검사비는 별도이며, 관리자 활성화 후 AI 상담 시작을 누른 시점부터 60분간 이용할 수 있습니다.'
                     }
                 };
                 return guides[type] || guides['찾아오는(대면)'];
@@ -4623,6 +4628,10 @@ const toggleTest = (test) => {
 }; 
             const handleAddBooking = async (e) => {
                 e.preventDefault();
+                if (bookingProgram === '개인 마음상담' && is24HourAiBooking) {
+                    setBookingAlert({ type: 'error', message: '심리검사 없는 개인 마음상담에서는 AI상담을 이용할 수 없습니다. 대면 또는 화상 상담을 선택해 주세요.' });
+                    return;
+                }
                 if (!bookingName || !bookingPhone || !bookingDate || !bookingTime) {
                     setBookingAlert({ type: 'error', message: '예약 정보를 빠짐없이 입력해 주세요.' });
                     return;
@@ -4820,12 +4829,17 @@ const getPaymentInfo = (res) => {
   const isFaceToFace = !isRemote && (type === "찾아가는(대면)" || type === "찾아오는(대면)" || type === "장소 조율(대면)" || type === "대면" || type.includes("대면"));
   const isIndividualTest = program.includes("개별 심리검사") || res.bookingCategory === 'individual-test';
   const isPersonalCounseling = program.includes("개인 마음상담") || res.bookingCategory === 'personal-counseling';
-  const counselingAmount = isPersonalCounseling
+  const isAi = /AI/i.test(type);
+  const counselingAmount = isAi
+    ? (isIndividualTest || isPersonalCounseling ? 0 : 30000)
+    : isPersonalCounseling
     ? (isFaceToFace ? 50000 : 20000)
     : isIndividualTest
       ? (isFaceToFace ? 50000 : 20000)
       : (isFaceToFace ? 80000 : 50000);
-  const counselingLabel = isPersonalCounseling
+  const counselingLabel = isAi
+    ? (isIndividualTest || isPersonalCounseling ? "24시 AI상담 무료" : "24시 AI상담 무료 + 기본검사 30,000원")
+    : isPersonalCounseling
     ? (isFaceToFace ? "개인 마음상담(대면) 50,000원" : "개인 마음상담(비대면) 20,000원")
     : isIndividualTest
       ? (isFaceToFace ? "해석상담비(대면) 50,000원" : "해석상담비(비대면) 20,000원")
@@ -5227,6 +5241,7 @@ if (userAge === 'parent') {
             ===================================================== */
             const isParentChildProgram = bookingProgram.includes('부모-자녀 마음이음');
             const hasBehaviorObservation = isParentChildProgram && selectedTests.includes('행동관찰');
+            const isAiBookingDisabled = hasBehaviorObservation || bookingProgram === '개인 마음상담';
 
             return (
                 <div className="min-h-screen flex flex-col selection:bg-slate-200">
@@ -5866,7 +5881,7 @@ if (userAge === 'parent') {
                                             <div className="mb-5">
                                                 <h3 className="text-lg font-extrabold text-slate-900">상담·예약 내역</h3>
                                                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                                    상담과 심리검사 예약 현황을 확인합니다. 24시 AI상담(비대면)은 상담 시간을 맞추기 어렵거나 대면으로 이야기하는 것이 부담스러울 때, 원하는 시간에 60분 동안 AI와 편안하게 상담할 수 있는 비대면 상담입니다.
+                                                    상담과 심리검사 예약 현황을 확인합니다. 24시 AI상담(비대면)은 심리검사 신청 시 60분 무료로 제공됩니다. 검사비는 별도이며, 심리검사 없는 개인 마음상담은 대상에서 제외됩니다.
                                                 </p>
                                             </div>
 
@@ -6013,19 +6028,21 @@ if (userAge === 'parent') {
                                                                         </div>
 
                                                                         {reservation.statusUpdateUnread && reservation.statusUpdatedAt && (
-                                                                            <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                                                            <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center">
+                                                                                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                                                                                 <p className="text-xs font-extrabold text-blue-900">예약 진행상태가 변경되었습니다.</p>
-                                                                                <p className="mt-1 text-xs leading-relaxed text-blue-800">
+                                                                                <p className="text-xs leading-relaxed text-blue-800">
                                                                                     현재 상태: <strong>{normalizeReservationStatus(reservation.status)}</strong>
                                                                                 </p>
-                                                                                <p className="mt-1 text-xs leading-relaxed text-blue-700">
+                                                                                <p className="text-xs leading-relaxed text-blue-700">
                                                                                     {getMemberStatusMessage(reservation.status)}
                                                                                 </p>
-                                                                                <p className="mt-1 text-[11px] text-blue-600">변경일: {reservation.statusUpdatedAt}</p>
+                                                                                <p className="text-[11px] text-blue-600">변경일: {reservation.statusUpdatedAt}</p>
+                                                                                </div>
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => confirmStatusUpdate(reservation.id)}
-                                                                                    className="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-[11px] font-extrabold text-white hover:bg-blue-800"
+                                                                                    className="shrink-0 self-start md:self-center whitespace-nowrap rounded-xl bg-blue-700 px-4 py-2 text-[11px] font-extrabold text-white hover:bg-blue-800"
                                                                                 >
                                                                                     진행상태 확인
                                                                                 </button>
@@ -6033,16 +6050,18 @@ if (userAge === 'parent') {
                                                                         )}
 
                                                                         {reservation.scheduleUpdateUnread && reservation.scheduleUpdatedAt && (
-                                                                            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                                            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center">
+                                                                                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                                                                                 <p className="text-xs font-extrabold text-amber-800">상담 일정이 변경되었습니다.</p>
-                                                                                <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                                                                                <p className="text-xs leading-relaxed text-amber-700">
                                                                                     변경된 일정: {reservation.date} {reservation.time} · {reservation.type}
                                                                                 </p>
-                                                                                <p className="mt-1 text-[11px] text-amber-600">변경일: {reservation.scheduleUpdatedAt}</p>
+                                                                                <p className="text-[11px] text-amber-600">변경일: {reservation.scheduleUpdatedAt}</p>
+                                                                                </div>
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => confirmScheduleUpdate(reservation.id)}
-                                                                                    className="mt-3 rounded-xl bg-amber-700 px-4 py-2 text-[11px] font-extrabold text-white hover:bg-amber-800"
+                                                                                    className="shrink-0 self-start md:self-center whitespace-nowrap rounded-xl bg-amber-700 px-4 py-2 text-[11px] font-extrabold text-white hover:bg-amber-800"
                                                                                 >
                                                                                     변경 일정 확인
                                                                                 </button>
@@ -7005,7 +7024,7 @@ if (userAge === 'parent') {
     ===================================================== */}
     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
         {bookingProgram === "개인 마음상담" ? (
-          <p>※ 개인 마음상담은 심리검사 선택 없이 상담방식만 선택하여 예약·결제합니다.</p>
+          <p>※ 개인 마음상담은 심리검사 없이 대면·화상 상담을 예약합니다. 무료 AI상담은 심리검사 신청 시 이용할 수 있습니다.</p>
         ) : bookingProgram === "개별 심리검사" ? (
           <p>※ 기본검사 없이 필요한 심리검사만 선택하여 신청할 수 있습니다.</p>
         ) : (
@@ -7232,11 +7251,11 @@ if (userAge === 'parent') {
                     </button>
                     <button 
                         type="button" 
-                        disabled={hasBehaviorObservation}
-                        onClick={() => { if (!hasBehaviorObservation) setBookingType('24시 AI상담(비대면)'); }}
-                        className={`p-3 rounded-xl border text-center transition-all ${hasBehaviorObservation ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed' : bookingType === '24시 AI상담(비대면)' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        disabled={isAiBookingDisabled}
+                        onClick={() => { if (!isAiBookingDisabled) setBookingType('24시 AI상담(비대면)'); }}
+                        className={`p-3 rounded-xl border text-center transition-all ${isAiBookingDisabled ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed' : bookingType === '24시 AI상담(비대면)' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                     >
-                        24시 AI상담(비대면)
+                        24시 AI상담(비대면) · 무료
                     </button>
                 </div>
                 {/* [MOD-20260712-PARENT-BOOKING-012]

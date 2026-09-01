@@ -44,6 +44,11 @@ exports.handler=async(event)=>{
    if(!r||r.id===undefined||r.id===null)return response(400,{ok:false,error:'예약 정보가 없습니다.'});
    try{
      const current=rows(await store.get(KEY,{type:'json'}).catch(()=>null));
+     const existing=current.find(item=>String(item.id)===String(r.id));
+     const isPersonal=r.bookingCategory==='personal-counseling' || /개인\s*마음상담/.test(String(r.program||r.bookingProgram||''));
+     if(!existing && isPersonal && /AI/i.test(String(r.type||''))){
+       return response(400,{ok:false,error:'심리검사 없는 개인 마음상담에서는 AI상담을 선택할 수 없습니다.'});
+     }
      // 기존 서버값 위에 들어온 동일 ID 예약을 덮어씁니다.
      const next=merge(current,[r]).slice(0,3000);
      await store.setJSON(KEY,next);

@@ -347,8 +347,9 @@ function getPaymentInfo(r){
 
   // 'AI(비대면)'에도 '대면' 글자가 포함되므로 비대면 여부를 먼저 판별합니다.
   const isNonFace=/AI|Zoom|화상|전화|비대면/i.test(type);
-  const counselingFee=isNonFace?20000:50000;
-  const counselingLabel=`상담비 ${counselingFee.toLocaleString()}원`;
+  const isAi=/AI/i.test(type);
+  const counselingFee=isAi?0:(isNonFace?20000:50000);
+  const counselingLabel=isAi?'24시 AI상담 무료':`상담비 ${counselingFee.toLocaleString()}원`;
 
   // 결제안내에는 '기본검사 1건' 같은 표현 대신 실제 심리검사명을 표시합니다.
   // requestedTests()가 프로그램 기본검사와 신청자가 선택한 검사를 중복 없이 합쳐 줍니다.
