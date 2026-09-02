@@ -12,7 +12,7 @@
    7) 마이페이지 진행카드: myPageSection 검색
 ========================================================= */
 
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useLayoutEffect, useRef } = React;
 
         /* [MOD-20260714-RESERVATION-IDB-BRIDGE]
            localStorage 용량과 무관하게 사용자 예약과 관리자 화면이 같은 예약을 읽도록
@@ -980,11 +980,17 @@ function saveHomeAuthSession(session, profile = {}) {
                 };
             }, []);
 
-            useEffect(() => {
-                if (aiResultChatRef.current) {
-                    aiResultChatRef.current.scrollTop = aiResultChatRef.current.scrollHeight;
-                }
-            }, [aiResultMessages, aiResultThinking, aiResultSummary]);
+            useLayoutEffect(() => {
+                if (!aiResultCounselingOpen) return;
+                const scrollToLatest = () => {
+                    const chat = aiResultChatRef.current;
+                    if (chat) chat.scrollTop = chat.scrollHeight;
+                };
+                // Position the restored conversation before paint, then after the modal layout settles.
+                scrollToLatest();
+                const frame = requestAnimationFrame(scrollToLatest);
+                return () => cancelAnimationFrame(frame);
+            }, [aiResultCounselingOpen, aiResultMessages, aiResultThinking, aiResultSummary]);
 
 
             // [MOD-20260717-AI-RESULT-GRACEFUL-END]
@@ -1002,9 +1008,10 @@ function saveHomeAuthSession(session, profile = {}) {
                 ) {
                     setAiResultFiveMinuteNoticeShown(true);
                     setAiResultMessages((previous) => {
+                        if (previous.some(message => message.noticeType === "five-minutes-left" || message.closingNoticeCovered === true)) return previous;
                         const notice = {
-                            role: "ai",
-                            text: "상담 종료까지 약 5분 남았습니다. 이제 새로운 주제를 넓히기보다, 오늘 꼭 확인하고 싶은 내용과 함께 살펴본 핵심을 정리하겠습니다.",
+                            role: "notice",
+                            text: `상담 종료까지 ${formatRemainingTime(state.remainingMs)} 남았습니다. 이제 새로운 주제를 넓히기보다, 오늘 꼭 확인하고 싶은 내용과 함께 살펴본 핵심을 정리하겠습니다.`,
                             time: getChatTime(),
                             noticeType: "five-minutes-left"
                         };
@@ -3693,37 +3700,49 @@ const userText = pendingInput;
                 setAiResultInput("");
                 setAiResultSessionPhase("active");
                 aiResultSessionPhaseRef.current = "active";
-                setAiResultFiveMinuteNoticeShown(false);
                 if (aiResultClosingTimerRef.current) {
                     clearTimeout(aiResultClosingTimerRef.current);
                     aiResultClosingTimerRef.current = null;
                 }
 
-                const intro = {
-                    role: "ai",
-                    text: "안녕하세요. 지금부터 60분 동안 편안하게 이야기해 주세요. 오늘 가장 이야기하고 싶은 마음이나 고민부터 천천히 시작해도 괜찮습니다.",
+                // Reuse this reservation's conversation instead of creating a new session on every entry.
+                let savedSession = null;
+                try {
+                    const records = JSON.parse(localStorage.getItem("modumam_ai_result_counseling_records") || "[]");
+                    savedSession = (Array.isArray(records) ? records : [])
+                        .filter(item => String(item.reservationId) === String(reservation.id)
+                            && String(item.phone || '').replace(/\D/g, '') === String(currentPhone || reservation.phone || '').replace(/\D/g, '')
+                            && item.reservationDate === reservation.date
+                            && item.reservationTime === reservation.time
+                            && !item.completedAt)
+                        .sort((a, b) => String(b.updatedAt || b.startedAt || '').localeCompare(String(a.updatedAt || a.startedAt || '')))[0] || null;
+                } catch (error) {
+                    console.warn("AI 상담 이전 대화 확인 실패", error);
+                }
+                const restored = Array.isArray(savedSession?.messages)
+                    ? savedSession.messages.filter(message => message && typeof message.text === 'string')
+                    : [];
+                // The entry notice already gives the remaining time; do not add another closing reminder.
+                const closingNoticeCovered = state.remainingMs <= 5 * 60 * 1000;
+                setAiResultFiveMinuteNoticeShown(closingNoticeCovered || restored.some(message =>
+                    message.noticeType === "five-minutes-left" || message.closingNoticeCovered === true));
+                const remaining = formatRemainingTime(state.remainingMs);
+                const isReturning = Boolean(savedSession);
+                aiResultSessionIdRef.current = savedSession?.sessionId || `AI-RESULT-${reservation.id}-${Date.now()}`;
+                const notice = {
+                    role: "notice",
+                    closingNoticeCovered,
+                    text: isReturning
+                        ? (restored.length
+                            ? `다시 들어오셨네요. 이전 대화를 불러왔습니다. 남은 상담시간은 ${remaining}이며, 시간이 새로 시작되지는 않습니다. 앞서 나누던 이야기부터 편안하게 이어가 주세요.`
+                            : `다시 들어오셨네요. 남은 상담시간은 ${remaining}입니다. 이전 대화 내용을 불러오지 못했습니다. 이어가고 싶은 내용을 짧게 알려주시면 그 이야기부터 함께하겠습니다.`)
+                        : `안녕하세요. 모두의 마음연구소 AI 상담자입니다. 현재 남은 상담시간은 ${remaining}입니다. 검사결과뿐 아니라 지금 고민하는 이야기도 편안하게 나눠 주세요.`,
                     time: getChatTime()
                 };
-                aiResultSessionIdRef.current = `AI-RESULT-${reservation.id}-${Date.now()}`;
-                setAiResultMessages([intro]);
-                publishAiResultMonitoring({ reservation, report, messages: [intro], status: "진행중" });
-
-                try {
-                    const overview = await callAiResultCounseling({
-                        mode: "overview",
-                        report,
-                        messages: []
-                    });
-                    const overviewMessages = [intro,{ role: "ai", text: overview, time: getChatTime() }];
-                    setAiResultMessages(overviewMessages);
-                    publishAiResultMonitoring({ reservation, report, messages: overviewMessages, status: "진행중" });
-                } catch (error) {
-                    const fallbackMessages = [intro,{ role: "ai", text: "결과보고서에서는 현재의 어려움뿐 아니라 강점과 회복 가능성도 함께 살펴볼 수 있습니다. 가장 궁금했던 부분부터 말씀해 주시면 보고서 내용과 실제 경험을 연결해 함께 살펴보겠습니다.", time: getChatTime() }];
-                    setAiResultMessages(fallbackMessages);
-                    publishAiResultMonitoring({ reservation, report, messages: fallbackMessages, status: "진행중" });
-                } finally {
-                    setAiResultThinking(false);
-                }
+                const entryMessages = [...restored, notice];
+                setAiResultMessages(entryMessages);
+                publishAiResultMonitoring({ reservation, report, messages: entryMessages, status: "진행중" });
+                setAiResultThinking(false);
             };
 
             const sendAiResultMessage = async () => {
@@ -3787,7 +3806,7 @@ const userText = pendingInput;
                             role: "ai",
                             text: canSendFinalDraft
                                 ? "마지막으로 남겨주신 말씀도 잘 확인했습니다. 오늘 함께 살펴본 내용을 정리해 상담을 마무리하겠습니다."
-                                : "결과보고서와 지금 말씀해 주신 경험을 함께 보면, 한 가지 의미로 단정하기보다 실제 상황에서 어떻게 나타나는지 살펴보는 것이 중요합니다. 그 부분이 가장 두드러지는 장면을 조금 더 이야기해 주세요.",
+                                : "연결 문제로 지금 답변을 생성하지 못했습니다. 보내주신 내용은 대화에 남아 있습니다. 잠시 후 “이어서 답해줘”라고 보내주시면 앞선 내용을 바탕으로 다시 응답하겠습니다.",
                             time: getChatTime(),
                             finalTurn: canSendFinalDraft
                         }
@@ -8370,7 +8389,7 @@ if (userAge === 'parent') {
                                         <p className="text-xs font-extrabold text-violet-700">이용 안내</p>
                                         <h4 className="mt-2 text-sm font-extrabold text-slate-900">24시 AI상담(비대면)</h4>
                                         <p className="mt-2 text-xs text-slate-500">
-                                            예약한 시간부터 60분 동안 이용할 수 있습니다.
+                                            남은 상담시간은 상단에서 확인할 수 있습니다. 재입장해도 이용시간이 새로 시작되지 않습니다.
                                         </p>
                                     </div>
                                     <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs text-amber-900 leading-relaxed">
@@ -8381,7 +8400,7 @@ if (userAge === 'parent') {
                                 </aside>
 
                                 <section className="lg:col-span-8 flex flex-col min-h-0">
-                                    <div ref={aiResultChatRef} className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-4 bg-slate-50/50">
+                                    <div ref={aiResultChatRef} className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-7 space-y-4 bg-slate-50/50">
                                         {aiResultMessages.map((message, index) => (
                                             <div key={`${message.time}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                                 <div className={`max-w-[86%] rounded-3xl px-5 py-4 text-sm leading-relaxed whitespace-pre-line ${
