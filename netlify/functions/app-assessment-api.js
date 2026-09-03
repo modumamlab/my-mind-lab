@@ -11,7 +11,7 @@ const response = (statusCode, body) => ({
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-MML-Admin-Password',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
   },
   body: JSON.stringify(body)
 });
@@ -139,6 +139,49 @@ exports.handler = async (event) => {
         error: '예약 서버 데이터를 불러오지 못했습니다.',
         detail: String(error?.message || error)
       });
+    }
+  }
+
+  if (event.httpMethod === 'PATCH' && isAdminRequest) {
+    if (!adminAuthorized(event)) {
+      return response(401, { ok: false, error: '관리자 인증이 필요합니다.' });
+    }
+    let body = {};
+    try { body = JSON.parse(event.body || '{}'); }
+    catch (_) { return response(400, { ok:false, error:'요청 형식이 올바르지 않습니다.' }); }
+    const reservation = body?.reservation && typeof body.reservation === 'object' ? body.reservation : null;
+    const requestedId = text(reservation?.appApplicationId || reservation?.id || body?.id, 100);
+    if (!reservation) return response(400, { ok:false, error:'수정할 앱 신청정보가 필요합니다.' });
+    try {
+      const current = rows(await store.get(KEY, { type:'json' }).catch(() => null));
+      // 관리자 예약 기준본과 앱 신청 기준본의 id가 달라진 과거 데이터도 연결합니다.
+      // id가 일치하지 않으면 이메일+전화번호, 전화번호+이름 순서로 동일 신청자를 찾습니다.
+      const wantedPhone = normalizePhone(reservation.phone);
+      const wantedEmail = text(reservation.email || reservation.userEmail, 160).toLowerCase();
+      const wantedName = text(reservation.name || reservation.clientName, 80);
+      // 관리자 예약행과 앱 신청행이 같은 Blob 안에 함께 존재할 수 있습니다.
+      // 기존 코드는 관리자 예약 id가 먼저 일치하면 그 행을 다시 PATCH하여,
+      // 실제 앱이 token으로 조회하는 신청행에는 clientReports가 들어가지 않는 문제가 있었습니다.
+      // 반드시 appAccessToken을 가진 '앱 신청행'을 우선 대상으로 선택합니다.
+      const isAppRow = r => Boolean(text(r?.appAccessToken, 120));
+      let index = requestedId ? current.findIndex(r => isAppRow(r) && String(r.appApplicationId || r.id || '') === requestedId) : -1;
+      if (index < 0 && wantedEmail && wantedPhone) {
+        index = current.findIndex(r => isAppRow(r) && text(r.email || r.userEmail,160).toLowerCase() === wantedEmail && normalizePhone(r.phone) === wantedPhone);
+      }
+      if (index < 0 && wantedPhone && wantedName) {
+        index = current.findIndex(r => isAppRow(r) && normalizePhone(r.phone) === wantedPhone && text(r.name || r.clientName,80) === wantedName);
+      }
+      if (index < 0) return response(404, { ok:false, error:'앱 신청내역을 찾을 수 없습니다.' });
+      const existing = current[index];
+      const canonicalAppId = text(existing.appApplicationId || existing.id, 100);
+      const preservedToken = existing.appAccessToken || reservation.appAccessToken || '';
+      // 앱 로그인 조회키(id/token)는 절대 관리자 예약 id로 덮어쓰지 않습니다.
+      const nextRow = { ...existing, ...reservation, id:existing.id || canonicalAppId, appApplicationId:canonicalAppId, appAccessToken:preservedToken, updatedAt:new Date().toISOString() };
+      current[index] = nextRow;
+      await store.setJSON(KEY, current);
+      return response(200, { ok:true, reservation:nextRow });
+    } catch (error) {
+      return response(503, { ok:false, error:'앱 신청정보 동기화에 실패했습니다.', detail:String(error?.message || error) });
     }
   }
 
@@ -417,7 +460,17 @@ exports.handler = async (event) => {
           testUrl: text(row.testUrl || row.assessmentUrl, 1000),
           updatedAt: text(row.updatedAt || row.createdAt, 80),
           preferredDate: text(row.preferredDate || row.date, 10),
-          preferredTime: text(row.preferredTime || row.time, 5)
+          preferredTime: text(row.preferredTime || row.time, 5),
+          clientReports: (() => {
+            const list = Array.isArray(row.clientReports)
+              ? row.clientReports.filter(report => report && report.approved === true)
+              : [];
+            if (list.length) return list;
+            if (row.clientReport && row.clientReport.approved === true) return [row.clientReport];
+            // RC3.19: 승인 상태와 payload 저장이 어긋난 기존/경계 케이스용 fallback.
+            if (row.approvedClientReport && row.approvedClientReport.approved === true) return [row.approvedClientReport];
+            return [];
+          })()
         }
       });
     } catch (error) {

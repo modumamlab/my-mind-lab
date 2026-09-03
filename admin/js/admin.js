@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260903-RC3.14-AI-EVENT-ALL-COUNSELING loaded');
+console.info('[MML] BUILD 20260903-RC3.21-UNIFIED-ADMIN-LOADER loaded');
 const TEST_PRICES={'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
 function testPrice(value){const t=String(value||'').toUpperCase();if(t.includes('MMPI-A'))return TEST_PRICES['MMPI-A'];if(t.includes('MMPI-2')||t.includes('MMPI2'))return TEST_PRICES['MMPI-2'];if(t.includes('JTCI'))return TEST_PRICES.JTCI;if(t.includes('TCI'))return TEST_PRICES.TCI;if(t.includes('PAI'))return TEST_PRICES.PAI;if(t.includes('PAT'))return TEST_PRICES['PAT-2'];if(t.includes('STS'))return TEST_PRICES.STS;if(t.includes('K-CDI')||t.includes('KCDI'))return TEST_PRICES['K-CDI'];if(String(value||'').includes('행동관찰'))return TEST_PRICES['행동관찰'];return 0;}
 
@@ -184,7 +184,24 @@ async function saveReservationCanonical(reservation){
   if(!response.ok || body?.ok!==true){
     throw new Error(body?.error||`예약 서버 저장 실패 (${response.status})`);
   }
-  return body.reservation||reservation;
+  const saved=body.reservation||reservation;
+  // 모두맘 앱에서 생성된 신청은 앱 전용 조회 저장소에도 같은 변경사항을 반영합니다.
+  // 리포트 승인/AI 활성화 등의 관리자 변경이 앱에 즉시 보이도록 두 서버 원본을 동기화합니다.
+  if(saved?.applicationSource==='modumam-app-v1' || saved?.appApplicationId){
+    try{
+      const appResponse=await fetch('/.netlify/functions/app-assessment-api?admin=1',{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},
+        cache:'no-store',
+        body:JSON.stringify({reservation:saved})
+      });
+      const appBody=await appResponse.json().catch(()=>({}));
+      if(!appResponse.ok || appBody?.ok!==true){
+        console.warn('[앱 신청 동기화 실패]',appBody?.error||appResponse.status);
+      }
+    }catch(error){console.warn('[앱 신청 동기화 실패]',error);}
+  }
+  return saved;
 }
 
 
@@ -1627,6 +1644,142 @@ async function generateReportDraft(){
 }
 function deleteReport(id){if(!confirm('보고서를 삭제하시겠습니까?'))return;state.reports=state.reports.filter(r=>String(r.id)!==String(id));persistReports(state.reports);render()}
 
+function clientReportSectionArray(report){
+  const source=report?.sections;
+  if(Array.isArray(source)){
+    return source.map((section,index)=>({
+      key:String(section?.key||`section-${index+1}`),
+      title:String(section?.title||section?.label||`해석 ${index+1}`).trim(),
+      body:String(section?.body??section?.text??section?.content??'').trim()
+    })).filter(section=>section.title||section.body);
+  }
+  if(source&&typeof source==='object'){
+    const labels={
+      keyMessage:'핵심 요약',integratedUnderstanding:'통합 이해',strengthsResources:'강점과 자원',
+      currentSignals:'현재 살펴볼 점',psychologicalSuggestions:'도움이 되는 방향',disclaimer:'참고 안내',
+      summary:'종합 요약',strength:'강점과 자원',caution:'주의해서 살펴볼 부분',plan:'맞춤 제안'
+    };
+    return Object.entries(source).map(([key,value])=>({
+      key,title:labels[key]||String(key),body:String(value?.text??value?.body??value??'').trim()
+    })).filter(section=>section.body);
+  }
+  const fallback=[
+    ['summary','종합 요약',report?.summary||report?.coreMind],
+    ['strength','강점과 자원',report?.strength||report?.mindProfile],
+    ['caution','주의해서 살펴볼 부분',report?.caution||report?.emotionState],
+    ['plan','맞춤 제안',report?.plan||report?.expertRecovery]
+  ];
+  return fallback.filter(([, ,body])=>String(body||'').trim()).map(([key,title,body])=>({key,title,body:String(body).trim()}));
+}
+function clientReportScores(report){
+  let raw=report?.scores||report?.graph||report?.profile||report?.scales||null;
+  if(!raw && report?.individualAssessmentReport && typeof resolveIndividualReportAnalysis==='function'){
+    try{
+      const analysis=resolveIndividualReportAnalysis(report)||{};
+      raw=analysis.scores||analysis.graph||analysis.profile||analysis.scales||analysis.scaleScores||null;
+    }catch(_){ }
+  }
+  const rows=Array.isArray(raw)?raw:(raw&&typeof raw==='object'?Object.entries(raw).map(([label,value])=>({label,...(value&&typeof value==='object'?value:{value})})):[]);
+  return rows.map((item,index)=>{
+    const label=String(item?.label||item?.name||item?.scale||item?.key||`척도 ${index+1}`).trim();
+    const numeric=Number(item?.percent??item?.percentile??item?.score??item?.tScore??item?.value);
+    if(!label||!Number.isFinite(numeric))return null;
+    const percent=Math.max(0,Math.min(100,numeric));
+    const level=String(item?.level||item?.range||(percent>=70?'높음':percent<=30?'낮음':'보통'));
+    return {label,percent,level};
+  }).filter(Boolean);
+}
+function buildClientAppReportPayload(report,reservation){
+  const sections=clientReportSectionArray(report);
+  const summary=String(report?.summary||report?.coreMind||sections.find(x=>x.key==='keyMessage')?.body||sections[0]?.body||'').trim();
+  const testName=String(report?.testName||report?.testType||report?.title||reservation?.testName||'심리검사').trim();
+  return {
+    id:String(report?.id||`report-${Date.now()}`),
+    reservationId:String(report?.reservationId||reservation?.id||''),
+    testId:String(report?.testId||report?.testType||''),
+    testName,
+    title:String(report?.title||'나의 심리리포트'),
+    approved:true,
+    approvedAt:String(report?.approvedAt||report?.publishedAt||new Date().toISOString()),
+    testDate:String(report?.testDate||report?.completedAt||reservation?.assessmentCompletedAt||reservation?.date||''),
+    summary,
+    sections,
+    scores:clientReportScores(report),
+    reportType:String(report?.reportType||''),
+    version:Number(report?.version||1),
+    source:'admin-approved-report'
+  };
+}
+async function patchAppApplicationDirect(target,patch={}){
+  if(!target)return null;
+  const appId=String(target.appApplicationId||target.id||'').trim();
+  if(!appId)return null;
+  const reservation={...target,...patch,id:target.id||appId,appApplicationId:appId,applicationSource:target.applicationSource||'modumam-app-v1'};
+  const urls=[APP_RESERVATION_SERVER_API];
+  // 로컬 관리자(8888)에서 테스트할 때 앱은 운영 app-assessment-api를 조회하므로
+  // 동일한 승인 리포트를 운영 앱 저장소에도 즉시 반영합니다.
+  if(['localhost','127.0.0.1'].includes(String(location.hostname||''))){
+    urls.push(APP_RESERVATION_PRODUCTION_API);
+  }
+  let last=null;
+  for(const url of [...new Set(urls)]){
+    try{
+      const response=await fetch(url,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},
+        cache:'no-store',
+        body:JSON.stringify({reservation})
+      });
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok||body?.ok!==true)throw new Error(body?.error||`앱 신청 동기화 실패 (${response.status})`);
+      last=body.reservation||reservation;
+    }catch(error){
+      console.warn('[앱 신청 직접 동기화 실패]',url,error);
+    }
+  }
+  return last;
+}
+async function verifyApprovedClientReport(target,expectedReportId=''){
+  if(!target)return false;
+  const appId=String(target.appApplicationId||target.id||'').trim();
+  if(!appId)return false;
+  try{
+    const response=await fetch(APP_RESERVATION_SERVER_API,{headers:{'X-MML-Admin-Password':ADMIN_PASSWORD},cache:'no-store'});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok||body?.ok!==true)return false;
+    const phone=String(target.phone||'').replace(/\D/g,'');
+    const email=String(target.email||target.userEmail||'').trim().toLowerCase();
+    const row=(Array.isArray(body.reservations)?body.reservations:[]).find(r=>
+      String(r.appApplicationId||r.id||'')===appId ||
+      (email && String(r.email||r.userEmail||'').trim().toLowerCase()===email && phone && String(r.phone||'').replace(/\D/g,'')===phone)
+    );
+    if(!row)return false;
+    const reports=Array.isArray(row.clientReports)?row.clientReports.filter(Boolean):[];
+    if(expectedReportId && reports.some(r=>String(r?.id||'')===String(expectedReportId)))return true;
+    if(!expectedReportId && reports.length)return true;
+    return Boolean(row.approvedClientReport?.approved===true && (!expectedReportId || String(row.approvedClientReport?.id||'')===String(expectedReportId)));
+  }catch(error){console.warn('[앱 승인 리포트 저장 검증 실패]',error);return false;}
+}
+async function syncClientAppReportToReservation(report,approved=true){
+  if(!report)return null;
+  const target=state.reservations.find(r=>String(r.id)===String(report.reservationId))||state.reservations.find(r=>
+    String(r.name||'').trim()===String(report.clientName||'').trim()&&
+    (!report.phone||String(r.phone||'').replace(/\D/g,'')===String(report.phone||'').replace(/\D/g,''))
+  );
+  if(!target)return null;
+  const existing=Array.isArray(target.clientReports)?target.clientReports.filter(Boolean):[];
+  const reportId=String(report.id||'');
+  const without=existing.filter(item=>String(item?.id||'')!==reportId);
+  const clientReports=approved?[buildClientAppReportPayload(report,target),...without]:without;
+  const patch={clientReports,clientReport:clientReports[0]||null};
+  const saved=await updateReservation(target.id,patch);
+  // 예약 기준본 저장 성공과 별개로 앱 조회 저장소를 직접 갱신합니다.
+  // 상태만 리포트승인으로 바뀌고 clientReports가 비는 현상을 차단합니다.
+  await patchAppApplicationDirect({...target,...saved},patch);
+  return saved;
+}
+window.mmlSyncClientAppReportToReservation=syncClientAppReportToReservation;
+
 async function createApprovedReportHtmlSnapshot(report){
   if(!report)return '';
   if(report.individualAssessmentReport){
@@ -1705,10 +1858,22 @@ async function toggleReportApproval(id){
   if(target){
     const isIndividual=Boolean(report.individualAssessmentReport);
     const isIntegrated=Boolean(report.assessmentReport&&!report.individualAssessmentReport&&!report.integratedAssessmentReport);
+    const existingClientReports=Array.isArray(target.clientReports)?target.clientReports.filter(Boolean):[];
+    const reportIdForClient=String(report.id||'');
+    const otherClientReports=existingClientReports.filter(item=>String(item?.id||'')!==reportIdForClient);
+    const nextClientReports=next?[buildClientAppReportPayload({...report,...approvalPatch},target),...otherClientReports]:otherClientReports;
+    const primaryClientReport=nextClientReports[0]||null;
     const patch={
       assessmentReportStatus:next?'승인 완료':'관리자 검토 중',
       assessmentReportPublishedAt:next?now:'',
-      assessmentReportApprovedAt:next?now:''
+      assessmentReportApprovedAt:next?now:'',
+      clientReports:nextClientReports,
+      clientReport:primaryClientReport,
+      // RC3.19: 앱 조회용 승인 리포트를 별도 단일 필드에도 보존합니다.
+      // 예약 상태는 승인됐지만 clientReports 배열이 유실되는 과거 데이터에서도
+      // app-assessment-api가 이 값을 안전하게 fallback으로 반환할 수 있습니다.
+      approvedClientReport:next?primaryClientReport:null,
+      approvedClientReportUpdatedAt:now
     };
     if(isIndividual){
       const ids=Array.isArray(target.approvedIndividualReportIds)?target.approvedIndividualReportIds.map(String):[];
@@ -1717,7 +1882,18 @@ async function toggleReportApproval(id){
     if(isIntegrated){
       patch.approvedIntegratedReportId=next?report.id:'';
     }
-    updateReservation(target.id,patch);
+    // 승인 상태와 앱 공개 리포트를 한 번의 예약 저장으로 함께 반영합니다.
+    // 상태만 '리포트승인'이 되고 clientReports가 비는 불일치를 방지합니다.
+    const savedReservation=await updateReservation(target.id,patch);
+    await patchAppApplicationDirect({...target,...savedReservation},patch);
+    // RC3.19: 승인 직후 서버에 실제 리포트 payload가 남았는지 확인하고,
+    // 비어 있으면 동일 payload로 한 번 더 직접 보정합니다.
+    if(next){
+      const verified=await verifyApprovedClientReport({...target,...savedReservation},report.id);
+      if(!verified){
+        await patchAppApplicationDirect({...target,...savedReservation},{...patch,clientReports:nextClientReports,clientReport:primaryClientReport,approvedClientReport:primaryClientReport});
+      }
+    }
     // updateReservation 내부 저장 이후 예약 식별자가 포함된 공개본을 한 번 더 확정합니다.
     try{
       const refreshed=state.reports.find(r=>String(r.id)===String(report.id));
@@ -1939,7 +2115,7 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
       <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
-            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260831-RC3.10-WORKFLOW-LOAD-FIX</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
+            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260903-RC3.21-UNIFIED-ADMIN-LOADER</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2">
               <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
               <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>

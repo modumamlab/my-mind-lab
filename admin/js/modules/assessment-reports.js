@@ -2760,6 +2760,11 @@ async function publishDerivedAssessmentReport(id){
   // Sprint 4: 승인한 바로 그 보고서가 canonical 공개 원본입니다.
   // 과거 코드처럼 사용자용 publicItem을 새 ID로 복제하지 않습니다.
   saveDerivedAssessmentReports(rows);
+  try{
+    if(typeof window.mmlSyncClientAppReportToReservation==='function'){
+      await window.mmlSyncClientAppReportToReservation(rows[idx],true);
+    }
+  }catch(error){console.warn('[MML] 앱 종합 심리리포트 동기화 실패',error);}
   // 이전 버전에서 생성된 공개용 복제본이 있으면 제거하여 사용자 화면의 중복/불일치를 정리합니다.
   removeCanonicalPublishedReportByDerivedId(report.id);
   try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-approved'});}catch(error){console.warn('[MML] 종합보고서 공개 인덱스 즉시 갱신 실패',error);}
@@ -2824,6 +2829,7 @@ function toggleDerivedAssessmentReportApproval(id){
     updatedAt:now
   };
   saveDerivedAssessmentReports(rows);
+  try{window.mmlSyncClientAppReportToReservation?.(rows[idx],false)?.catch?.(error=>console.warn('[MML] 앱 종합 심리리포트 승인취소 동기화 실패',error));}catch(_){ }
   removeCanonicalPublishedReportByDerivedId(id);
   try{window.MMLClientReportPublication?.sync?.({force:true,reason:'derived-report-revoked'});}catch(error){console.warn('[MML] 종합보고서 승인취소 공개 인덱스 갱신 실패',error);}
   try{window.MMLSyncEngine?.exportClientSnapshot?.({publish:true});}catch(_){}
