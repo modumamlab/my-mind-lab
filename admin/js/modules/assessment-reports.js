@@ -1,4 +1,4 @@
-console.info('[MML] ASSESSMENT-REPORTS-SIGNATURE-S25 loaded');
+console.info('[MML] ASSESSMENT-REPORTS-SIGNATURE-RC3.23-TCI-V2 loaded');
 
 function detailedReportTemplate(testType, reportType) {
   const admin = reportType === "관리자용";
@@ -1041,7 +1041,8 @@ function buildClientReportEvidencePackage(source){
     validity:cleanReportText(row.validity),
     strengths:cleanReportText(row.strengths),
     vulnerabilities:cleanReportText(row.vulnerabilities),
-    cautions:cleanReportText(row.cautions)
+    cautions:cleanReportText(row.cautions),
+    rawFacts:row.rawFacts||null
   })).filter(row=>Object.values(row).some(Boolean));
   return {
     reportTitle:firstReportText(source.title,shared.title,'심리검사 종합보고서'),
@@ -1298,6 +1299,45 @@ function buildDerivedAssessmentSections(source,audience){
     ['disclaimer','보고서 안내',firstReportText(m.clientDisclaimer,s.disclaimer,'이 보고서는 심리검사 결과를 바탕으로 현재의 상태와 경향을 이해하기 위한 참고자료이며, 검사 결과만으로 진단을 확정하지 않습니다.')]
   ];
 }
+function tciClientScoresFromSource(source){
+  const inventory=Array.isArray(source?.masterReport?.sourceInventory)?source.masterReport.sourceInventory:[];
+  const tci=inventory.find(row=>/^TCI\b/i.test(String(row?.testType||row?.testName||'').trim()));
+  if(!tci?.rawFacts)return [];
+  const aliases={
+    NS:['NS','자극추구','noveltyseeking','novelty_seeking'],HA:['HA','위험회피','harmavoidance','harm_avoidance'],
+    RD:['RD','사회적민감성','사회적 민감성','rewarddependence','reward_dependence'],PS:['PS','P','인내력','persistence'],
+    SD:['SD','자율성','selfdirectedness','self_directedness'],CO:['CO','C','연대감','cooperativeness'],ST:['ST','자기초월','selftranscendence','self_transcendence']
+  };
+  const labels={NS:'자극추구',HA:'위험회피',RD:'사회적 민감성',PS:'인내력',SD:'자율성',CO:'연대감',ST:'자기초월'};
+  const norm=v=>String(v??'').toLowerCase().replace(/[^a-z0-9가-힣]/g,'');
+  const flat=[];
+  const walk=(value,path='')=>{
+    if(value==null)return;
+    if(Array.isArray(value)){value.forEach((v,i)=>walk(v,`${path}.${i}`));return;}
+    if(typeof value==='object'){Object.entries(value).forEach(([k,v])=>{flat.push({key:k,path:`${path}.${k}`,value:v});walk(v,`${path}.${k}`)});}
+  };
+  walk(tci.rawFacts,'rawFacts');
+  const numeric=v=>{if(typeof v==='number')return v;if(typeof v==='string'){const m=v.match(/-?\d+(?:\.\d+)?/);return m?Number(m[0]):NaN;}if(v&&typeof v==='object'){for(const k of ['percentile','percent','score','tScore','value','rawScore']){const n=numeric(v[k]);if(Number.isFinite(n))return n;}}return NaN;};
+  const levelOf=(v,n)=>{const txt=typeof v==='object'?String(v.level||v.range||v.category||''):'';if(txt)return txt;return n>=70?'높음':n<=30?'낮음':'보통';};
+  return Object.entries(aliases).map(([code,names])=>{
+    const wanted=names.map(norm);
+    const hit=flat.find(row=>wanted.includes(norm(row.key))||wanted.some(a=>norm(row.path).endsWith(a)));
+    if(!hit)return null;
+    const n=numeric(hit.value);if(!Number.isFinite(n))return null;
+    // TCI 원자료의 백분위/백분율처럼 0~100 범위인 값만 앱 그래프로 전달합니다. 원점수는 임의 환산하지 않습니다.
+    if(n<0||n>100)return null;
+    return {key:code,label:labels[code],percent:n,level:levelOf(hit.value,n),score:n};
+  }).filter(Boolean);
+}
+function tciClientSections(rewritten){
+  if(!rewritten?.tciIntegrated)return null;
+  const rows=[
+    ['tciTemperamentSummary','기질 종합',rewritten.tciTemperamentSummary],['tciNS','자극추구(NS)',rewritten.tciNS],['tciHA','위험회피(HA)',rewritten.tciHA],['tciRD','사회적 민감성(RD)',rewritten.tciRD],['tciPS','인내력(PS)',rewritten.tciPS],
+    ['tciCharacterSummary','성격 종합',rewritten.tciCharacterSummary],['tciSD','자율성(SD)',rewritten.tciSD],['tciCO','연대감(CO)',rewritten.tciCO],['tciST','자기초월(ST)',rewritten.tciST],['tciIntegrated','전체 통합해석',rewritten.tciIntegrated],
+    ['strength','강점과 자원',rewritten.tciStrengths],['caution','주의해서 살펴볼 부분',rewritten.tciCautions],['plan','맞춤 제안',rewritten.tciSuggestions]
+  ];
+  return rows.filter(([, ,text])=>cleanReportText(text)).map(([key,label,text])=>({key,label,text:cleanReportText(text)}));
+}
 async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
   const source=integratedReportById(sourceId);
   if(!source){alert('심리평가센터의 AI 종합해석보고서를 찾지 못했습니다. 먼저 AI 해석보고서를 저장해 주세요.');return;}
@@ -1341,7 +1381,10 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
       }
     }
     const now=new Date().toISOString();
+    const testNames=Array.isArray(source.tests)?source.tests.map(String):String(source.tests||'').split(',').map(x=>x.trim()).filter(Boolean);
+    const tciOnly=audience==='client'&&testNames.length===1&&/(^|\s)TCI(?:\s|$|기질)/i.test(testNames[0])&&!/JTCI/i.test(testNames[0]);
     const baseSections=buildDerivedAssessmentSections(source,audience).map(section=>Array.isArray(section)?[...section]:section);
+    const tciSections=tciOnly?tciClientSections(rewritten):null;
     const rewrittenMap=rewritten?{
       coreMind:rewritten.clientCoreMind,mindProfile:rewritten.clientMindProfile,individualTests:rewritten.clientIndividualTests,emotionState:rewritten.clientEmotionState,thinkingRelationship:rewritten.clientThinkingRelationship,stressDaily:rewritten.clientStressDaily,expertRecovery:rewritten.clientExpertRecovery,disclaimer:rewritten.clientDisclaimer
     }:{};
@@ -1355,18 +1398,20 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
       comprehensiveReport:audience==='client',assessmentReport:audience==='client',
       integratedAssessmentReport:audience==='counselor',derivedReportType:audience==='client'?'clientComprehensiveReport':'counselorComprehensiveReport',
       title:audience==='counselor'?'상담자용 종합보고서':'심리검사 종합보고서',
+      summary:tciOnly?cleanReportText(rewritten?.tciIntegrated||rewritten?.clientCoreMind):cleanReportText(rewritten?.clientCoreMind||''),
       clientName:source.clientName||source.name||'',phone:source.phone||source.clientPhone||old?.phone||'',
       clientId:source.clientId||source.memberId||source.userId||old?.clientId||'',
       memberId:source.memberId||source.clientId||source.userId||old?.memberId||'',
       userId:source.userId||source.memberId||source.clientId||old?.userId||'',
       program:source.program||'',tests:source.tests||[],
       reservationId:String(source.reservationId||old?.reservationId||''),
-      sections:baseSections.map(([key,label,text])=>{
+      sections:tciSections||baseSections.map(([key,label,text])=>{
         const finalText=cleanReportText(rewrittenMap[key])||text;
         if(key==='individualTests')return {key,label,text:finalText,items:parseIndividualTestItems(finalText)};
         if(key==='expertRecovery')return {key,label,text:finalText,items:parseExpertRecoveryItems(finalText)};
         return {key,label,text:finalText};
       }),
+      scores:tciOnly?tciClientScoresFromSource(source):[],
       status:'draft',approved:false,reviewed:false,approvedForClient:false,publishedAt:'',
       version:Number(old?.version||0)+1,sourceVersion:Number(source.version||1),createdAt:old?.createdAt||now,updatedAt:now,
       previousVersion:old?{sections:old.sections||[],status:old.status||'draft',approvedForClient:Boolean(old.approvedForClient),publishedAt:old.publishedAt||'',updatedAt:old.updatedAt||''}:null,
@@ -1377,7 +1422,7 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
       clinicalReasoning:audience==='client'?buildClinicalReasoningEngine(buildClientReportEvidencePackage(source)):null,
       decisionTrace:audience==='client'?buildClinicalDecisionTrace(buildClientReportEvidencePackage(source)):null,
       selfReview:audience==='client'&&rewritten?buildClientReportSelfReview(rewritten,buildClientReportEvidencePackage(source)):null,
-      rewritePromptVersion:audience==='client'?'mml-client-composer-v6.0-evidence-grounded-clinical-report':''
+      rewritePromptVersion:audience==='client'?(tciOnly?'mml-client-tci-v2.1-required-fields':'mml-client-composer-v8.0-test-specific-report'):''
     };
     const next=rows.filter(x=>{
       if(String(x.id)===String(item.id))return false;

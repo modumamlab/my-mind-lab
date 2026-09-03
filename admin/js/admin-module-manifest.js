@@ -9,7 +9,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     location.hostname.endsWith('.local');
 
   const mode = isLocal ? 'development' : 'production';
-  const build = '20260903-rc3-21-unified-admin-loader-v1';
+  const build = '20260903-rc3-24-tci-report-pipeline-fix';
 
   const core = [
     {
@@ -87,13 +87,13 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260903-rc3-21-unified-admin-loader-v1',
+      src:'./js/modules/assessment-reports.js?v=20260903-rc3-24-tci-report-pipeline-fix',
       required:true,
       dependsOn:['data-store','print-engine']
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260903-rc3-21-unified-admin-loader-v1',
+      src:'./js/modules/operations-workspace.js?v=20260903-rc3-24-tci-report-pipeline-fix',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260903-rc3-21-unified-admin-loader-v1',
+      src:'./js/admin.js?v=20260903-rc3-24-tci-report-pipeline-fix',
       required:true
     },
     {

@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260903-RC3.21-UNIFIED-ADMIN-LOADER loaded');
+console.info('[MML] BUILD 20260903-RC3.24-TCI-REPORT-PIPELINE-FIX loaded');
 const TEST_PRICES={'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
 function testPrice(value){const t=String(value||'').toUpperCase();if(t.includes('MMPI-A'))return TEST_PRICES['MMPI-A'];if(t.includes('MMPI-2')||t.includes('MMPI2'))return TEST_PRICES['MMPI-2'];if(t.includes('JTCI'))return TEST_PRICES.JTCI;if(t.includes('TCI'))return TEST_PRICES.TCI;if(t.includes('PAI'))return TEST_PRICES.PAI;if(t.includes('PAT'))return TEST_PRICES['PAT-2'];if(t.includes('STS'))return TEST_PRICES.STS;if(t.includes('K-CDI')||t.includes('KCDI'))return TEST_PRICES['K-CDI'];if(String(value||'').includes('행동관찰'))return TEST_PRICES['행동관찰'];return 0;}
 
@@ -1645,31 +1645,27 @@ async function generateReportDraft(){
 function deleteReport(id){if(!confirm('보고서를 삭제하시겠습니까?'))return;state.reports=state.reports.filter(r=>String(r.id)!==String(id));persistReports(state.reports);render()}
 
 function clientReportSectionArray(report){
+  const FRIENDLY={
+    keyMessage:'핵심 요약',summary:'종합 요약',sourceSummary:'종합 요약',coreFindings:'핵심 특성',
+    integratedUnderstanding:'통합 이해',strengthsResources:'강점과 자원',strengths:'강점과 자원',strength:'강점과 자원',
+    currentSignals:'주의해서 살펴볼 부분',vulnerabilities:'주의해서 살펴볼 부분',caution:'주의해서 살펴볼 부분',
+    psychologicalSuggestions:'맞춤 제안',helpfulDirections:'맞춤 제안',plan:'맞춤 제안',
+    validity:'결과 해석 참고사항',disclaimer:'참고 안내',emotionalPattern:'정서 특성',thinkingPattern:'사고 및 자기이해',
+    relationshipPattern:'관계 특성',stressPattern:'스트레스 반응',dailyMeaning:'일상에서의 의미'
+  };
+  const TECHNICAL=new Set(['crossChecks','caseHypotheses','counselingQuestions','rawFacts','confidenceReason','confidenceScore','clinicalNote','interpretationBasis']);
+  const cleanBody=value=>String(value?.text??value?.body??value?.content??value??'').trim();
+  const rows=[];
+  const push=(key,title,body)=>{body=cleanBody(body);if(!body||TECHNICAL.has(String(key)))return;rows.push({key:String(key||''),title:String(FRIENDLY[key]||title||'결과 이해').trim(),body});};
   const source=report?.sections;
-  if(Array.isArray(source)){
-    return source.map((section,index)=>({
-      key:String(section?.key||`section-${index+1}`),
-      title:String(section?.title||section?.label||`해석 ${index+1}`).trim(),
-      body:String(section?.body??section?.text??section?.content??'').trim()
-    })).filter(section=>section.title||section.body);
+  if(Array.isArray(source)) source.forEach((section,index)=>push(section?.key||`section-${index+1}`,section?.title||section?.label,section));
+  else if(source&&typeof source==='object') Object.entries(source).forEach(([key,value])=>push(key,FRIENDLY[key]||key,value));
+  else {
+    [['summary','종합 요약',report?.summary||report?.coreMind],['strength','강점과 자원',report?.strength||report?.mindProfile],['caution','주의해서 살펴볼 부분',report?.caution||report?.emotionState],['plan','맞춤 제안',report?.plan||report?.expertRecovery]].forEach(x=>push(...x));
   }
-  if(source&&typeof source==='object'){
-    const labels={
-      keyMessage:'핵심 요약',integratedUnderstanding:'통합 이해',strengthsResources:'강점과 자원',
-      currentSignals:'현재 살펴볼 점',psychologicalSuggestions:'도움이 되는 방향',disclaimer:'참고 안내',
-      summary:'종합 요약',strength:'강점과 자원',caution:'주의해서 살펴볼 부분',plan:'맞춤 제안'
-    };
-    return Object.entries(source).map(([key,value])=>({
-      key,title:labels[key]||String(key),body:String(value?.text??value?.body??value??'').trim()
-    })).filter(section=>section.body);
-  }
-  const fallback=[
-    ['summary','종합 요약',report?.summary||report?.coreMind],
-    ['strength','강점과 자원',report?.strength||report?.mindProfile],
-    ['caution','주의해서 살펴볼 부분',report?.caution||report?.emotionState],
-    ['plan','맞춤 제안',report?.plan||report?.expertRecovery]
-  ];
-  return fallback.filter(([, ,body])=>String(body||'').trim()).map(([key,title,body])=>({key,title,body:String(body).trim()}));
+  // 같은 문장이 관리자 원본의 여러 내부 필드에 반복 저장되어도 앱에는 한 번만 전달합니다.
+  const seen=new Set();
+  return rows.filter(row=>{const fingerprint=row.body.replace(/\s+/g,' ').trim();if(!fingerprint||seen.has(fingerprint))return false;seen.add(fingerprint);return true;});
 }
 function clientReportScores(report){
   let raw=report?.scores||report?.graph||report?.profile||report?.scales||null;
@@ -2115,7 +2111,7 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
       <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
-            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260903-RC3.21-UNIFIED-ADMIN-LOADER</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
+            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260903-RC3.24-TCI-REPORT-PIPELINE-FIX</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2">
               <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
               <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>
