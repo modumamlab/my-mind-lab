@@ -1,4 +1,4 @@
-console.info('[MML] ASSESSMENT-REPORTS-RC3.30-TCI-STRUCTURED-DATA loaded');
+console.info('[MML] ASSESSMENT-REPORTS-RC3.32-JTCI-RESERVATION-CODE loaded');
 
 function detailedReportTemplate(testType, reportType) {
   const admin = reportType === "관리자용";
@@ -1299,9 +1299,9 @@ function buildDerivedAssessmentSections(source,audience){
     ['disclaimer','보고서 안내',firstReportText(m.clientDisclaimer,s.disclaimer,'이 보고서는 심리검사 결과를 바탕으로 현재의 상태와 경향을 이해하기 위한 참고자료이며, 검사 결과만으로 진단을 확정하지 않습니다.')]
   ];
 }
-function tciClientScoresFromSource(source){
+function tciClientScoresFromSource(source,kind='TCI'){
   const inventory=Array.isArray(source?.masterReport?.sourceInventory)?source.masterReport.sourceInventory:(Array.isArray(source?.sourceInventory)?source.sourceInventory:[]);
-  const tci=inventory.find(row=>/^TCI\b/i.test(String(row?.testType||row?.testName||'').trim())&&!/JTCI/i.test(String(row?.testType||row?.testName||'')));
+  const tci=inventory.find(row=>kind==='JTCI'?/JTCI/i.test(String(row?.testType||row?.testName||'')):(/^TCI\b/i.test(String(row?.testType||row?.testName||'').trim())&&!/JTCI/i.test(String(row?.testType||row?.testName||''))));
   const rows=Array.isArray(tci?.rawFacts?.tciScores)?tci.rawFacts.tciScores:[];
   const labels={NS:'자극추구',HA:'위험회피',RD:'사회적 민감성',PS:'인내력',SD:'자율성',CO:'연대감',ST:'자기초월'};
   const byCode=new Map();
@@ -1388,9 +1388,11 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
     const now=new Date().toISOString();
     const testNames=Array.isArray(source.tests)?source.tests.map(String):String(source.tests||'').split(',').map(x=>x.trim()).filter(Boolean);
     const tciOnly=audience==='client'&&testNames.length===1&&/(^|\s)TCI(?:\s|$|기질)/i.test(testNames[0])&&!/JTCI/i.test(testNames[0]);
+    const jtciOnly=audience==='client'&&testNames.length===1&&/JTCI/i.test(testNames[0]);
+    const traitOnly=tciOnly||jtciOnly;
     const baseSections=buildDerivedAssessmentSections(source,audience).map(section=>Array.isArray(section)?[...section]:section);
-    const tciScores=tciOnly?tciClientScoresFromSource(source):[];
-    const tciSections=tciOnly?tciClientSections(rewritten,tciScores):null;
+    const tciScores=traitOnly?tciClientScoresFromSource(source,jtciOnly?'JTCI':'TCI'):[];
+    const tciSections=traitOnly?tciClientSections(rewritten,tciScores):null;
     const rewrittenMap=rewritten?{
       coreMind:rewritten.clientCoreMind,mindProfile:rewritten.clientMindProfile,individualTests:rewritten.clientIndividualTests,emotionState:rewritten.clientEmotionState,thinkingRelationship:rewritten.clientThinkingRelationship,stressDaily:rewritten.clientStressDaily,expertRecovery:rewritten.clientExpertRecovery,disclaimer:rewritten.clientDisclaimer
     }:{};
@@ -1404,7 +1406,7 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
       comprehensiveReport:audience==='client',assessmentReport:audience==='client',
       integratedAssessmentReport:audience==='counselor',derivedReportType:audience==='client'?'clientComprehensiveReport':'counselorComprehensiveReport',
       title:audience==='counselor'?'상담자용 종합보고서':'심리검사 종합보고서',
-      summary:tciOnly?cleanReportText(rewritten?.tciIntegrated||rewritten?.clientCoreMind):cleanReportText(rewritten?.clientCoreMind||''),
+      summary:traitOnly?cleanReportText(rewritten?.tciIntegrated||rewritten?.clientCoreMind):cleanReportText(rewritten?.clientCoreMind||''),
       clientName:source.clientName||source.name||'',phone:source.phone||source.clientPhone||old?.phone||'',
       clientId:source.clientId||source.memberId||source.userId||old?.clientId||'',
       memberId:source.memberId||source.clientId||source.userId||old?.memberId||'',
@@ -1793,9 +1795,9 @@ function firstDerivedFallback(source,keys){
 function isTciDerivedClientReport(report){
   if(!report||report.audience==='counselor')return false;
   const tests=Array.isArray(report.tests)?report.tests.map(String):String(report.tests||'').split(',').map(x=>x.trim()).filter(Boolean);
-  if(String(report.rewritePromptVersion||'').includes('tci-v2'))return true;
+  if(/(?:tci-v2|tci-v3|jtci-v1)/i.test(String(report.rewritePromptVersion||'')))return true;
   if(tests.length!==1)return false;
-  return /(^|\s)TCI(?:\s|$|기질)/i.test(tests[0])&&!/JTCI/i.test(tests[0]);
+  return /JTCI/i.test(tests[0])||(/(^|\s)TCI(?:\s|$|기질)/i.test(tests[0])&&!/JTCI/i.test(tests[0]));
 }
 function canonicalDerivedClientSections(report){
   // TCI V2 보고서는 생성 단계에서 이미 TCI 전용 canonical section을 만듭니다.

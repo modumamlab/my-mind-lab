@@ -60,10 +60,10 @@ function prompt(body){
 - 읽히지 않는 값은 추측하지 말고 missingOrUnclear에 넣습니다.
 - 개인정보는 이름을 포함해 출력하지 않습니다.
 - scoreFacts는 해석에 중요한 척도만 최대 24개로 제한합니다.
-- TCI/TCI-RS 결과지이면 1페이지의 'TCI-RS 프로파일' 표에서 주척도 NS, HA, RD, PS, SD, CO, ST의 원점수·T점수·백분위를 각각 정확히 읽어 tciScores에 7개 항목으로 기록합니다.
-- TCI tciScores.code는 반드시 NS, HA, RD, PS, SD, CO, ST 중 하나입니다. rawScore는 원점수, tScore는 T점수, percentile은 백분위 열의 값입니다. 서로 바꾸지 않습니다.
+- TCI/TCI-RS 결과지이면 1페이지의 'TCI-RS 프로파일' 표에서, JTCI 12-18 결과지이면 1페이지의 'JTCI 12-18 프로파일' 표에서 주척도 NS, HA, RD, PS, SD, CO, ST의 원점수·T점수·백분위를 각각 정확히 읽어 tciScores에 7개 항목으로 기록합니다.
+- TCI/JTCI tciScores.code는 반드시 NS, HA, RD, PS, SD, CO, ST 중 하나입니다. rawScore는 원점수, tScore는 T점수, percentile은 백분위 열의 값입니다. 서로 바꾸지 않습니다.
 - 자율성+연대감(SC)은 tciScores에 넣지 않습니다. 하위척도 NS1, HA1 등도 tciScores에 넣지 않습니다.
-- TCI가 아니면 tciScores는 빈 배열 []로 반환합니다.
+- TCI 또는 JTCI가 아니면 tciScores는 빈 배열 []로 반환합니다.
 - source에는 표, 그래프, 결과요약, 해석문 등 확인 위치를 짧게 씁니다.
 - visibleTextFacts는 문서에 인쇄된 핵심 설명 문장만 최대 12개 기록합니다.
 - 임상적 의미, 진단, 상담 제언은 작성하지 않습니다.
@@ -119,10 +119,10 @@ export const handler=async(event)=>{
         }
         extracted.tciScores=['NS','HA','RD','PS','SD','CO','ST'].map(code=>byCode.get(code)).filter(Boolean);
         if(/TCI/i.test(String(extracted.detectedTestType||body.testType||''))&&extracted.tciScores.length!==7){
-          extracted.missingOrUnclear=Array.from(new Set([...(Array.isArray(extracted.missingOrUnclear)?extracted.missingOrUnclear:[]),'TCI 주척도 7개의 원점수·T점수·백분위를 모두 확인하지 못했습니다.']));
+          extracted.missingOrUnclear=Array.from(new Set([...(Array.isArray(extracted.missingOrUnclear)?extracted.missingOrUnclear:[]),'TCI/JTCI 주척도 7개의 원점수·T점수·백분위를 모두 확인하지 못했습니다.']));
         }
       }else extracted.tciScores=[];
-      return jsonResponse({extracted,model:MODEL,stage:'document-facts-v2-tci-scores'});
+      return jsonResponse({extracted,model:MODEL,stage:'document-facts-v3-tci-jtci-scores'});
     }finally{clearTimeout(timeoutId);}
   }catch(error){
     console.error('[MML ASSESSMENT FILE EXTRACT]',error);

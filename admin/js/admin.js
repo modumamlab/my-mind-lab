@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260903-RC3.30-TCI-STRUCTURED-DATA loaded');
+console.info('[MML] BUILD 20260903-RC3.33-JTCI-CANONICAL-RESERVATION loaded');
 const TEST_PRICES={'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
 function testPrice(value){const t=String(value||'').toUpperCase();if(t.includes('MMPI-A'))return TEST_PRICES['MMPI-A'];if(t.includes('MMPI-2')||t.includes('MMPI2'))return TEST_PRICES['MMPI-2'];if(t.includes('JTCI'))return TEST_PRICES.JTCI;if(t.includes('TCI'))return TEST_PRICES.TCI;if(t.includes('PAI'))return TEST_PRICES.PAI;if(t.includes('PAT'))return TEST_PRICES['PAT-2'];if(t.includes('STS'))return TEST_PRICES.STS;if(t.includes('K-CDI')||t.includes('KCDI'))return TEST_PRICES['K-CDI'];if(String(value||'').includes('행동관찰'))return TEST_PRICES['행동관찰'];return 0;}
 
@@ -91,7 +91,7 @@ async function replaceIndexedReservations(rows){
 }
 
 let state={counselingJournalTab:'sessions',selectedJournalCaseId:'',activeJournalSessionCaseId:'',activeJournalReservationId:'',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:[],clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,legacyReservationServerCount:0,appReservationServerCount:0,reservationSyncError:''};
-const REPORT_TEST_OPTIONS=['TCI','MMPI-2','PAI','SCT','HTP','STS','PAT','K-CDI','PHQ-9','GAD-7'];
+const REPORT_TEST_OPTIONS=['TCI','JTCI','MMPI-2','PAI','SCT','HTP','STS','PAT','K-CDI','PHQ-9','GAD-7'];
 function sanitizeReportTests(value){const raw=Array.isArray(value)?value:String(value||'').split(/[,·]/);return [...new Set(raw.map(x=>String(x||'').trim()).filter(x=>REPORT_TEST_OPTIONS.includes(x)))]}
 function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',program:'개별 심리검사',testType:'TCI',selectedTests:['TCI'],title:'',summary:'',mindProfile:'',individualTests:'',emotionState:'',thinkingRelationship:'',stressDaily:'',plan:'',strength:'',caution:'',reportType:'summaryReport',summaryReport:true,status:'작성중',approvedForClient:false}}
 function load(k,f){
@@ -407,6 +407,7 @@ function normTest(value){
   if(!raw) return '';
   const clean=raw.replace(/\s*\(무료\)\s*/g,'').trim();
   const aliases=[
+    [/JTCI|청소년.*기질.*성격/i,'JTCI 청소년 기질 및 성격검사'],
     [/본인.*TCI|TCI.*본인|신청자.*TCI|TCI.*신청자/i,'본인 TCI 기질 및 성격검사'],
     [/배우자.*TCI|TCI.*배우자/i,'배우자 TCI 기질 및 성격검사'],
     [/TCI|기질.*성격/i,'TCI 기질 및 성격검사'],
@@ -456,6 +457,29 @@ function reportTestGroups(r){
 }
 
 function requestedTests(r){
+  // [RC3.33] 앱의 개별 심리검사 예약은 신청한 검사 1건 자체가 기준값입니다.
+  // 과거 데이터에서 selectedTests/extraTests가 잘못 TCI로 남았더라도,
+  // app-assessment-api가 저장한 program/testName/clientTestId에서 JTCI를 확정할 수 있으면
+  // 프로그램 기본값이나 부분문자열 추정으로 TCI를 섞지 않습니다.
+  const bookingCategory=String(r?.bookingCategory||'').trim();
+  const bookingProgramRaw=String(r?.bookingProgram||'').trim();
+  const programRaw=String(r?.program||'').trim();
+  const explicitCode=String(r?.assessmentTestCode||r?.testId||r?.clientTestId||'').trim();
+  const explicitName=String(r?.testName||'').trim();
+  const individualAppTest=bookingCategory==='individual-test' || /개별\s*심리검사/i.test(bookingProgramRaw||programRaw);
+  if(individualAppTest){
+    const evidence=[explicitCode,explicitName,programRaw,
+      ...(Array.isArray(r?.selectedTests)?r.selectedTests:[]),
+      ...(Array.isArray(r?.extraTests)?r.extraTests:[])
+    ].map(v=>String(v||'').trim()).filter(Boolean);
+    // JTCI는 TCI보다 먼저 완전하게 판별해야 합니다.
+    if(evidence.some(v=>/JTCI/i.test(v))) return ['JTCI 청소년 기질 및 성격검사'];
+    const exact=evidence.map(normTest).filter(Boolean);
+    if(exact.length){
+      const first=exact.find(v=>shortTestName(v)!=='TCI') || exact[0];
+      return first?[first]:[];
+    }
+  }
   // [MOD-20260726-REPORT-POLICY-V4]
   // 프로그램 기본검사는 환경설정/과거 저장값과 무관하게 항상 포함합니다.
   // 예약에는 추가검사만 저장되는 경우가 있으므로 기본검사와 추가검사를 여기서 합칩니다.
@@ -504,6 +528,7 @@ function programBaseName(program){
 function shortTestName(test){
   const t=String(test||'').toUpperCase();
   if(t.includes('MMPI'))return 'MMPI-2';
+  if(t.includes('JTCI'))return 'JTCI';
   if(t.includes('TCI')){if(t.includes('본인')||t.includes('신청자'))return 'TCI(본인)';if(t.includes('배우자'))return 'TCI(배우자)';return t.includes('× 2')||t.includes('X 2')?'TCI × 2':'TCI';}
   if(t.includes('PAI'))return 'PAI';
   if(t.includes('PAT'))return 'PAT';
@@ -1456,7 +1481,7 @@ ${target?'예약일 3일 전 안내입니다. 상담 준비를 위해 상담 전
 }
 function openIntake(id){const r=state.reservations.find(x=>String(x.id)===String(id));const i=r?findIntake(r):null;alert(i?(i.summary||'요약 없음'):'연결된 AI 마음 체크인 요약이 없습니다.')}
 function reportCode(r){return r.code||('MR-'+String(r.id).slice(-6))}
-function setReportFromReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const base=programBaseName(r.program);const program=['개별 심리검사','개인 마음이음','부부 마음이음','부모-자녀 마음이음'].find(x=>String(base).includes(x))||'개별 심리검사';const defaults=program==='부모-자녀 마음이음'?['PAT','K-CDI']:['TCI'];state.reportForm={...emptyReportForm(),reservationId:id,clientName:r.name||'',phone:r.phone||'',program,selectedTests:defaults,testType:defaults.join(', '),title:`${r.name||'내담자'}님 심리검사 요약보고서`};state.menu='report';render()}
+function setReportFromReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const base=programBaseName(r.program);const program=['개별 심리검사','개인 마음이음','부부 마음이음','부모-자녀 마음이음'].find(x=>String(base).includes(x))||'개별 심리검사';const requested=sanitizeReportTests(requestedTests(r).map(shortTestName));const defaults=requested.length?requested:(program==='부모-자녀 마음이음'?['PAT','K-CDI']:['TCI']);state.reportForm={...emptyReportForm(),reservationId:id,clientName:r.name||'',phone:r.phone||'',program,selectedTests:defaults,testType:defaults.join(', '),title:`${r.name||'내담자'}님 심리검사 요약보고서`};state.menu='report';render()}
 window.setReportFromReservation=setReportFromReservation;
 function templateReport(){applyDetailedTemplate()}
 function createReport(e){
@@ -2111,7 +2136,7 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
       <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
-            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260903-RC3.30-TCI-STRUCTURED-DATA</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
+            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260903-RC3.33-JTCI-CANONICAL-RESERVATION</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2">
               <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
               <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>

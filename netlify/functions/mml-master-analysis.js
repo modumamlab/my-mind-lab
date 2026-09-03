@@ -197,10 +197,9 @@ const TCI_CLIENT_REWRITE_SCHEMA={type:'OBJECT',properties:{
   tciStrengths:{type:'STRING'},tciCautions:{type:'STRING'},
   tciRecommendations:{type:'ARRAY',items:{type:'OBJECT',properties:{title:{type:'STRING'},basis:{type:'STRING'},action:{type:'STRING'}},required:['title','basis','action']}}
 },required:['clientCoreMind','clientDisclaimer','tciTemperamentSummary','tciNS','tciHA','tciRD','tciPS','tciCharacterSummary','tciSD','tciCO','tciST','tciIntegrated','tciStrengths','tciCautions','tciRecommendations']};
-function isTciOnlyRequest(body){
-  const names=String(body?.testNames||body?.tests||'').split(/[,·]/).map(x=>x.trim()).filter(Boolean);
-  return names.length===1 && /(^|\s)TCI(?:\s|$|기질)/i.test(names[0]) && !/JTCI/i.test(names[0]);
-}
+function singleTestNames(body){return String(body?.testNames||body?.tests||'').split(/[,·]/).map(x=>x.trim()).filter(Boolean);}
+function isTciOnlyRequest(body){const names=singleTestNames(body);return names.length===1 && /(^|\s)TCI(?:\s|$|기질)/i.test(names[0]) && !/JTCI/i.test(names[0]);}
+function isJtciOnlyRequest(body){const names=singleTestNames(body);return names.length===1 && /JTCI/i.test(names[0]);}
 
 
 function tciLevelFromPercentile(value){
@@ -217,9 +216,9 @@ function tciBandPosition(value){
   if(p>=60)return '보통 범위의 상단';
   return '보통 범위';
 }
-function tciScoresFromIntegratedSource(source){
+function tciScoresFromIntegratedSource(source,kind='TCI'){
   const inventory=Array.isArray(source?.sourceInventory)?source.sourceInventory:[];
-  const tci=inventory.find(row=>/(^|\s)TCI(?:\s|$|기질)/i.test(String(row?.testType||''))&&!/JTCI/i.test(String(row?.testType||'')));
+  const tci=inventory.find(row=>kind==='JTCI'?/JTCI/i.test(String(row?.testType||row?.testName||'')):(/(^|\s)TCI(?:\s|$|기질)/i.test(String(row?.testType||row?.testName||''))&&!/JTCI/i.test(String(row?.testType||row?.testName||''))));
   const rows=Array.isArray(tci?.rawFacts?.tciScores)?tci.rawFacts.tciScores:[];
   const allowed=new Set(['NS','HA','RD','PS','SD','CO','ST']);
   return rows.map(row=>{
@@ -229,8 +228,8 @@ function tciScoresFromIntegratedSource(source){
     return {code,rawScore:Number(row?.rawScore),tScore:Number(row?.tScore),percentile,level:tciLevelFromPercentile(percentile),position:tciBandPosition(percentile)};
   }).filter(Boolean);
 }
-function enforceTciScaleLevels(report,source){
-  const scores=tciScoresFromIntegratedSource(source);
+function enforceTciScaleLevels(report,source,kind='TCI'){
+  const scores=tciScoresFromIntegratedSource(source,kind);
   if(!scores.length)return report;
   const out={...report};
   const fields={NS:'tciNS',HA:'tciHA',RD:'tciRD',PS:'tciPS',SD:'tciSD',CO:'tciCO',ST:'tciST'};
@@ -249,7 +248,8 @@ function enforceTciScaleLevels(report,source){
 }
 function integratedRewritePrompt(body){
   const source=body.integratedReport||{};
-  const tciScores=tciScoresFromIntegratedSource(source);
+  const jtciOnly=isJtciOnlyRequest(body);
+  const tciScores=tciScoresFromIntegratedSource(source,jtciOnly?'JTCI':'TCI');
   const tciScoreGuide=tciScores.length?tciScores.map(row=>`${row.code}: 백분위 ${row.percentile} → ${row.level} (${row.position})`).join('\n'):'TCI 구조화 백분위 없음';
   return `당신은 임상심리사 1급 수준의 심리평가 보고서 작성자입니다. 아래 상담자용 AI 종합해석보고서를 유일한 근거로 사용하여, 내담자에게 실제로 제공할 수 있는 완성도 높은 심리검사 종합보고서를 새로 작성하십시오.
 
@@ -298,9 +298,18 @@ ${tciScoreGuide}
 - 31~40은 '보통 범위의 하단', 60~69는 '보통 범위의 상단'이라고 설명할 수 있으나 공식 수준은 반드시 '보통'입니다.
 - 원점수나 T점수를 백분위처럼 사용하지 않습니다.
 
+[JTCI 12-18 단독 보고서 추가 규칙]
+- 실시검사가 JTCI 하나인 경우에도 TCI와 동일한 7개 주척도 구조를 사용하되, 반드시 청소년 발달 맥락과 해당 결과지의 규준집단을 기준으로 해석합니다. 성인 TCI 문장을 그대로 재사용하지 않습니다.
+- JTCI 12-18 주척도 판정 기준은 백분위 0~30=낮음, 31~69=보통, 70~100=높음으로 고정합니다.
+- NS·HA·RD·PS·SD·CO·ST의 실제 백분위만 주 프로파일과 그래프의 근거로 사용합니다. SC는 7척도 그래프에서 제외합니다.
+- NS1·HA1·RD1·SD1·CO1·ST1 등 하위척도는 문항 수가 적으므로 참고자료로만 사용하고, 주척도와 동등한 결론이나 단독 핵심 결론의 근거로 사용하지 않습니다. JTCI 12-18의 PS에는 하위척도가 없습니다.
+- 학교생활·또래관계·가족관계·자기조절·의사결정 등 청소년에게 적절한 맥락으로 설명하되, 원자료에 없는 실제 사건이나 행동을 만들어내지 않습니다.
+- '불안한 청소년', '의존적인 청소년', '문제행동'처럼 낙인찍거나 진단적으로 단정하지 않습니다.
+- JTCI 단독일 때도 tciTemperamentSummary, tciNS, tciHA, tciRD, tciPS, tciCharacterSummary, tciSD, tciCO, tciST, tciIntegrated, tciStrengths, tciCautions, tciRecommendations 필드를 사용하여 동일 UI 구조로 반환합니다.
+
 [TCI 단독 보고서 추가 규칙]
-- 실시검사가 TCI 하나인 경우에만 tciTemperamentSummary, tciNS, tciHA, tciRD, tciPS, tciCharacterSummary, tciSD, tciCO, tciST, tciIntegrated, tciStrengths, tciCautions, tciRecommendations를 작성합니다. 다른 검사 조합이면 TCI 전용 필드는 비웁니다.
-- 각 척도 해석은 sourceInventory의 TCI 실제 결과만 근거로 합니다. 원자료에 점수나 수준이 없으면 숫자나 높음/낮음을 추정하지 않습니다.
+- 실시검사가 TCI 또는 JTCI 하나인 경우에만 tciTemperamentSummary, tciNS, tciHA, tciRD, tciPS, tciCharacterSummary, tciSD, tciCO, tciST, tciIntegrated, tciStrengths, tciCautions, tciRecommendations를 작성합니다. 다른 검사 조합이면 TCI 전용 필드는 비웁니다.
+- 각 척도 해석은 sourceInventory의 해당 검사(TCI 또는 JTCI) 실제 결과만 근거로 합니다. 원자료에 점수나 수준이 없으면 숫자나 높음/낮음을 추정하지 않습니다.
 - tciTemperamentSummary는 NS·HA·RD·PS 개별 설명을 반복하지 말고, 네 척도의 조합이 만들어내는 전체 반응 스타일과 스트레스 대처 패턴만 3~4문장으로 통합합니다. 개별 척도 문장을 재사용하지 않습니다.
 - tciNS/tciHA/tciRD/tciPS는 해당 척도의 실제 결과 → 상황에서 나타날 수 있는 방식 → 강점과 부담이 되는 조건 순으로 각각 3~5문장 작성합니다. 일반적인 척도 설명만 쓰지 않습니다.
 - tciCharacterSummary는 SD·CO·ST 개별 설명을 반복하지 말고, 세 척도의 조합이 자기조절·관계·가치와 의미에서 만들어내는 전체 적응 방식을 3~4문장으로 통합합니다.
@@ -873,7 +882,7 @@ function quality(report,body){
   return [...new Set(issues)];
 }
 
-export const handler=async(event)=>{if(event.httpMethod==='OPTIONS')return jsonResponse({},200);if(event.httpMethod!=='POST')return jsonResponse({error:'POST only'},405);try{const body=JSON.parse(event.body||'{}');if(!clean(body.clientName))return jsonResponse({error:'회원 정보가 없습니다.'},400);if(body.mode==='rewrite-client-from-integrated'){const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';if(!apiKey)return jsonResponse({error:'AI 보고서 생성 환경변수가 설정되지 않았습니다.'},500);if(!body.integratedReport||!clean(body.integratedReport,30000))return jsonResponse({error:'재작성할 통합보고서 내용이 없습니다.'},400);const tciOnly=isTciOnlyRequest(body);const r=await callFast(apiKey,integratedRewritePrompt(body),tciOnly?TCI_CLIENT_REWRITE_SCHEMA:CLIENT_REWRITE_SCHEMA);let sanitized=sanitizeClientRewrite(r.data||{});if(tciOnly){sanitized=enforceTciScaleLevels(sanitized,body.integratedReport||{});const recs=Array.isArray(r.data?.tciRecommendations)?r.data.tciRecommendations:[];sanitized.tciRecommendations=recs.map(x=>({title:clean(x?.title,120),basis:clean(x?.basis,900),action:clean(x?.action,900)})).filter(x=>x.title&&x.basis&&x.action).slice(0,3);const requiredTci=['tciTemperamentSummary','tciNS','tciHA','tciRD','tciPS','tciCharacterSummary','tciSD','tciCO','tciST','tciIntegrated','tciStrengths','tciCautions'];const missing=requiredTci.filter(k=>!clean(sanitized[k]||'',12000));if(sanitized.tciRecommendations.length!==3)missing.push('tciRecommendations');if(missing.length)return jsonResponse({error:'TCI 전용 보고서 생성 결과가 불완전합니다.',missingFields:[...new Set(missing)]},502);}return jsonResponse({report:sanitized,model:r.model,promptVersion:tciOnly?'mml-client-tci-v3.0-structured-recommendations':'mml-client-composer-v7.0-topic-rewrite-whole-report',rewritten:true,needsReview:true});}if(!Array.isArray(body.tests)||!body.tests.length)return jsonResponse({error:'검사별 분석 자료가 없습니다.'},400);if(body.tests.some(t=>!t.reviewed))return jsonResponse({error:'모든 검사별 분석을 상담자가 검토 완료한 뒤 생성해 주세요.'},400);const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';
+export const handler=async(event)=>{if(event.httpMethod==='OPTIONS')return jsonResponse({},200);if(event.httpMethod!=='POST')return jsonResponse({error:'POST only'},405);try{const body=JSON.parse(event.body||'{}');if(!clean(body.clientName))return jsonResponse({error:'회원 정보가 없습니다.'},400);if(body.mode==='rewrite-client-from-integrated'){const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';if(!apiKey)return jsonResponse({error:'AI 보고서 생성 환경변수가 설정되지 않았습니다.'},500);if(!body.integratedReport||!clean(body.integratedReport,30000))return jsonResponse({error:'재작성할 통합보고서 내용이 없습니다.'},400);const tciOnly=isTciOnlyRequest(body);const jtciOnly=isJtciOnlyRequest(body);const traitOnly=tciOnly||jtciOnly;const r=await callFast(apiKey,integratedRewritePrompt(body),traitOnly?TCI_CLIENT_REWRITE_SCHEMA:CLIENT_REWRITE_SCHEMA);let sanitized=sanitizeClientRewrite(r.data||{});if(traitOnly){sanitized=enforceTciScaleLevels(sanitized,body.integratedReport||{},jtciOnly?'JTCI':'TCI');const recs=Array.isArray(r.data?.tciRecommendations)?r.data.tciRecommendations:[];sanitized.tciRecommendations=recs.map(x=>({title:clean(x?.title,120),basis:clean(x?.basis,900),action:clean(x?.action,900)})).filter(x=>x.title&&x.basis&&x.action).slice(0,3);const requiredTci=['tciTemperamentSummary','tciNS','tciHA','tciRD','tciPS','tciCharacterSummary','tciSD','tciCO','tciST','tciIntegrated','tciStrengths','tciCautions'];const missing=requiredTci.filter(k=>!clean(sanitized[k]||'',12000));if(sanitized.tciRecommendations.length!==3)missing.push('tciRecommendations');if(missing.length)return jsonResponse({error:`${jtciOnly?'JTCI':'TCI'} 전용 보고서 생성 결과가 불완전합니다.`,missingFields:[...new Set(missing)]},502);}return jsonResponse({report:sanitized,model:r.model,promptVersion:jtciOnly?'mml-client-jtci-v1.0-structured-report':tciOnly?'mml-client-tci-v3.0-structured-recommendations':'mml-client-composer-v7.0-topic-rewrite-whole-report',rewritten:true,needsReview:true});}if(!Array.isArray(body.tests)||!body.tests.length)return jsonResponse({error:'검사별 분석 자료가 없습니다.'},400);if(body.tests.some(t=>!t.reviewed))return jsonResponse({error:'모든 검사별 분석을 상담자가 검토 완료한 뒤 생성해 주세요.'},400);const apiKey=process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||'';
   const profile=localClinicalProfile(body);
   let generated=null;let model='local-fallback';
   if(apiKey){try{const r=await callFast(apiKey,reportPrompt(body,profile),REPORT_SCHEMA);generated=r.data;model=r.model;}catch(aiError){console.warn('[MML fast fallback]',aiError?.message||aiError);}}
