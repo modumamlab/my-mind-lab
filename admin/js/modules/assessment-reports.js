@@ -1,4 +1,4 @@
-console.info('[MML] ASSESSMENT-REPORTS-SIGNATURE-RC3.23-TCI-V2 loaded');
+console.info('[MML] ASSESSMENT-REPORTS-RC3.30-TCI-STRUCTURED-DATA loaded');
 
 function detailedReportTemplate(testType, reportType) {
   const admin = reportType === "관리자용";
@@ -1300,44 +1300,49 @@ function buildDerivedAssessmentSections(source,audience){
   ];
 }
 function tciClientScoresFromSource(source){
-  const inventory=Array.isArray(source?.masterReport?.sourceInventory)?source.masterReport.sourceInventory:[];
-  const tci=inventory.find(row=>/^TCI\b/i.test(String(row?.testType||row?.testName||'').trim()));
-  if(!tci?.rawFacts)return [];
-  const aliases={
-    NS:['NS','자극추구','noveltyseeking','novelty_seeking'],HA:['HA','위험회피','harmavoidance','harm_avoidance'],
-    RD:['RD','사회적민감성','사회적 민감성','rewarddependence','reward_dependence'],PS:['PS','P','인내력','persistence'],
-    SD:['SD','자율성','selfdirectedness','self_directedness'],CO:['CO','C','연대감','cooperativeness'],ST:['ST','자기초월','selftranscendence','self_transcendence']
-  };
+  const inventory=Array.isArray(source?.masterReport?.sourceInventory)?source.masterReport.sourceInventory:(Array.isArray(source?.sourceInventory)?source.sourceInventory:[]);
+  const tci=inventory.find(row=>/^TCI\b/i.test(String(row?.testType||row?.testName||'').trim())&&!/JTCI/i.test(String(row?.testType||row?.testName||'')));
+  const rows=Array.isArray(tci?.rawFacts?.tciScores)?tci.rawFacts.tciScores:[];
   const labels={NS:'자극추구',HA:'위험회피',RD:'사회적 민감성',PS:'인내력',SD:'자율성',CO:'연대감',ST:'자기초월'};
-  const norm=v=>String(v??'').toLowerCase().replace(/[^a-z0-9가-힣]/g,'');
-  const flat=[];
-  const walk=(value,path='')=>{
-    if(value==null)return;
-    if(Array.isArray(value)){value.forEach((v,i)=>walk(v,`${path}.${i}`));return;}
-    if(typeof value==='object'){Object.entries(value).forEach(([k,v])=>{flat.push({key:k,path:`${path}.${k}`,value:v});walk(v,`${path}.${k}`)});}
-  };
-  walk(tci.rawFacts,'rawFacts');
-  const numeric=v=>{if(typeof v==='number')return v;if(typeof v==='string'){const m=v.match(/-?\d+(?:\.\d+)?/);return m?Number(m[0]):NaN;}if(v&&typeof v==='object'){for(const k of ['percentile','percent','score','tScore','value','rawScore']){const n=numeric(v[k]);if(Number.isFinite(n))return n;}}return NaN;};
-  const levelOf=(v,n)=>{const txt=typeof v==='object'?String(v.level||v.range||v.category||''):'';if(txt)return txt;return n>=70?'높음':n<=30?'낮음':'보통';};
-  return Object.entries(aliases).map(([code,names])=>{
-    const wanted=names.map(norm);
-    const hit=flat.find(row=>wanted.includes(norm(row.key))||wanted.some(a=>norm(row.path).endsWith(a)));
-    if(!hit)return null;
-    const n=numeric(hit.value);if(!Number.isFinite(n))return null;
-    // TCI 원자료의 백분위/백분율처럼 0~100 범위인 값만 앱 그래프로 전달합니다. 원점수는 임의 환산하지 않습니다.
-    if(n<0||n>100)return null;
-    return {key:code,label:labels[code],percent:n,level:levelOf(hit.value,n),score:n};
-  }).filter(Boolean);
+  const byCode=new Map();
+  for(const row of rows){
+    const code=String(row?.code||'').trim().toUpperCase();
+    if(!Object.prototype.hasOwnProperty.call(labels,code)||byCode.has(code))continue;
+    const percentile=Number(row?.percentile);
+    if(!Number.isFinite(percentile)||percentile<0||percentile>100)continue;
+    const raw=Number(row?.rawScore), tScore=Number(row?.tScore);
+    const level=percentile<=30?'낮음':percentile>=70?'높음':'보통';
+    byCode.set(code,{key:code,label:labels[code],percent:percentile,percentile,level,rawScore:Number.isFinite(raw)?raw:null,tScore:Number.isFinite(tScore)?tScore:null,scoreType:'percentile'});
+  }
+  return ['NS','HA','RD','PS','SD','CO','ST'].map(code=>byCode.get(code)).filter(Boolean);
 }
-function tciClientSections(rewritten){
+function normalizeTciRecommendationItems(value){
+  const rows=Array.isArray(value)?value:[];
+  return rows.map(item=>({title:cleanReportText(item?.title),basis:cleanReportText(item?.basis),action:cleanReportText(item?.action)})).filter(item=>item.title&&item.basis&&item.action).slice(0,3);
+}
+function tciRecommendationBody(item){
+  return [item?.basis,item?.action].map(cleanReportText).filter(Boolean).join('\n\n');
+}
+function tciClientSections(rewritten,scores=[]){
   if(!rewritten?.tciIntegrated)return null;
   const rows=[
     ['tciTemperamentSummary','기질 종합',rewritten.tciTemperamentSummary],['tciNS','자극추구(NS)',rewritten.tciNS],['tciHA','위험회피(HA)',rewritten.tciHA],['tciRD','사회적 민감성(RD)',rewritten.tciRD],['tciPS','인내력(PS)',rewritten.tciPS],
     ['tciCharacterSummary','성격 종합',rewritten.tciCharacterSummary],['tciSD','자율성(SD)',rewritten.tciSD],['tciCO','연대감(CO)',rewritten.tciCO],['tciST','자기초월(ST)',rewritten.tciST],['tciIntegrated','전체 통합해석',rewritten.tciIntegrated],
-    ['strength','강점과 자원',rewritten.tciStrengths],['caution','주의해서 살펴볼 부분',rewritten.tciCautions],['plan','맞춤 제안',rewritten.tciSuggestions]
+    ['strength','강점과 자원',rewritten.tciStrengths],['caution','주의해서 살펴볼 부분',rewritten.tciCautions],['plan','맞춤 제안',rewritten.tciRecommendations]
   ];
-  return rows.filter(([, ,text])=>cleanReportText(text)).map(([key,label,text])=>({key,label,text:cleanReportText(text)}));
+  const scoreByKey=new Map((Array.isArray(scores)?scores:[]).map(row=>[String(row?.key||''),row]));
+  const codeBySection={tciNS:'NS',tciHA:'HA',tciRD:'RD',tciPS:'PS',tciSD:'SD',tciCO:'CO',tciST:'ST'};
+  return rows.filter(([key,,text])=>key==='plan'?normalizeTciRecommendationItems(text).length:cleanReportText(text)).map(([key,label,text])=>{
+    const score=scoreByKey.get(codeBySection[key]||'');
+    const scoreLabel=score?`${label} · ${score.level||''} · 백분위 ${score.percentile}`:label;
+    if(key==='plan'){
+      const items=normalizeTciRecommendationItems(text);
+      return {key,label:scoreLabel,text:items.map((item,index)=>`${String(index+1).padStart(2,'0')} ${item.title}\n${tciRecommendationBody(item)}`).join('\n\n'),items:items.map(item=>({title:item.title,body:tciRecommendationBody(item),basis:item.basis,action:item.action}))};
+    }
+    return {key,label:scoreLabel,text:cleanReportText(text)};
+  });
 }
+
 async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
   const source=integratedReportById(sourceId);
   if(!source){alert('심리평가센터의 AI 종합해석보고서를 찾지 못했습니다. 먼저 AI 해석보고서를 저장해 주세요.');return;}
@@ -1384,7 +1389,8 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
     const testNames=Array.isArray(source.tests)?source.tests.map(String):String(source.tests||'').split(',').map(x=>x.trim()).filter(Boolean);
     const tciOnly=audience==='client'&&testNames.length===1&&/(^|\s)TCI(?:\s|$|기질)/i.test(testNames[0])&&!/JTCI/i.test(testNames[0]);
     const baseSections=buildDerivedAssessmentSections(source,audience).map(section=>Array.isArray(section)?[...section]:section);
-    const tciSections=tciOnly?tciClientSections(rewritten):null;
+    const tciScores=tciOnly?tciClientScoresFromSource(source):[];
+    const tciSections=tciOnly?tciClientSections(rewritten,tciScores):null;
     const rewrittenMap=rewritten?{
       coreMind:rewritten.clientCoreMind,mindProfile:rewritten.clientMindProfile,individualTests:rewritten.clientIndividualTests,emotionState:rewritten.clientEmotionState,thinkingRelationship:rewritten.clientThinkingRelationship,stressDaily:rewritten.clientStressDaily,expertRecovery:rewritten.clientExpertRecovery,disclaimer:rewritten.clientDisclaimer
     }:{};
@@ -1411,7 +1417,7 @@ async function generateDerivedAssessmentReport(sourceId,audience,buttonEl){
         if(key==='expertRecovery')return {key,label,text:finalText,items:parseExpertRecoveryItems(finalText)};
         return {key,label,text:finalText};
       }),
-      scores:tciOnly?tciClientScoresFromSource(source):[],
+      scores:tciScores,
       status:'draft',approved:false,reviewed:false,approvedForClient:false,publishedAt:'',
       version:Number(old?.version||0)+1,sourceVersion:Number(source.version||1),createdAt:old?.createdAt||now,updatedAt:now,
       previousVersion:old?{sections:old.sections||[],status:old.status||'draft',approvedForClient:Boolean(old.approvedForClient),publishedAt:old.publishedAt||'',updatedAt:old.updatedAt||''}:null,
@@ -1710,7 +1716,7 @@ function formatDerivedSectionText(section){
   if(key==='expertRecovery'||key==='counseling'||key==='professionalSummary')return formatNumberedRecoveryText(section?.text);
   return mmlRepairBrokenPhrases(section?.text);
 }
-function derivedParagraphHtml(text,key){
+function derivedParagraphHtml(text,key,sectionItems=[]){
   const normalized=mmlRepairBrokenPhrases(text);
   if(!normalized)return '';
   const html=[];
@@ -1722,6 +1728,12 @@ function derivedParagraphHtml(text,key){
   if(key==='expertRecovery'){
     return renderExpertRecoveryItems({text});
   }
+  if(key==='plan'){
+    const items=normalizeTciRecommendationItems(sectionItems);
+    if(items.length){
+      return items.map((item,i)=>`<div class="mml-tci-suggestion-item" data-tci-suggestion-item><b data-tci-suggestion-title>${String(i+1).padStart(2,'0')} ${esc(item.title)}</b><p data-tci-suggestion-basis>${esc(item.basis)}</p><p data-tci-suggestion-action>${esc(item.action)}</p></div>`).join('');
+    }
+  }
 
   mmlComposeParagraphs(normalized,{target:175,max:300,maxSentences:3}).forEach(paragraph=>html.push(`<p>${esc(paragraph)}</p>`));
   return html.join('');
@@ -1729,7 +1741,7 @@ function derivedParagraphHtml(text,key){
 function derivedReportFormSectionHtml(section,index){
   const label=esc(String(section.label||`영역 ${index+1}`).replace(/^\s*\d+\s*[.．)]\s*/,''));
   const key=String(section?.key||'');
-  const text=derivedParagraphHtml(formatDerivedSectionText(section),key);
+  const text=derivedParagraphHtml(formatDerivedSectionText(section),key,section?.items);
   const variant=key==='coreMind'?'hero':key==='mindProfile'?'profile':key==='individualTests'?'tests':key==='expertRecovery'?'recovery':key==='emotionState'?'emotion':key==='thinkingRelationship'?'relation':key==='stressDaily'?'stress':'standard';
   const subtitles={
     coreMind:'여러 검사에서 함께 확인된 현재 마음의 핵심 모습',
@@ -1778,7 +1790,22 @@ function firstDerivedFallback(source,keys){
   }
   return '';
 }
+function isTciDerivedClientReport(report){
+  if(!report||report.audience==='counselor')return false;
+  const tests=Array.isArray(report.tests)?report.tests.map(String):String(report.tests||'').split(',').map(x=>x.trim()).filter(Boolean);
+  if(String(report.rewritePromptVersion||'').includes('tci-v2'))return true;
+  if(tests.length!==1)return false;
+  return /(^|\s)TCI(?:\s|$|기질)/i.test(tests[0])&&!/JTCI/i.test(tests[0]);
+}
 function canonicalDerivedClientSections(report){
+  // TCI V2 보고서는 생성 단계에서 이미 TCI 전용 canonical section을 만듭니다.
+  // 기존 Signature S25의 범용 7개 섹션으로 다시 매핑하면 TCI 척도별 해석이 유실되므로 그대로 보존합니다.
+  if(isTciDerivedClientReport(report)){
+    return (Array.isArray(report?.sections)?report.sections:[])
+      .filter(section=>section&&section.key!=='disclaimer')
+      .map(section=>({...section,text:cleanReportText(section.text)}))
+      .filter(section=>section.text);
+  }
   const byKey=derivedSectionMap(report);
   const source=derivedSourceFields(report);
   return DERIVED_CLIENT_SECTION_SCHEMA.map(definition=>{
@@ -1805,7 +1832,28 @@ function normalizeDerivedClientReport(report){
   const sections=canonicalDerivedClientSections(report);
   return {...report,sections:disclaimer?[...sections,disclaimer]:sections};
 }
+function derivedTciReportFormPagesHtml(report){
+  const sections=canonicalDerivedClientSections(report);
+  const client=String(report?.clientName||'');
+  const issued=String(report?.updatedAt||report?.createdAt||new Date().toISOString()).slice(0,10).replaceAll('-','.');
+  const tests=Array.isArray(report?.tests)?report.tests.join(' · '):String(report?.tests||'TCI 기질 및 성격검사');
+  const disclaimer=(Array.isArray(report?.sections)?report.sections:[]).find(section=>section?.key==='disclaimer');
+  const scoreRows=(Array.isArray(report?.scores)?report.scores:[]).filter(row=>Number.isFinite(Number(row?.percent)));
+  const scoreHtml=scoreRows.length?`<section class="mml-detail"><div class="mml-section-title"><p>02</p><div><h2>TCI 검사 결과 프로파일</h2><span>원자료에 저장된 실제 백분위/백분율 값</span></div></div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">${scoreRows.map(row=>`<div style="padding:12px 14px;border:1px solid #dbe5e0;border-radius:12px;background:#f8faf9"><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:7px"><b>${esc(row.label||row.key)}</b><span>${esc(String(row.level||''))} · ${esc(String(row.percent))}</span></div><div style="height:7px;border-radius:999px;background:#e4ece8;overflow:hidden"><i style="display:block;width:${Math.max(0,Math.min(100,Number(row.percent)))}%;height:100%;background:#2f7661"></i></div></div>`).join('')}</div></section>`:'';
+  const body=sections.map((section,index)=>derivedReportFormSectionHtml(section,index)).join('');
+  return `<main class="mml-signature-report mml-comprehensive-signature">
+    <article class="mml-page">
+      <header class="mml-cover-head"><div><p class="mml-kicker">MODUMAM TCI REPORT</p><h1>TCI 기질 및 성격검사 보고서</h1><p class="mml-subtitle">기질 4척도와 성격 3척도를 바탕으로 개인의 고유한 성향과 적응 방식을 이해하는 보고서</p></div><div class="mml-logo"><strong>ㅁㄷㅁ</strong><span>모두의 마음연구소</span></div></header>
+      <section class="mml-meta"><div><span>성명</span><b>${esc(client)}</b></div><div><span>실시검사</span><b>${esc(tests)}</b></div><div><span>발행일</span><b>${esc(issued)}</b></div><div><span>작성자</span><b>임상심리사 백인영</b></div></section>
+      ${scoreHtml}
+      <div class="mml-derived-form-page-body">${body}</div>
+      <section class="mml-note mml-note-compact"><h3>보고서를 읽을 때 기억할 점</h3><p>${esc(cleanReportText(disclaimer?.text)||'TCI 결과는 개인을 규정하거나 진단을 확정하는 자료가 아니라, 타고난 기질과 성장 과정에서 형성된 성격 특성을 이해하기 위한 참고자료입니다.')}</p></section>
+      <footer class="mml-page-footer"><span>본 보고서는 AI 분석을 바탕으로 임상심리사가 원자료를 확인하고 수정하여 작성하는 심리평가 결과보고서입니다.</span></footer>
+    </article>
+  </main>`;
+}
 function derivedReportFormPagesHtml(report){
+  if(isTciDerivedClientReport(report))return derivedTciReportFormPagesHtml(report);
   const sections=canonicalDerivedClientSections(report);
   const byKey=new Map(sections.map((section,index)=>[String(section.key||''),{...section,index}]));
   const source=integratedReportById(report?.sourceIntegratedReportId)||{};
@@ -2170,7 +2218,7 @@ function openDerivedAssessmentReportForm(id){
   </style>
   <div class="mml-derived-form-shell">
     <div class="mml-derived-form-toolbar">
-      <div><h2>${report?.audience==='counselor'?'상담자용 종합보고서 작성':'심리검사 종합보고서 작성'}</h2><p>검사별 분석과 AI 통합해석을 바탕으로 생성된 정식 종합보고서를 검토·수정한 뒤 저장하세요. <span class="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-extrabold text-indigo-700">Signature S25</span></p><div style="margin-top:8px"><span data-derived-status style="display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;background:${report.approvedForClient?'#dcfce7':'#f1f5f9'};color:${report.approvedForClient?'#166534':'#475569'}">${report.approvedForClient?'승인완료 · 이메일 발송 가능':report.status==='saved'?'저장완료 · 승인대기':'작성 중'}</span></div></div>
+      <div><h2>${report?.audience==='counselor'?'상담자용 종합보고서 작성':'심리검사 종합보고서 작성'}</h2><p>검사별 분석과 AI 통합해석을 바탕으로 생성된 정식 종합보고서를 검토·수정한 뒤 저장하세요. <span class="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-extrabold text-indigo-700">${isTciDerivedClientReport(report)?'TCI V2':'Signature S25'}</span></p><div style="margin-top:8px"><span data-derived-status style="display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:850;background:${report.approvedForClient?'#dcfce7':'#f1f5f9'};color:${report.approvedForClient?'#166534':'#475569'}">${report.approvedForClient?'승인완료 · 이메일 발송 가능':report.status==='saved'?'저장완료 · 승인대기':'작성 중'}</span></div></div>
       <div class="mml-derived-form-actions">
         <button id="mml-derived-edit-toggle" onclick="toggleDerivedAssessmentReportEdit(true)" style="border:1px solid #9bb8ad;background:#fff;color:#245244">수정</button>
         <button onclick="saveDerivedAssessmentReportFromForm(${report.id},false)" style="border:0;background:#285f4e;color:#fff">저장</button>
@@ -2284,6 +2332,15 @@ function saveDerivedAssessmentReportFromForm(id,openPdf=false,silent=false){
       if(items.length){
         return {...section,items,text:items.map((item,i)=>`${i+1}. ${item.title}: ${item.body}`).join('\n\n')};
       }
+    }
+    if(key==='plan'){
+      const itemNodes=roots.flatMap(root=>[...root.querySelectorAll('[data-tci-suggestion-item]')]);
+      const structured=itemNodes.map(node=>({
+        title:String(node.querySelector('[data-tci-suggestion-title]')?.innerText||node.querySelector('[data-tci-suggestion-title]')?.textContent||'').replace(/^\d+\s+/,'').trim(),
+        basis:String(node.querySelector('[data-tci-suggestion-basis]')?.innerText||node.querySelector('[data-tci-suggestion-basis]')?.textContent||'').trim(),
+        action:String(node.querySelector('[data-tci-suggestion-action]')?.innerText||node.querySelector('[data-tci-suggestion-action]')?.textContent||'').trim()
+      })).filter(item=>item.title&&item.basis&&item.action).slice(0,3);
+      if(structured.length)return {...section,items:structured.map(item=>({...item,body:tciRecommendationBody(item)})),text:structured.map((item,i)=>`${String(i+1).padStart(2,'0')} ${item.title}\n${tciRecommendationBody(item)}`).join('\n\n')};
     }
     const parts=roots.map(el=>(el.innerText||el.textContent||'').trim()).filter(Boolean);
     const preserved=String(section?.text||'').trim();
@@ -2413,7 +2470,7 @@ async function previewDerivedAssessmentReport(id,printNow=false){
   }
   win.document.close();if(printNow)setTimeout(()=>win.print(),350);
 }
-function mmlDerivedReportCss(accent){return `@page{size:A4;margin:0}*{box-sizing:border-box}html,body{margin:0}body{background:#e9efec;color:#12352d;font-family:Arial,'Noto Sans KR',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-wrap{padding:16px 0}.page{position:relative;width:210mm;min-height:297mm;margin:0 auto 16px;background:#fff;padding:0 13mm 10mm;display:flex;flex-direction:column;overflow:hidden}.topbar{height:7mm;margin:0 -13mm 10mm;background:linear-gradient(90deg,#0f4b3c 0 61%,#c99754 61% 73%,#e8efec 73%)}header{position:relative;border-bottom:1px solid #b8c8c2;padding:0 0 4mm}.eyebrow{font-size:8px;letter-spacing:2.4px;font-weight:900;color:#a25f1e}.title{font-size:25px;line-height:1.2;margin:4px 0 5px;color:#073c33}.subtitle{font-size:10px;color:#526e66;line-height:1.6;max-width:150mm}.logo{position:absolute;right:0;top:4px;display:flex;align-items:center;gap:8px;font-size:8px;font-weight:800}.logo-mark{width:15mm;height:15mm;border:1.6px solid #0f4b3c;border-radius:50%;display:grid;place-items:center;font-size:11px;letter-spacing:1px}.meta{display:grid;grid-template-columns:1fr 1fr 1fr 1.15fr;border:1px solid #cbd8d3;border-radius:10px;overflow:hidden;margin:5mm 0 4mm}.meta>div{padding:3mm;border-right:1px solid #d8e1de;min-height:17mm}.meta>div:last-child{border-right:0}.meta small{display:block;font-size:7px;color:#83948f;margin-bottom:2mm}.meta b{font-size:9px;line-height:1.45;color:#12352d}.glance{border-radius:11px;background:${accent};color:white;padding:6mm;margin-bottom:5mm}.numbered-hero{display:grid;grid-template-columns:12mm 1fr;gap:3mm;align-items:start}.hero-no{font-size:17px;font-weight:900;color:#e8b46e;padding-top:1mm}.glance small{font-size:7px;color:#e9b567;font-weight:900}.glance h2{font-size:16px;margin:2mm 0}.glance p{font-size:9.5px;line-height:1.75;margin:0;font-weight:600}.signature-section{border-top:1px solid #d8e1de;padding:4mm 0;break-inside:avoid}.signature-title{display:flex;align-items:center;gap:4mm;margin-bottom:3mm}.signature-title b{font-size:16px;color:#b26b22}.signature-title h2{font-size:14px;margin:0;color:#12352d}.profile-card,.test-card,.soft-card,.plain-card,.recovery-card{border:1px solid #d4dfdb;border-radius:10px;padding:4.5mm;background:#fff}.profile-card{background:#eef6f2;border-color:#cfe3d9}.test-card{border-left:4px solid #a96e35;background:#f8faf9}.soft-card{background:#fff7ee;border-color:#e8cfad}.recovery-card{background:#0f4b3c;color:#fff;border-color:#0f4b3c}.profile-card p,.test-card p,.soft-card p,.plain-card p,.recovery-card p{font-size:9px;line-height:1.72;margin:0}.recovery-card p{color:#fff}.inner-header{display:flex;align-items:flex-end;justify-content:space-between;padding-bottom:4mm}.inner-title{font-size:21px;margin:4px 0 0;color:#073c33}.inner-header>span{font-size:8px;color:#71817a}.report-notice{margin-top:4mm;border:1px solid #d4dfdb;border-radius:10px;padding:3.5mm;background:#f8faf9}.report-notice h3{font-size:10px;margin:0 0 2mm}.report-notice p{font-size:8px;line-height:1.55;margin:0;color:#6d8179}.page-footer{margin-top:auto;border-top:1px solid #d8e1de;padding-top:3mm;font-size:7px;color:#7d918b;display:flex;justify-content:space-between}.first-title{display:flex;align-items:center;gap:3mm;margin:0 0 2mm}.first-title b{font-size:16px;color:#b26b22}.first-title h2{font-size:14px;margin:0}.cards{display:grid;grid-template-columns:1fr 1fr;gap:3mm}.card{border:1px solid #d4dfdb;border-radius:10px;padding:4mm;background:#f0f7f4}.card h3{font-size:10px;margin:0 0 2mm}.card p,.report-section p{font-size:9px;line-height:1.72;margin:0}.report-section{display:grid;grid-template-columns:12mm 1fr;gap:3mm;border-top:1px solid #d8e1de;padding:4mm 0}.section-no{font-size:14px;font-weight:900;color:#b26b22}.section-body h2{font-size:12px;margin:0 0 2mm}.foot-note{margin-top:auto;border-top:1px solid #d8e1de;padding-top:3mm;font-size:7px;color:#7d918b}@media print{html,body{width:210mm;background:#fff}.report-wrap{padding:0}.page{width:210mm;height:297mm;min-height:297mm;margin:0;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.signature-section,.glance,.meta,header,.report-notice{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}p{orphans:3;widows:3}}`;}
+function mmlDerivedReportCss(accent){return `@page{size:A4;margin:0}*{box-sizing:border-box}html,body{margin:0}body{background:#e9efec;color:#12352d;font-family:Arial,'Noto Sans KR',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-wrap{padding:16px 0}.page{position:relative;width:210mm;min-height:297mm;margin:0 auto 16px;background:#fff;padding:0 13mm 10mm;display:flex;flex-direction:column;overflow:hidden}.topbar{height:7mm;margin:0 -13mm 10mm;background:linear-gradient(90deg,#0f4b3c 0 61%,#c99754 61% 73%,#e8efec 73%)}header{position:relative;border-bottom:1px solid #b8c8c2;padding:0 0 4mm}.eyebrow{font-size:8px;letter-spacing:2.4px;font-weight:900;color:#a25f1e}.title{font-size:25px;line-height:1.2;margin:4px 0 5px;color:#073c33}.subtitle{font-size:10px;color:#526e66;line-height:1.6;max-width:150mm}.logo{position:absolute;right:0;top:4px;display:flex;align-items:center;gap:8px;font-size:8px;font-weight:800}.logo-mark{width:15mm;height:15mm;border:1.6px solid #0f4b3c;border-radius:50%;display:grid;place-items:center;font-size:11px;letter-spacing:1px}.meta{display:grid;grid-template-columns:1fr 1fr 1fr 1.15fr;border:1px solid #cbd8d3;border-radius:10px;overflow:hidden;margin:5mm 0 4mm}.meta>div{padding:3mm;border-right:1px solid #d8e1de;min-height:17mm}.meta>div:last-child{border-right:0}.meta small{display:block;font-size:7px;color:#83948f;margin-bottom:2mm}.meta b{font-size:9px;line-height:1.45;color:#12352d}.glance{border-radius:11px;background:${accent};color:white;padding:6mm;margin-bottom:5mm}.numbered-hero{display:grid;grid-template-columns:12mm 1fr;gap:3mm;align-items:start}.hero-no{font-size:17px;font-weight:900;color:#e8b46e;padding-top:1mm}.glance small{font-size:7px;color:#e9b567;font-weight:900}.glance h2{font-size:16px;margin:2mm 0}.glance p{font-size:9.5px;line-height:1.75;margin:0;font-weight:600}.signature-section{border-top:1px solid #d8e1de;padding:4mm 0;break-inside:avoid}.signature-title{display:flex;align-items:center;gap:4mm;margin-bottom:3mm}.signature-title b{font-size:16px;color:#b26b22}.signature-title h2{font-size:14px;margin:0;color:#12352d}.profile-card,.test-card,.soft-card,.plain-card,.recovery-card{border:1px solid #d4dfdb;border-radius:10px;padding:4.5mm;background:#fff}.profile-card{background:#eef6f2;border-color:#cfe3d9}.test-card{border-left:4px solid #a96e35;background:#f8faf9}.soft-card{background:#fff7ee;border-color:#e8cfad}.recovery-card{background:#0f4b3c;color:#fff;border-color:#0f4b3c}.profile-card p,.test-card p,.soft-card p,.plain-card p,.recovery-card p{font-size:9px;line-height:1.72;margin:0}.recovery-card p{color:#fff}.inner-header{display:flex;align-items:flex-end;justify-content:space-between;padding-bottom:4mm}.inner-title{font-size:21px;margin:4px 0 0;color:#073c33}.inner-header>span{font-size:8px;color:#71817a}.report-notice{margin-top:4mm;border:1px solid #d4dfdb;border-radius:10px;padding:3.5mm;background:#f8faf9}.report-notice h3{font-size:10px;margin:0 0 2mm}.report-notice p{font-size:8px;line-height:1.55;margin:0;color:#6d8179}.page-footer{margin-top:auto;border-top:1px solid #d8e1de;padding-top:3mm;font-size:7px;color:#7d918b;display:flex;justify-content:space-between}.first-title{display:flex;align-items:center;gap:3mm;margin:0 0 2mm}.first-title b{font-size:16px;color:#b26b22}.first-title h2{font-size:14px;margin:0}.cards{display:grid;grid-template-columns:1fr 1fr;gap:3mm}.card{border:1px solid #d4dfdb;border-radius:10px;padding:4mm;background:#f0f7f4}.card h3{font-size:10px;margin:0 0 2mm}.card p,.report-section p{font-size:9px;line-height:1.72;margin:0}.mml-tci-suggestion-item{border:1px solid #d9e3df;border-radius:9px;padding:3.5mm;margin:0 0 3mm;background:#f7faf8}.mml-tci-suggestion-item:last-child{margin-bottom:0}.mml-tci-suggestion-item>b{display:block;font-size:9.5px;color:#8a5b22;margin-bottom:1.5mm}.mml-tci-suggestion-item p{margin:0!important}.report-section{display:grid;grid-template-columns:12mm 1fr;gap:3mm;border-top:1px solid #d8e1de;padding:4mm 0}.section-no{font-size:14px;font-weight:900;color:#b26b22}.section-body h2{font-size:12px;margin:0 0 2mm}.foot-note{margin-top:auto;border-top:1px solid #d8e1de;padding-top:3mm;font-size:7px;color:#7d918b}@media print{html,body{width:210mm;background:#fff}.report-wrap{padding:0}.page{width:210mm;height:297mm;min-height:297mm;margin:0;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}.signature-section,.glance,.meta,header,.report-notice{break-inside:avoid;page-break-inside:avoid}h1,h2,h3{break-after:avoid;page-break-after:avoid}p{orphans:3;widows:3}}`;}
 
 
 // MOD-20260720-REQUEST-LINKED-CLIENT-REPORT-V8

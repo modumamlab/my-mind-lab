@@ -52,7 +52,8 @@ ${clean(JSON.stringify(previous),12000)}
 9. clientReport.recommendations는 검사 근거와 연결된 현실적인 실천방향 3~5개를 줄바꿈으로 제시합니다.
 10. 검사 결과만으로 확정할 수 없는 내용은 가능성 표현을 사용합니다.
 11. 상담자 검토가 필요한 이유가 있으면 needsReview를 true로 설정합니다.
-12. JSON만 반환합니다.`;
+12. TCI/TCI-RS의 경우 tciScores가 있으면 반드시 그 실제 백분위를 해석 근거로 사용합니다. 백분위 30 이하는 '낮음', 70 이상은 '높음', 31~69는 '보통'으로 분류하며, 31~69를 임의로 높음/낮음이라고 표현하지 않습니다. 원점수·T점수·백분위를 서로 혼동하지 않습니다.
+13. JSON만 반환합니다.`;
 }
 
 const listText=value=>Array.isArray(value)?value.map(v=>clean(v,2500)).filter(Boolean).join('\n'):clean(value);
@@ -93,6 +94,7 @@ export const handler=async(event)=>{
     const scoreFacts=Array.isArray(facts.scoreFacts)?facts.scoreFacts.slice(0,24):[];
     const validityFacts=Array.isArray(facts.validityFacts)?facts.validityFacts:[];
     const profileFacts=Array.isArray(facts.profileFacts)?facts.profileFacts:[];
+    const tciScores=Array.isArray(facts.tciScores)?facts.tciScores.filter(row=>row&&['NS','HA','RD','PS','SD','CO','ST'].includes(String(row.code||'').toUpperCase())).map(row=>({code:String(row.code).toUpperCase(),scale:clean(row.scale,80),rawScore:Number(row.rawScore),tScore:Number(row.tScore),percentile:Number(row.percentile),level:Number(row.percentile)<=30?'낮음':Number(row.percentile)>=70?'높음':'보통',source:clean(row.source,160)})):[];
     const sourceLines=[...validityFacts,...scoreFacts.map(x=>`${clean(x?.scale,120)}: ${[clean(x?.score,120),clean(x?.direction,120)].filter(Boolean).join(' · ')}`),...profileFacts].filter(Boolean);
 
     const analysis={
@@ -110,7 +112,7 @@ export const handler=async(event)=>{
       clientReport:{...(result.clientReport||{}),overview:clean(result.clientReport?.currentMind),professionalProfile:result.professionalProfile||{}},
       counselorReport:result.counselorReport||{},professionalProfile:result.professionalProfile||{},
       professionalReportReady:true,reportGenerationRequired:false,reportEngineVersion:ENGINE_VERSION,
-      rawFacts:{validityFacts,scoreFacts,profileFacts,visibleTextFacts:Array.isArray(facts.visibleTextFacts)?facts.visibleTextFacts:[],missingOrUnclear:unclear,sourceLines},
+      rawFacts:{validityFacts,scoreFacts,tciScores,profileFacts,visibleTextFacts:Array.isArray(facts.visibleTextFacts)?facts.visibleTextFacts:[],missingOrUnclear:unclear,sourceLines},
       engineVersion:ENGINE_VERSION
     };
     return jsonResponse({analysis,model:MODEL,engineVersion:ENGINE_VERSION,qualityChecked:true});

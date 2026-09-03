@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260903-RC3.24-TCI-REPORT-PIPELINE-FIX loaded');
+console.info('[MML] BUILD 20260903-RC3.30-TCI-STRUCTURED-DATA loaded');
 const TEST_PRICES={'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
 function testPrice(value){const t=String(value||'').toUpperCase();if(t.includes('MMPI-A'))return TEST_PRICES['MMPI-A'];if(t.includes('MMPI-2')||t.includes('MMPI2'))return TEST_PRICES['MMPI-2'];if(t.includes('JTCI'))return TEST_PRICES.JTCI;if(t.includes('TCI'))return TEST_PRICES.TCI;if(t.includes('PAI'))return TEST_PRICES.PAI;if(t.includes('PAT'))return TEST_PRICES['PAT-2'];if(t.includes('STS'))return TEST_PRICES.STS;if(t.includes('K-CDI')||t.includes('KCDI'))return TEST_PRICES['K-CDI'];if(String(value||'').includes('행동관찰'))return TEST_PRICES['행동관찰'];return 0;}
 
@@ -2111,7 +2111,7 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
       <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="px-4 py-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-between gap-4">
-            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260903-RC3.24-TCI-REPORT-PIPELINE-FIX</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
+            <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260903-RC3.30-TCI-STRUCTURED-DATA</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2">
               <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
               <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>
