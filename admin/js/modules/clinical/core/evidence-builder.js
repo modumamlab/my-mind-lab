@@ -54,7 +54,7 @@ function inferTestFamily(testType=''){
   if(/SCT|문장완성/i.test(type))return 'projective_verbal';
   if(/HTP|KFD|그림|집.?나무.?사람/i.test(type))return 'projective_drawing';
   if(/PAT|양육/i.test(type))return 'parenting';
-  if(/STS|스트레스/i.test(type))return 'stress';
+  if(/스트레스/i.test(type))return 'stress';
   if(/K-?CDI|발달/i.test(type))return 'development';
   return 'other';
 }

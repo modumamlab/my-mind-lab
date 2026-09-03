@@ -20,6 +20,8 @@ const text = (v, n = 500) => String(v || '').trim().slice(0, n);
 const normalizePhone = (v) => text(v, 40).replace(/[^0-9]/g, '');
 const allowedProviders = new Set(['마음사랑', '인싸이트']);
 const allowedTests = new Set(['TCI', 'JTCI', 'MMPI-2', 'MMPI-A', 'PAI', 'PAT-2', 'STS', 'K-CDI']);
+const TEST_PRICES = { 'TCI':20000, 'JTCI':20000, 'MMPI-2':25000, 'MMPI-A':25000, 'PAI':20000, 'PAT-2':15000, 'STS':15000, 'K-CDI':10000 };
+
 
 function token() {
   return crypto.randomBytes(24).toString('hex');
@@ -245,7 +247,7 @@ exports.handler = async (event) => {
       const now = new Date();
       const id = `APP-${now.getTime()}-${crypto.randomBytes(3).toString('hex')}`;
       const accessToken = token();
-      const counselingFee = consultationMethod === '대면상담' ? 50000 : 20000;
+      const counselingFee = consultationMethod === '대면상담' ? 50000 : 30000;
       const reservation = {
         id, name, phone, email, concern: note, chiefComplaint: note, type: consultationMethod, consultationMethod,
         counselingFee, testFee: 0, estimatedTotal: counselingFee,
@@ -306,9 +308,9 @@ exports.handler = async (event) => {
       email,
       type: consultationMethod,
       consultationMethod,
-      counselingFee: consultationMethod === '대면상담' ? 50000 : 20000,
-      testFee: 30000,
-      estimatedTotal: (consultationMethod === '대면상담' ? 50000 : 20000) + 30000,
+      counselingFee: consultationMethod === '대면상담' ? 50000 : 30000,
+      testFee: TEST_PRICES[testId] || 0,
+      estimatedTotal: (consultationMethod === '대면상담' ? 50000 : 30000) + (TEST_PRICES[testId] || 0),
       date: preferredDate,
       time: preferredTime,
       preferredDate,

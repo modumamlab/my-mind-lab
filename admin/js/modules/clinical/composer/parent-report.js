@@ -39,7 +39,7 @@ function childFriendlyText(text){
 function inferDomain(testType,text){
   const haystack=`${clean(testType)} ${clean(text)}`;
   if(/PAT|양육|부모|훈육|양육태도/i.test(haystack))return 'parenting';
-  if(/STS|스트레스|학교|학업/i.test(haystack))return 'stress';
+  if(/스트레스|학교|학업/i.test(haystack))return 'stress';
   if(/K-?CDI|우울|불안|정서|기분|걱정/i.test(haystack))return 'emotion';
   if(/SCT|HTP|가족|친구|관계|대인/i.test(haystack))return 'relationship';
   if(/TCI|기질|성격|자극추구|위험회피|사회적 민감성|인내력/i.test(haystack))return 'temperament';

@@ -1,3 +1,6 @@
+
+const MODUMAM_TEST_PRICES = {'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
+const getModumamTestPrice = (value) => { const t=String(value||'').toUpperCase(); if(t.includes('MMPI-A'))return 25000;if(t.includes('MMPI-2')||t.includes('MMPI2'))return 25000;if(t.includes('JTCI'))return 20000;if(t.includes('TCI'))return 20000;if(t.includes('PAI'))return 20000;if(t.includes('PAT'))return 15000;if(t.includes('STS'))return 15000;if(t.includes('K-CDI')||t.includes('KCDI'))return 10000;if(String(value||'').includes('행동관찰'))return 30000;return 0; };
 /* =========================================================
    모두의 마음연구소 사용자 페이지 App · STEP5 보고서 공개연결
    파일 역할: 메인 홈페이지, 회원가입/로그인, 예약, AI 마음상담 화면
@@ -758,12 +761,12 @@ function saveHomeAuthSession(session, profile = {}) {
                     },
                     '24시 AI상담(비대면)': {
                         title: '24시 AI상담(비대면)',
-                        text: '심리검사 신청 시 60분 AI 해석상담을 무료로 제공합니다. 검사비는 별도이며, 관리자 활성화 후 AI 상담 시작을 누른 시점부터 60분간 이용할 수 있습니다.'
+                        text: '이벤트 기간 동안 상담 신청자는 60분 AI 해석상담을 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 AI 상담 시작을 누르면 그 시점부터 60분간 이용할 수 있습니다.'
                     },
                     // 기존 저장 예약 호환
                     'AI(비대면)': {
                         title: '24시 AI상담(비대면)',
-                        text: '심리검사 신청 시 60분 AI 해석상담을 무료로 제공합니다. 검사비는 별도이며, 관리자 활성화 후 AI 상담 시작을 누른 시점부터 60분간 이용할 수 있습니다.'
+                        text: '이벤트 기간 동안 상담 신청자는 60분 AI 해석상담을 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 AI 상담 시작을 누르면 그 시점부터 60분간 이용할 수 있습니다.'
                     }
                 };
                 return guides[type] || guides['찾아오는(대면)'];
@@ -4279,7 +4282,7 @@ const getRecommendedTestInfo = (testName) => {
   }
   if (includes('PAT') || includes('양육태도')) {
     return {
-      title: 'PAT 부모양육태도검사',
+      title: 'PAT-2 부모양육태도검사 2판',
       subtitle: '양육 태도와 부모-자녀 상호작용을 살펴봅니다.',
       desc: '부모의 양육 방식과 자녀와의 관계에서 나타나는 강점과 어려움을 이해하는 데 활용됩니다.',
       use: '부모 상담과 양육코칭 방향을 세우는 데 도움이 됩니다.'
@@ -4647,10 +4650,6 @@ const toggleTest = (test) => {
 }; 
             const handleAddBooking = async (e) => {
                 e.preventDefault();
-                if (bookingProgram === '개인 마음상담' && is24HourAiBooking) {
-                    setBookingAlert({ type: 'error', message: '심리검사 없는 개인 마음상담에서는 AI상담을 이용할 수 없습니다. 대면 또는 화상 상담을 선택해 주세요.' });
-                    return;
-                }
                 if (!bookingName || !bookingPhone || !bookingDate || !bookingTime) {
                     setBookingAlert({ type: 'error', message: '예약 정보를 빠짐없이 입력해 주세요.' });
                     return;
@@ -4822,71 +4821,25 @@ setBookingSignature('');
             };
 
 const getPaymentInfo = (res) => {
-  /* =====================================================
-     결제 금액 계산 규칙 V20
-     - 기본 가격: 대면 상담비 50,000원 + 기본검사 30,000원 = 80,000원
-     - 기본 가격: 비대면 상담비 20,000원 + 기본검사 30,000원 = 50,000원
-     - 부부 마음이음, 부모-자녀 마음이음: 기본검사 2개 구성 → 기본검사 추가 30,000원
-     - 추가검사: 1건당 30,000원
-     - 무료검사: 문장완성검사, 집-나무-사람 그림검사, 우울검사, 불안검사, 스트레스검사
-     가격 변경은 이 함수만 수정하면 됩니다.
-  ===================================================== */
   const type = String(res.type || "");
   const program = String(res.program || res.bookingProgram || "");
-  const extraTests = res.extraTests || res.selectedTests || res.additionalTests || [];
-  const freeKeywords = ["무료", "기본", "문장완성검사", "집-나무-사람", "그림검사", "우울검사", "불안검사", "스트레스검사"];
-  const paidExtraTests = Array.isArray(extraTests)
-    ? extraTests.filter(test => {
-        const label = String(test);
-        return !freeKeywords.some(keyword => label.includes(keyword));
-      })
-    : [];
-
-  // 주의: "비대면"에도 "대면"이라는 글자가 포함되므로,
-  // 반드시 비대면 여부를 먼저 판단한 뒤 대면 여부를 계산합니다.
   const isRemote = type.includes("비대면") || type.includes("화상") || type.includes("전화") || type.includes("문자");
-  const isFaceToFace = !isRemote && (type === "찾아가는(대면)" || type === "찾아오는(대면)" || type === "장소 조율(대면)" || type === "대면" || type.includes("대면"));
-  const isIndividualTest = program.includes("개별 심리검사") || res.bookingCategory === 'individual-test';
-  const isPersonalCounseling = program.includes("개인 마음상담") || res.bookingCategory === 'personal-counseling';
+  const isFaceToFace = !isRemote && (type.includes("대면") || type.includes("찾아가는") || type.includes("찾아오는") || type.includes("장소 조율"));
   const isAi = /AI/i.test(type);
-  const counselingAmount = isAi
-    ? (isIndividualTest || isPersonalCounseling ? 0 : 30000)
-    : isPersonalCounseling
-    ? (isFaceToFace ? 50000 : 20000)
-    : isIndividualTest
-      ? (isFaceToFace ? 50000 : 20000)
-      : (isFaceToFace ? 80000 : 50000);
-  const counselingLabel = isAi
-    ? (isIndividualTest || isPersonalCounseling ? "24시 AI상담 무료" : "24시 AI상담 무료 + 기본검사 30,000원")
-    : isPersonalCounseling
-    ? (isFaceToFace ? "개인 마음상담(대면) 50,000원" : "개인 마음상담(비대면) 20,000원")
-    : isIndividualTest
-      ? (isFaceToFace ? "해석상담비(대면) 50,000원" : "해석상담비(비대면) 20,000원")
-      : (isFaceToFace
-          ? "상담비(대면) 50,000원 + 기본검사 30,000원"
-          : "상담비(비대면) 20,000원 + 기본검사 30,000원");
+  const isPersonalCounseling = program.includes("개인 마음상담") || res.bookingCategory === 'personal-counseling';
+  const counselingAmount = isAi ? 0 : (isFaceToFace ? 50000 : 30000);
+  const counselingLabel = isAi ? "AI 해석상담 무료(이벤트)" : `${isPersonalCounseling?'상담비':'해석상담비'} ${counselingAmount.toLocaleString()}원`;
 
-  const needsBasicExtra = !isIndividualTest && !isPersonalCounseling && (program.includes("부부") || program.includes("부모-자녀"));
-  const basicExtraAmount = needsBasicExtra ? 30000 : 0;
-  const basicExtraLabel = needsBasicExtra ? "기본검사 추가 30,000원" : "기본검사 1개 포함";
-
-  const extraCount = paidExtraTests.length;
-  const extraAmount = extraCount * 30000;
-  const totalAmount = counselingAmount + basicExtraAmount + extraAmount;
-
+  const tests = isPersonalCounseling ? [] : (typeof requestedTests === 'function' ? requestedTests(res) : (res.selectedTests || res.extraTests || []));
+  const uniqueTests = [...new Set((Array.isArray(tests)?tests:[]).map(v=>String(v||'').trim()).filter(Boolean))];
   const detailParts = [counselingLabel];
-  if (needsBasicExtra) detailParts.push(basicExtraLabel);
-  if (extraCount > 0) {
-    // 결제 예정 금액에는 '선택검사 N건' 대신 실제 선택한 유료 검사명을 표시합니다.
-    paidExtraTests.forEach(test => {
-      detailParts.push(`${String(test).trim()} 30,000원`);
-    });
-  }
-
-  return {
-    total: `${totalAmount.toLocaleString()}원`,
-    detail: detailParts.join(" + ")
-  };
+  let testAmount = 0;
+  uniqueTests.forEach(test => {
+    if(test.includes('무료')) { detailParts.push(`${test.replace(/\s*\(무료\)\s*/g,'').trim()} 무료`); return; }
+    const price = getModumamTestPrice(test);
+    if(price > 0){ testAmount += price; detailParts.push(`${test.replace(/\s*\(기본\)\s*/g,'').trim()} ${price.toLocaleString()}원`); }
+  });
+  return { total:`${(counselingAmount+testAmount).toLocaleString()}원`, detail:detailParts.join(' + ') };
 };
             const normalizeReservationStatus = (status) => {
               const aliases = {
@@ -5900,7 +5853,7 @@ if (userAge === 'parent') {
                                             <div className="mb-5">
                                                 <h3 className="text-lg font-extrabold text-slate-900">상담·예약 내역</h3>
                                                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                                    상담과 심리검사 예약 현황을 확인합니다. 24시 AI상담(비대면)은 심리검사 신청 시 60분 무료로 제공됩니다. 검사비는 별도이며, 심리검사 없는 개인 마음상담은 대상에서 제외됩니다.
+                                                    상담과 심리검사 예약 현황을 확인합니다. 이벤트 기간에는 상담 신청자 모두 24시 AI상담(비대면)을 60분 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 시작할 수 있습니다.
                                                 </p>
                                             </div>
 
@@ -7016,7 +6969,12 @@ if (userAge === 'parent') {
         onChange={(e) => {
             const program = e.target.value;
             setBookingProgram(program);
-            setSelectedTests([]);
+            const defaultTests = program === '부부 마음이음'
+                ? ['TCI 기질 및 성격검사(본인)', 'TCI 기질 및 성격검사(배우자)']
+                : program === '부모-자녀 마음이음'
+                    ? ['PAT-2 부모양육태도검사 2판', 'K-CDI 아동발달검사', '행동관찰', 'STS 6요인 기질검사(영유아)', 'STS 6요인 기질검사(성인)']
+                    : [];
+            setSelectedTests(defaultTests);
             // 개인 마음상담은 심리검사를 선택하지 않고 상담방식만 선택해 예약·결제합니다.
             const isPersonalCounseling = program === '개인 마음상담';
             setBookingTestsOpen(!isPersonalCounseling);
@@ -7025,7 +6983,9 @@ if (userAge === 'parent') {
             setBookingConsentOpen(isPersonalCounseling);
             // [MOD-20260712-PARENT-BOOKING-009]
             // 행동관찰을 새로 선택하기 전에는 찾아가는(대면)을 사용할 수 없습니다.
-            if (bookingType === '찾아가는(대면)') {
+            if (program === '부모-자녀 마음이음') {
+                setBookingType('찾아가는(대면)');
+            } else if (bookingType === '찾아가는(대면)') {
                 setBookingType('찾아오는(대면)');
             }
         }}
@@ -7043,11 +7003,11 @@ if (userAge === 'parent') {
     ===================================================== */}
     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
         {bookingProgram === "개인 마음상담" ? (
-          <p>※ 개인 마음상담은 심리검사 없이 대면·화상 상담을 예약합니다. 무료 AI상담은 심리검사 신청 시 이용할 수 있습니다.</p>
+          <p>※ 개인 마음상담은 심리검사 없이 신청할 수 있습니다. 이벤트 기간에는 상담 신청자 모두 AI 해석상담을 무료로 이용할 수 있습니다.</p>
         ) : bookingProgram === "개별 심리검사" ? (
           <p>※ 기본검사 없이 필요한 심리검사만 선택하여 신청할 수 있습니다.</p>
         ) : (
-          <p>※ 기본검사는 프로그램에 포함되어 있으며, 추가검사는 필요에 따라 선택하실 수 있습니다.</p>
+          <p>※ 프로그램별 권장 검사가 기본 선택되어 있으며, 선택된 검사·관찰 비용이 결제 예정 금액에 합산됩니다.</p>
         )}
         {bookingProgram !== "개인 마음상담" && (
           <p className="mt-1">※ 찾아가는(대면) 상담은 부모-자녀 마음이음의 '행동관찰'을 선택한 경우에만 신청할 수 있습니다.</p>
@@ -7066,40 +7026,44 @@ if (userAge === 'parent') {
 {/* 부부 마음이음 */}
 {bookingProgram.includes("부부 마음이음") && (
   <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-    <p className="text-xs font-bold text-blue-700 mb-3">
-      부부 마음이음 기본 검사
+    <p className="text-xs font-bold text-blue-700 mb-1">
+      검사 선택 (기본 선택 · 검사별 가격)
+    </p>
+    <p className="text-[11px] text-blue-600 mb-3">
+      본인과 배우자 TCI가 기본 선택됩니다. 필요에 따라 선택을 변경할 수 있습니다.
     </p>
 
-    <div className="grid grid-cols-1 gap-2 mb-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
       {[
-        "본인 TCI 기질 및 성격검사(기본)",
-        "배우자 TCI 기질 및 성격검사(기본)"
+        "TCI 기질 및 성격검사(본인)",
+        "TCI 기질 및 성격검사(배우자)"
       ].map((test) => (
-        <div key={test} className="flex items-center gap-2 p-2 rounded-lg border border-blue-100 bg-white">
-          <span className="text-emerald-600 text-xs font-bold">✓</span>
-          <span className="text-xs text-slate-700 font-semibold">{test}</span>
-        </div>
+        <label key={test} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-blue-100 bg-white">
+          <span className="flex items-center gap-2 min-w-0">
+            <input
+              type="checkbox"
+              checked={selectedTests.includes(test)}
+              onChange={() => toggleTest(test)}
+            />
+            <span className="text-xs text-slate-700">{test.replace(' 기질 및 성격검사','')}</span>
+          </span>
+          <span className="text-[11px] font-bold text-blue-700 whitespace-nowrap">{getModumamTestPrice(test).toLocaleString()}원</span>
+        </label>
       ))}
     </div>
 
-
-    <p className="text-xs font-bold text-blue-700 mb-3">
-      유료 추가검사 (+30,000원/건)
-    </p>
-
+    <p className="text-xs font-bold text-blue-700 mb-3">추가검사</p>
     <div className="grid grid-cols-2 gap-2">
       {[
         "MMPI-2 다면적 인성검사",
-        "회복탄력성 검사",
-        "대인관계문제검사"
+        "PAI 성격평가질문지"
       ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-blue-100 bg-white">
-          <input
-            type="checkbox"
-            checked={selectedTests.includes(test)}
-            onChange={() => toggleTest(test)}
-          />
-          <span className="text-xs text-slate-700">{test}</span>
+        <label key={test} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-blue-100 bg-white">
+          <span className="flex items-center gap-2 min-w-0">
+            <input type="checkbox" checked={selectedTests.includes(test)} onChange={() => toggleTest(test)} />
+            <span className="text-xs text-slate-700">{test}</span>
+          </span>
+          <span className="text-[11px] font-bold text-blue-700 whitespace-nowrap">{getModumamTestPrice(test).toLocaleString()}원</span>
         </label>
       ))}
     </div>
@@ -7116,7 +7080,7 @@ if (userAge === 'parent') {
     </p>
 
     <p className="text-xs font-bold text-violet-700 mb-3">
-      유료 심리검사 (+30,000원/건)
+      심리검사 선택 (검사별 가격)
     </p>
     <div className="grid grid-cols-2 gap-2 mb-4">
       {[
@@ -7125,15 +7089,9 @@ if (userAge === 'parent') {
         "MMPI-2 다면적 인성검사",
         "MMPI-A 청소년 다면적 인성검사",
         "PAI 성격평가질문지",
-        "회복탄력성 검사",
-        "대인관계문제검사",
-        "직무스트레스 검사",
-        "진로·직업흥미 검사",
-        "Golden 성격유형검사",
-        "PAT 부모양육태도검사",
-        "STS 아동기질검사",
-        "K-CDI 아동발달검사",
-        "CAD 진로발달검사"
+        "PAT-2 부모양육태도검사 2판",
+        "STS 6요인 기질검사",
+        "K-CDI 아동발달검사"
       ].map((test) => (
         <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-violet-100 bg-white">
           <input
@@ -7173,39 +7131,27 @@ if (userAge === 'parent') {
 {/* 부모-자녀 마음이음 */}
 {bookingProgram.includes("부모-자녀 마음이음") && (
   <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
-    <p className="text-xs font-bold text-emerald-700 mb-3">
-      부모-자녀 마음이음 기본 검사
+    <p className="text-xs font-bold text-emerald-700 mb-1">
+      검사·행동관찰 선택 (기본 선택 · 항목별 가격)
+    </p>
+    <p className="text-[11px] text-emerald-600 mb-3">
+      PAT-2, K-CDI, 행동관찰, STS(영유아), STS(성인)가 기본 선택됩니다. 행동관찰 선택 시 찾아가는(대면)으로 진행됩니다.
     </p>
 
-    <div className="grid grid-cols-1 gap-2 mb-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {[
-        "PAT 부모양육태도검사(기본)",
-        "KCDI 아동발달검사(기본)"
-      ].map((test) => (
-        <div key={test} className="flex items-center gap-2 p-2 rounded-lg border border-emerald-100 bg-white">
-          <span className="text-emerald-600 text-xs font-bold">✓</span>
-          <span className="text-xs text-slate-700 font-semibold">{test}</span>
-        </div>
-      ))}
-    </div>
-
-    <p className="text-xs font-bold text-emerald-700 mb-3">
-      유료 추가검사 (+30,000원/건)
-    </p>
-
-    <div className="grid grid-cols-2 gap-2">
-      {[
+        "PAT-2 부모양육태도검사 2판",
+        "K-CDI 아동발달검사",
         "행동관찰",
-        "STS 기질검사",
-        "부모 TCI 기질 및 성격검사"
+        "STS 6요인 기질검사(영유아)",
+        "STS 6요인 기질검사(성인)"
       ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-emerald-100 bg-white">
-          <input
-            type="checkbox"
-            checked={selectedTests.includes(test)}
-            onChange={() => {
-                // 행동관찰 선택 시 찾아가는(대면)으로 자동 변경하고,
-                // 행동관찰 해제 시 찾아오는(대면)으로 되돌립니다.
+        <label key={test} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-emerald-100 bg-white">
+          <span className="flex items-center gap-2 min-w-0">
+            <input
+              type="checkbox"
+              checked={selectedTests.includes(test)}
+              onChange={() => {
                 if (test === '행동관찰') {
                     const willSelect = !selectedTests.includes(test);
                     toggleTest(test);
@@ -7213,9 +7159,11 @@ if (userAge === 'parent') {
                     return;
                 }
                 toggleTest(test);
-            }}
-          />
-          <span className="text-xs text-slate-700">{test}</span>
+              }}
+            />
+            <span className="text-xs text-slate-700">{test}</span>
+          </span>
+          <span className="text-[11px] font-bold text-emerald-700 whitespace-nowrap">{getModumamTestPrice(test).toLocaleString()}원</span>
         </label>
       ))}
     </div>
@@ -7316,7 +7264,7 @@ if (userAge === 'parent') {
 
                 {bookingProgram.includes("부모-자녀") && (
                     <p className="text-[11px] text-emerald-700 mt-2 leading-relaxed font-semibold">
-                        기본검사 포함
+                        선택한 검사·행동관찰 비용 포함
                     </p>
                 )}
 

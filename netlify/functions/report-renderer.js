@@ -44,8 +44,8 @@ const distinctText=(value,used=[],maxSentences=6,fallback='')=>{
 
 const REPORT_TEST_NAMES=[
   ['TCI','TCI 기질 및 성격검사'],['MMPI-2','MMPI-2 다면적인성검사'],['PAI','PAI 성격평가검사'],
-  ['SCT','SCT 문장완성검사'],['HTP','HTP 집·나무·사람 그림검사'],['K-CDI','K-CDI 아동우울검사'],
-  ['STS','STS 양육스트레스검사'],['PAT','PAT 부모양육태도검사'],['PHQ-9','PHQ-9 우울 선별검사'],['GAD-7','GAD-7 불안 선별검사']
+  ['SCT','SCT 문장완성검사'],['HTP','HTP 집·나무·사람 그림검사'],['K-CDI','K-CDI 아동발달검사'],
+  ['STS','STS 6요인 기질검사'],['PAT','PAT-2 부모양육태도검사 2판'],['PHQ-9','PHQ-9 우울 선별검사'],['GAD-7','GAD-7 불안 선별검사']
 ];
 const formatTestSections=(value)=>{
   let text=clientSafe(value).replace(/\r/g,' ').replace(/[ \t]+/g,' ').trim();

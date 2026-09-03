@@ -1,5 +1,8 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260831-RC3.11-AI-60MIN loaded');
+console.info('[MML] BUILD 20260903-RC3.14-AI-EVENT-ALL-COUNSELING loaded');
+const TEST_PRICES={'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
+function testPrice(value){const t=String(value||'').toUpperCase();if(t.includes('MMPI-A'))return TEST_PRICES['MMPI-A'];if(t.includes('MMPI-2')||t.includes('MMPI2'))return TEST_PRICES['MMPI-2'];if(t.includes('JTCI'))return TEST_PRICES.JTCI;if(t.includes('TCI'))return TEST_PRICES.TCI;if(t.includes('PAI'))return TEST_PRICES.PAI;if(t.includes('PAT'))return TEST_PRICES['PAT-2'];if(t.includes('STS'))return TEST_PRICES.STS;if(t.includes('K-CDI')||t.includes('KCDI'))return TEST_PRICES['K-CDI'];if(String(value||'').includes('행동관찰'))return TEST_PRICES['행동관찰'];return 0;}
+
 
 const STATUS=["예약신청","예약승인","결제완료","검사발송","검사완료","결과업로드","상담준비","상담진행","상담완료","종결","취소요청","예약취소"];
 const STATUS_ALIASES={'승인대기':'예약신청','예약확정':'예약승인','결제대기':'예약승인','검사링크발송':'검사발송','검사진행':'검사발송','결과작성':'결과업로드','상담예정':'상담준비'};
@@ -17,8 +20,8 @@ const DEFAULT_OPERATING_SETTINGS={
   enabledMethods:['장소 조율(대면)','찾아가는(대면)','Zoom(비대면)','24시 AI상담(비대면)'],
   programDefaultTests:{
     '개인 마음이음':['TCI 기질 및 성격검사'],
-    '부부 마음이음':['신청자 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
-    '부모-자녀 마음이음':['K-CDI 아동발달검사','PAT 부모양육태도검사']
+    '부부 마음이음':['본인 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
+    '부모-자녀 마음이음':['PAT-2 부모양육태도검사 2판','K-CDI 아동발달검사','STS 6요인 기질검사(영유아)','STS 6요인 기질검사(성인)']
   },
   autoRules:true,
   aiApprovalRequiresReport:true
@@ -348,12 +351,18 @@ function getPaymentInfo(r){
   // 'AI(비대면)'에도 '대면' 글자가 포함되므로 비대면 여부를 먼저 판별합니다.
   const isNonFace=/AI|Zoom|화상|전화|비대면/i.test(type);
   const isAi=/AI/i.test(type);
-  const counselingFee=isAi?0:(isNonFace?20000:50000);
+  const counselingFee=isAi?0:(isNonFace?30000:50000);
   const counselingLabel=isAi?'24시 AI상담 무료':`상담비 ${counselingFee.toLocaleString()}원`;
 
   // 결제안내에는 '기본검사 1건' 같은 표현 대신 실제 심리검사명을 표시합니다.
   // requestedTests()가 프로그램 기본검사와 신청자가 선택한 검사를 중복 없이 합쳐 줍니다.
   const tests=requestedTests(r);
+  const selectedForPayment=[
+    ...(Array.isArray(r?.extraTests)?r.extraTests:[]),
+    ...(Array.isArray(r?.selectedTests)?r.selectedTests:[]),
+    ...(Array.isArray(r?.additionalTests)?r.additionalTests:[])
+  ];
+  if(selectedForPayment.some(t=>String(t||'').trim()==='행동관찰')) tests.push('행동관찰');
   const freeKeywords=['무료'];
   const testParts=[];
   let testFee=0;
@@ -365,8 +374,9 @@ function getPaymentInfo(r){
     if(isFree){
       testParts.push(`${name} 무료`);
     }else{
-      testFee+=30000;
-      testParts.push(`${name} 30,000원`);
+      const price=testPrice(name);
+      testFee+=price;
+      testParts.push(`${name} ${price.toLocaleString()}원`);
     }
   });
 
@@ -380,14 +390,16 @@ function normTest(value){
   if(!raw) return '';
   const clean=raw.replace(/\s*\(무료\)\s*/g,'').trim();
   const aliases=[
-    [/신청자.*TCI|TCI.*신청자/i,'신청자 TCI 기질 및 성격검사'],
+    [/본인.*TCI|TCI.*본인|신청자.*TCI|TCI.*신청자/i,'본인 TCI 기질 및 성격검사'],
     [/배우자.*TCI|TCI.*배우자/i,'배우자 TCI 기질 및 성격검사'],
     [/TCI|기질.*성격/i,'TCI 기질 및 성격검사'],
     [/MMPI[- ]?2/i,'MMPI-2 다면적 인성검사'],
     [/PAI/i,'PAI 성격평가질문지'],
-    [/PAT|부모양육태도/i,'PAT 부모양육태도검사'],
+    [/PAT|부모양육태도/i,'PAT-2 부모양육태도검사 2판'],
     [/K[- ]?CDI|KCDI|아동발달/i,'K-CDI 아동발달검사'],
-    [/STS|아동기질/i,'STS 아동기질검사'],
+    [/STS.*영유아|영유아.*STS/i,'STS 6요인 기질검사(영유아)'],
+    [/STS.*성인|성인.*STS/i,'STS 6요인 기질검사(성인)'],
+    [/STS|아동기질/i,'STS 6요인 기질검사'],
     [/SCT|문장완성/i,'SCT 문장완성검사'],
     [/HTP|집[-· ]?나무[-· ]?사람|그림검사/i,'HTP 그림검사'],
     [/PHQ[- ]?9|우울검사/i,'PHQ-9 우울검사'],
@@ -407,8 +419,8 @@ function reportTestGroups(r){
   const canonicalDefaults={
     '개인 마음상담':[],
     '개인 마음이음':['TCI 기질 및 성격검사'],
-    '부부 마음이음':['신청자 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
-    '부모-자녀 마음이음':['K-CDI 아동발달검사','PAT 부모양육태도검사']
+    '부부 마음이음':['본인 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
+    '부모-자녀 마음이음':['PAT-2 부모양육태도검사 2판','K-CDI 아동발달검사','STS 6요인 기질검사(영유아)','STS 6요인 기질검사(성인)']
   };
   const savedDefaults=getOperatingSettings().programDefaultTests||{};
   const basicRaw=Array.isArray(canonicalDefaults[program])?canonicalDefaults[program]:(Array.isArray(savedDefaults[program])?savedDefaults[program]:[]);
@@ -434,8 +446,8 @@ function requestedTests(r){
   const canonicalDefaults={
     '개인 마음상담':[],
     '개인 마음이음':['TCI 기질 및 성격검사'],
-    '부부 마음이음':['신청자 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
-    '부모-자녀 마음이음':['PAT 부모양육태도검사','K-CDI 아동발달검사']
+    '부부 마음이음':['본인 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
+    '부모-자녀 마음이음':['PAT-2 부모양육태도검사 2판','K-CDI 아동발달검사','STS 6요인 기질검사(영유아)','STS 6요인 기질검사(성인)']
   };
   let tests=Array.isArray(canonicalDefaults[program])?[...canonicalDefaults[program]]:[];
   const extras=[
@@ -475,10 +487,10 @@ function programBaseName(program){
 function shortTestName(test){
   const t=String(test||'').toUpperCase();
   if(t.includes('MMPI'))return 'MMPI-2';
-  if(t.includes('TCI'))return t.includes('× 2')||t.includes('X 2')?'TCI × 2':'TCI';
+  if(t.includes('TCI')){if(t.includes('본인')||t.includes('신청자'))return 'TCI(본인)';if(t.includes('배우자'))return 'TCI(배우자)';return t.includes('× 2')||t.includes('X 2')?'TCI × 2':'TCI';}
   if(t.includes('PAI'))return 'PAI';
   if(t.includes('PAT'))return 'PAT';
-  if(t.includes('STS'))return 'STS';
+  if(t.includes('STS')){if(t.includes('영유아'))return 'STS(영유아)';if(t.includes('성인'))return 'STS(성인)';return 'STS';}
   if(t.includes('KCDI')||t.includes('K-CDI'))return 'K-CDI';
   if(t.includes('SCT'))return 'SCT';
   if(t.includes('HTP'))return 'HTP';
@@ -1318,8 +1330,8 @@ function addPsychTestToCounseling(id){
   if(existing.some(x=>shortTestName(x)===shortTestName(test))){alert('이미 추가된 검사입니다.');return;}
   const additional=[...(Array.isArray(r.additionalTests)?r.additionalTests:[]),test];
   const testStatuses={...(r.testStatuses||{}),[test]:'결제대기'};
-  updateReservation(id,{additionalTests:additional,extraTests:additional,testStatuses,additionalTestStatus:'결제대기',additionalTestFee:(additional.length*30000),additionalTestUpdatedAt:new Date().toLocaleString('ko-KR')});
-  alert(`${test}가 추가되었습니다. 추가 검사비는 30,000원입니다.`);
+  updateReservation(id,{additionalTests:additional,extraTests:additional,testStatuses,additionalTestStatus:'결제대기',additionalTestFee:additional.reduce((sum,name)=>sum+testPrice(name),0),additionalTestUpdatedAt:new Date().toLocaleString('ko-KR')});
+  alert(`${test}가 추가되었습니다. 추가 검사비는 ${testPrice(test).toLocaleString()}원입니다.`);
 }
 window.addPsychTestToCounseling=addPsychTestToCounseling;
 function copyText(t){navigator.clipboard.writeText(t).then(()=>alert('복사되었습니다.'))}
@@ -2205,7 +2217,7 @@ function buildCases() {
 
 /* V27: 사례개념화·상담계획·회기기록 지원·슈퍼비전·기록 품질검사·종합사례보고서 코드는 js/modules/clinical-documents.js로 분리되었습니다. */
 
-function interpretationTestLabel(type){return type==='PAT'?'PAT 부모양육태도검사':'STS 6요인 기질검사'}
+function interpretationTestLabel(type){return type==='PAT'?'PAT-2 부모양육태도검사 2판':'STS 6요인 기질검사'}
 function setInterpretationType(type){state.interpretationForm={reservationId:state.interpretationForm.reservationId,testType:type,scales:{}};state.interpretationDraft=null;state.interpretationSource=null;render()}
 function setInterpretationReservation(id){state.interpretationForm.reservationId=String(id||'');state.interpretationDraft=null;state.interpretationSource=null;render()}
 function readInterpretationScaleValues(){

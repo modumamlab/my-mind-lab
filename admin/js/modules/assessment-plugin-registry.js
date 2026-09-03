@@ -15,9 +15,9 @@ console.info('[MML] ASSESSMENT-PLUGIN-REGISTRY-STEP24-STORAGE-STABLE loaded');
     {id:'PAI',name:'PAI 성격평가검사',type:'clinical',active:true},
     {id:'SCT',name:'SCT 문장완성검사',type:'projective',active:true},
     {id:'HTP',name:'HTP 집·나무·사람 그림검사',type:'projective',active:true},
-    {id:'K-CDI',name:'K-CDI 아동우울검사',type:'child',active:true},
-    {id:'STS',name:'STS 양육스트레스검사',type:'parent',active:true},
-    {id:'PAT',name:'PAT 부모양육태도검사',type:'parent',active:true},
+    {id:'K-CDI',name:'K-CDI 아동발달검사',type:'child',active:true},
+    {id:'STS',name:'STS 6요인 기질검사',type:'parent',active:true},
+    {id:'PAT',name:'PAT-2 부모양육태도검사 2판',type:'parent',active:true},
     {id:'PHQ-9',name:'PHQ-9 우울 선별검사',type:'screening',active:true},
     {id:'GAD-7',name:'GAD-7 불안 선별검사',type:'screening',active:true}
   ]);
