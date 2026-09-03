@@ -63,6 +63,22 @@ function assessmentRequestedTests(r){
 }
 function analysesForReservation(id){return state.assessmentAnalyses.filter(x=>String(x.reservationId)===String(id))}
 function assessmentTestKey(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9가-힣]/g,'')}
+// [RC3.34-JTCI-CANONICAL-REPORT]
+// TCI/JTCI share the same report engine, but the report identity must follow the reservation's actual test code.
+function assessmentCanonicalTestTypeForAnalysis(analysis){
+  const current=assessmentTestLabel(analysis?.testType||'');
+  const reservation=(state.reservations||[]).find(r=>String(r.id)===String(analysis?.reservationId));
+  if(!reservation)return current;
+  const requested=assessmentRequestedTests(reservation);
+  if(requested.length===1){
+    const canonical=assessmentTestLabel(requested[0]);
+    const currentKey=assessmentTestKey(current);
+    const canonicalKey=assessmentTestKey(canonical);
+    const bothTrait=/^(?:J?TCI)$/.test(currentKey)&&/^(?:J?TCI)$/.test(canonicalKey);
+    if(bothTrait)return canonical;
+  }
+  return current;
+}
 function assessmentTestMatches(actual,expected){
   const a=assessmentTestKey(actual),e=assessmentTestKey(expected);
   if(!a||!e)return false;
@@ -467,8 +483,8 @@ function saveGeneratedAssessmentReport(id){
     memberId:analysis.memberId||reservation.memberId||reservation.clientId||reservation.userId||'',
     userId:analysis.userId||reservation.userId||reservation.memberId||reservation.clientId||'',
     email:analysis.email||reservation.email||reservation.userEmail||'',
-    program:analysis.program||programBaseName(reservation.program)||'',testType:analysis.testType||'',
-    title:individualReportTitle(analysis.testType),summary:analysis.coreFindings||analysis.sourceSummary||'',
+    program:analysis.program||programBaseName(reservation.program)||'',testType:assessmentCanonicalTestTypeForAnalysis(analysis)||analysis.testType||'',
+    title:individualReportTitle(assessmentCanonicalTestTypeForAnalysis(analysis)||analysis.testType),summary:analysis.coreFindings||analysis.sourceSummary||'',
     strength:analysis.strengths||'',caution:analysis.vulnerabilities||'',plan:analysis.helpfulDirections||'',
     sections:assessmentCenterReportSections(analysis),analysisSnapshot:{...analysis},
     individualAssessmentReport:true,assessmentCenterDirect:true,reportType:'내담자용 개별보고서',
@@ -1307,7 +1323,7 @@ window.toggleIndividualAssessmentInlinePreview=toggleIndividualAssessmentInlineP
 
 function assessmentAnalysisCard(a){
   const r=state.reservations.find(x=>String(x.id)===String(a.reservationId))||{};
-  const test=assessmentTestLabel(a.testType);
+  const test=assessmentCanonicalTestTypeForAnalysis(a);
   const profile=individualReportProfile(test);
   const date=individualReportDisplayDate(a.publishedAt||a.approvedAt||a.updatedAt||a.generatedAt||a.createdAt);
   const sectionLabels=individualReportSectionLabels(test);

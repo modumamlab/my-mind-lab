@@ -63,13 +63,18 @@ function publicStatus(row) {
     (Array.isArray(row?.approvedIndividualReportIds) && row.approvedIndividualReportIds.length > 0) ||
     row?.resultReportApproved === true;
 
+  // 상담 단계는 관리자 진행상태를 그대로 우선 반영합니다.
+  if (status === '종결') return '종결';
+  if (status === '상담완료') return '상담 완료';
+  if (status === '상담진행') return '상담 진행 중';
+  if (status === '상담준비') return '상담 준비 중';
+
+  // 상담 전 단계에서 승인된 보고서가 있으면 리포트 확인 상태를 우선합니다.
   if (reportApproved || ['보고서승인', '완료'].includes(status)) return '리포트승인';
-  if (['결과업로드', '상담준비', '상담진행', '상담완료', '종결', '검사완료', '분석완료', '보고서작성'].includes(status)) {
-    return '검사완료';
-  }
-  if (['검사발송', '검사링크발송', '검사진행', '검사진행중'].includes(status)) return '검사진행중';
-  if (status === '예약승인') return '예약확정';
-  if (status === '결제완료') return '예약확정';
+  if (['결과업로드', '검사완료', '분석완료', '보고서작성'].includes(status)) return '결과 분석 중';
+  if (['검사발송', '검사링크발송'].includes(status)) return '검사안내발송';
+  if (['검사진행', '검사진행중'].includes(status)) return '검사진행중';
+  if (['예약승인', '결제완료'].includes(status)) return '예약확정';
   return '신청접수';
 }
 

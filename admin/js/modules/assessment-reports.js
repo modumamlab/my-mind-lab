@@ -2661,6 +2661,8 @@ function normalizeReportRequestTestName(value){
   if(raw.includes('KCDI'))return 'K-CDI';
   if(raw.includes('PHQ9'))return 'PHQ-9';
   if(raw.includes('GAD7'))return 'GAD-7';
+  // JTCI contains the letters TCI, so it must be normalized first.
+  if(raw.includes('JTCI'))return 'JTCI';
   if(raw.includes('TCI'))return 'TCI';
   if(raw.includes('PAI'))return 'PAI';
   if(raw.includes('SCT')||original.includes('문장완성'))return 'SCT';
