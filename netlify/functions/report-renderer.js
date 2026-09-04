@@ -7,7 +7,34 @@ const nl=(v)=>esc(v).replace(/\n/g,'<br>');
 const blocks=(v)=>clean(v).split(/\n{2,}/).map(x=>x.trim()).filter(Boolean).map(x=>`<p>${nl(x)}</p>`).join('');
 const listHtml=(v)=>{const items=clean(v).split(/\n+/).map(x=>x.replace(/^[-•*\d.)\s]+/,'').trim()).filter(Boolean);return items.length>1?`<ul class="list">${items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:`<p>${nl(v)}</p>`};
 const TECH_KEYS=/\b(?:resultSummary|overview|interpretationBasis|interpretation|strengths|focus|confidence|reasoning|clinicalNote|rawFacts|sourceSummary|coreFindings|dailyMeaning|helpfulDirections)\b\s*[:：]?/gi;
-const clientSafe=(v)=>clean(v)
+const narrativeText=(input,seen=new WeakSet())=>{
+  if(input==null)return '';
+  if(typeof input==='string'||typeof input==='number'||typeof input==='boolean'){
+    const text=String(input).trim();
+    return text==='[object Object]'?'':text;
+  }
+  if(Array.isArray(input))return input.map(item=>narrativeText(item,seen)).filter(Boolean).join('\n');
+  if(typeof input==='object'){
+    if(seen.has(input))return '';
+    seen.add(input);
+    const preferred=['testName','title','summary','resultSummary','overview','coreFindings','interpretation','interpretationBasis','meaning','findings','finding','text','content','description','clinicalSummary','evidenceSummary','dailyMeaning','helpfulDirections'];
+    const ignored=/^(?:scores?|rawScores?|tScores?|rawFacts|graph|profile|scales?|metadata|diagnostics|structuredData|mmpi2StructuredData|confidence|reasoning|sourceInventory)$/i;
+    const out=[]; const used=new Set();
+    for(const key of preferred){
+      if(!(key in input))continue;
+      const text=narrativeText(input[key],seen);
+      if(text){out.push(text);used.add(key);}
+    }
+    for(const [key,item] of Object.entries(input)){
+      if(used.has(key)||ignored.test(key))continue;
+      const text=narrativeText(item,seen);
+      if(text)out.push(text);
+    }
+    return [...new Set(out)].join('\n').trim();
+  }
+  return '';
+};
+const clientSafe=(v)=>clean(narrativeText(v))
   .replace(TECH_KEYS,'')
   // 내담자 공개본에는 원점수·T점수·백분위·척도코드가 출력되지 않도록 최종 안전 필터를 적용합니다.
   .replace(/\bT\s*(?:점수)?\s*[=:]?\s*\d+(?:\.\d+)?/gi,'')

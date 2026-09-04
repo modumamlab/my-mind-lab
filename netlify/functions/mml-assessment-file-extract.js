@@ -32,6 +32,13 @@ const EXTRACT_SCHEMA={
         required:['scale','score','direction','source']
       }
     },
+    mmpiScores:{
+      type:'ARRAY',items:{
+        type:'OBJECT',
+        properties:{group:{type:'STRING'},code:{type:'STRING'},scale:{type:'STRING'},rawScore:{type:'NUMBER'},tScore:{type:'NUMBER'},source:{type:'STRING'}},
+        required:['group','code','scale','rawScore','tScore','source']
+      }
+    },
     tciScores:{
       type:'ARRAY',items:{
         type:'OBJECT',
@@ -45,7 +52,7 @@ const EXTRACT_SCHEMA={
     visibleTextFacts:{type:'ARRAY',items:{type:'STRING'}},
     missingOrUnclear:{type:'ARRAY',items:{type:'STRING'}}
   },
-  required:['detectedTestType','documentQuality','confidenceScore','validityFacts','scoreFacts','tciScores','profileFacts','visibleTextFacts','missingOrUnclear']
+  required:['detectedTestType','documentQuality','confidenceScore','validityFacts','scoreFacts','mmpiScores','tciScores','profileFacts','visibleTextFacts','missingOrUnclear']
 };
 
 function prompt(body){
@@ -64,6 +71,9 @@ function prompt(body){
 - TCI/JTCI tciScores.code는 반드시 NS, HA, RD, PS, SD, CO, ST 중 하나입니다. rawScore는 원점수, tScore는 T점수, percentile은 백분위 열의 값입니다. 서로 바꾸지 않습니다.
 - 자율성+연대감(SC)은 tciScores에 넣지 않습니다. 하위척도 NS1, HA1 등도 tciScores에 넣지 않습니다.
 - TCI 또는 JTCI가 아니면 tciScores는 빈 배열 []로 반환합니다.
+- MMPI-2 결과지이면 mmpiScores에 결과표에서 직접 확인되는 전체규준 T점수를 구조화합니다. group은 validity, clinical, rc, psy5, content, supplementary 중 하나를 사용합니다.
+- MMPI-2의 validity에는 VRIN, TRIN, F, F(B), F(P), FBS, L, K, S를, clinical에는 Hs, D, Hy, Pd, Mf, Pa, Pt, Sc, Ma, Si를 우선 포함합니다. rc에는 RCd, RC1, RC2, RC3, RC4, RC6, RC7, RC8, RC9, psy5에는 AGGR, PSYC, DISC, NEGE, INTR를 포함합니다. content와 supplementary도 결과표에 보이는 척도를 가능한 한 모두 기록합니다.
+- mmpiScores.tScore에는 반드시 전체규준 T점수를 넣고 원점수와 혼동하지 않습니다. MMPI-2가 아니면 mmpiScores는 []입니다.
 - source에는 표, 그래프, 결과요약, 해석문 등 확인 위치를 짧게 씁니다.
 - visibleTextFacts는 문서에 인쇄된 핵심 설명 문장만 최대 12개 기록합니다.
 - 임상적 의미, 진단, 상담 제언은 작성하지 않습니다.
@@ -107,6 +117,10 @@ export const handler=async(event)=>{
       const text=data?.candidates?.[0]?.content?.parts?.map(part=>part.text||'').join('\n').trim();
       if(!response.ok||!text)throw new Error(data?.error?.message||`문서 사실 추출 실패 (HTTP ${response.status})`);
       const extracted=parseJson(text);
+      if(Array.isArray(extracted.mmpiScores)){
+        const groups=new Set(['validity','clinical','rc','psy5','content','supplementary']);
+        extracted.mmpiScores=extracted.mmpiScores.map(row=>({group:String(row?.group||'').toLowerCase(),code:clean(row?.code,30),scale:clean(row?.scale,100),rawScore:Number(row?.rawScore),tScore:Number(row?.tScore),source:clean(row?.source,160)})).filter(row=>groups.has(row.group)&&row.code&&Number.isFinite(row.tScore));
+      }else extracted.mmpiScores=[];
       // TCI 주척도는 이후 보고서/그래프가 동일한 단일 점수 객체를 사용하도록 여기서 정규화합니다.
       if(Array.isArray(extracted.tciScores)){
         const allowed=new Set(['NS','HA','RD','PS','SD','CO','ST']);
@@ -122,7 +136,7 @@ export const handler=async(event)=>{
           extracted.missingOrUnclear=Array.from(new Set([...(Array.isArray(extracted.missingOrUnclear)?extracted.missingOrUnclear:[]),'TCI/JTCI 주척도 7개의 원점수·T점수·백분위를 모두 확인하지 못했습니다.']));
         }
       }else extracted.tciScores=[];
-      return jsonResponse({extracted,model:MODEL,stage:'document-facts-v3-tci-jtci-scores'});
+      return jsonResponse({extracted,model:MODEL,stage:'document-facts-v4-tci-jtci-mmpi2-scores'});
     }finally{clearTimeout(timeoutId);}
   }catch(error){
     console.error('[MML ASSESSMENT FILE EXTRACT]',error);

@@ -17,7 +17,7 @@ function title(r={}){
   if(text(r.title))return text(r.title);
   if(r.individualAssessmentReport||r.reportType==='individualReport')return text(r.testType)?`${text(r.testType)} 개별 심리검사 보고서`:'개별 심리검사 보고서';
   if(r.integratedAssessmentReport||r.reportType==='counselorComprehensiveReport')return '통합 심리평가보고서';
-  return '심리검사 종합보고서';
+  return '심리검사 결과보고서';
 }
 function flat(v){
   if(Array.isArray(v))return v.map(flat).filter(Boolean).join('\n');

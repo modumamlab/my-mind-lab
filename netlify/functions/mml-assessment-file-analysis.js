@@ -53,7 +53,8 @@ ${clean(JSON.stringify(previous),12000)}
 10. 검사 결과만으로 확정할 수 없는 내용은 가능성 표현을 사용합니다.
 11. 상담자 검토가 필요한 이유가 있으면 needsReview를 true로 설정합니다.
 12. TCI/TCI-RS의 경우 tciScores가 있으면 반드시 그 실제 백분위를 해석 근거로 사용합니다. 백분위 30 이하는 '낮음', 70 이상은 '높음', 31~69는 '보통'으로 분류하며, 31~69를 임의로 높음/낮음이라고 표현하지 않습니다. 원점수·T점수·백분위를 서로 혼동하지 않습니다.
-13. JSON만 반환합니다.`;
+13. MMPI-2의 경우 mmpiScores가 있으면 타당도 척도를 먼저 검토하고, 그 타당도 범위 안에서 임상척도, RC, PSY-5, 내용척도, 보충척도를 통합합니다. 점수와 연결되지 않는 성격 강점이나 병리적 결론을 새로 만들지 않습니다. 결정적 문항은 단독 결론의 근거로 사용하지 않습니다.
+14. JSON만 반환합니다.`;
 }
 
 const listText=value=>Array.isArray(value)?value.map(v=>clean(v,2500)).filter(Boolean).join('\n'):clean(value);
@@ -94,6 +95,7 @@ export const handler=async(event)=>{
     const scoreFacts=Array.isArray(facts.scoreFacts)?facts.scoreFacts.slice(0,24):[];
     const validityFacts=Array.isArray(facts.validityFacts)?facts.validityFacts:[];
     const profileFacts=Array.isArray(facts.profileFacts)?facts.profileFacts:[];
+    const mmpiScores=Array.isArray(facts.mmpiScores)?facts.mmpiScores.filter(row=>row&&Number.isFinite(Number(row.tScore))).map(row=>({group:clean(row.group,30),code:clean(row.code,30),scale:clean(row.scale,100),rawScore:Number(row.rawScore),tScore:Number(row.tScore),source:clean(row.source,160)})):[];
     const tciScores=Array.isArray(facts.tciScores)?facts.tciScores.filter(row=>row&&['NS','HA','RD','PS','SD','CO','ST'].includes(String(row.code||'').toUpperCase())).map(row=>({code:String(row.code).toUpperCase(),scale:clean(row.scale,80),rawScore:Number(row.rawScore),tScore:Number(row.tScore),percentile:Number(row.percentile),level:Number(row.percentile)<=30?'낮음':Number(row.percentile)>=70?'높음':'보통',source:clean(row.source,160)})):[];
     const sourceLines=[...validityFacts,...scoreFacts.map(x=>`${clean(x?.scale,120)}: ${[clean(x?.score,120),clean(x?.direction,120)].filter(Boolean).join(' · ')}`),...profileFacts].filter(Boolean);
 
@@ -112,7 +114,8 @@ export const handler=async(event)=>{
       clientReport:{...(result.clientReport||{}),overview:clean(result.clientReport?.currentMind),professionalProfile:result.professionalProfile||{}},
       counselorReport:result.counselorReport||{},professionalProfile:result.professionalProfile||{},
       professionalReportReady:true,reportGenerationRequired:false,reportEngineVersion:ENGINE_VERSION,
-      rawFacts:{validityFacts,scoreFacts,tciScores,profileFacts,visibleTextFacts:Array.isArray(facts.visibleTextFacts)?facts.visibleTextFacts:[],missingOrUnclear:unclear,sourceLines},
+      scaleScores:mmpiScores.length?mmpiScores.map(row=>({label:row.code,name:row.scale,tScore:row.tScore,score:row.tScore,group:row.group,level:row.tScore>=65?'상승':row.tScore<=40?'낮은 편':'평균 범위'})):tciScores.map(row=>({label:row.code,name:row.scale,percentile:row.percentile,score:row.percentile,level:row.level,group:'tci'})),
+      rawFacts:{validityFacts,scoreFacts,mmpiScores,tciScores,profileFacts,visibleTextFacts:Array.isArray(facts.visibleTextFacts)?facts.visibleTextFacts:[],missingOrUnclear:unclear,sourceLines},
       engineVersion:ENGINE_VERSION
     };
     return jsonResponse({analysis,model:MODEL,engineVersion:ENGINE_VERSION,qualityChecked:true});

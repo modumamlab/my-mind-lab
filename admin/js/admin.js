@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = 'modumam2026';
-console.info('[MML] BUILD 20260903-RC3.33-JTCI-CANONICAL-RESERVATION loaded');
+console.info('[MML] BUILD 20260904-RC3.40-JTCI-MMPI-PROFILE-SYNC loaded');
 const TEST_PRICES={'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
 function testPrice(value){const t=String(value||'').toUpperCase();if(t.includes('MMPI-A'))return TEST_PRICES['MMPI-A'];if(t.includes('MMPI-2')||t.includes('MMPI2'))return TEST_PRICES['MMPI-2'];if(t.includes('JTCI'))return TEST_PRICES.JTCI;if(t.includes('TCI'))return TEST_PRICES.TCI;if(t.includes('PAI'))return TEST_PRICES.PAI;if(t.includes('PAT'))return TEST_PRICES['PAT-2'];if(t.includes('STS'))return TEST_PRICES.STS;if(t.includes('K-CDI')||t.includes('KCDI'))return TEST_PRICES['K-CDI'];if(String(value||'').includes('행동관찰'))return TEST_PRICES['행동관찰'];return 0;}
 
@@ -1679,7 +1679,15 @@ function clientReportSectionArray(report){
     relationshipPattern:'관계 특성',stressPattern:'스트레스 반응',dailyMeaning:'일상에서의 의미'
   };
   const TECHNICAL=new Set(['crossChecks','caseHypotheses','counselingQuestions','rawFacts','confidenceReason','confidenceScore','clinicalNote','interpretationBasis']);
-  const cleanBody=value=>String(value?.text??value?.body??value?.content??value??'').trim();
+  const cleanBody=value=>{
+    const raw=value?.text??value?.body??value?.content??value??'';
+    if(raw&&typeof raw==='object'){
+      if(Array.isArray(raw))return raw.map(v=>typeof v==='object'?(v?.text||v?.body||v?.content||''):v).filter(Boolean).join('\n').trim();
+      return Object.values(raw).map(v=>typeof v==='string'?v:(Array.isArray(v)?v.filter(x=>typeof x==='string').join('\n'):'')).filter(Boolean).join('\n').trim();
+    }
+    const text=String(raw).trim();
+    return text==='[object Object]'?'':text;
+  };
   const rows=[];
   const push=(key,title,body)=>{body=cleanBody(body);if(!body||TECHNICAL.has(String(key)))return;rows.push({key:String(key||''),title:String(FRIENDLY[key]||title||'결과 이해').trim(),body});};
   const source=report?.sections;
@@ -1697,7 +1705,7 @@ function clientReportScores(report){
   if(!raw && report?.individualAssessmentReport && typeof resolveIndividualReportAnalysis==='function'){
     try{
       const analysis=resolveIndividualReportAnalysis(report)||{};
-      raw=analysis.scores||analysis.graph||analysis.profile||analysis.scales||analysis.scaleScores||null;
+      raw=analysis.scores||analysis.graph||analysis.profile||analysis.scales||analysis.scaleScores||analysis.rawFacts?.mmpiScores||analysis.rawFacts?.tciScores||null;
     }catch(_){ }
   }
   const rows=Array.isArray(raw)?raw:(raw&&typeof raw==='object'?Object.entries(raw).map(([label,value])=>({label,...(value&&typeof value==='object'?value:{value})})):[]);
@@ -1706,19 +1714,44 @@ function clientReportScores(report){
     const numeric=Number(item?.percent??item?.percentile??item?.score??item?.tScore??item?.value);
     if(!label||!Number.isFinite(numeric))return null;
     const percent=Math.max(0,Math.min(100,numeric));
-    const level=String(item?.level||item?.range||(percent>=70?'높음':percent<=30?'낮음':'보통'));
-    return {label,percent,level};
+    const isMmpi=String(item?.group||'').toLowerCase()!=='tci' && Number.isFinite(Number(item?.tScore));
+    const level=String(item?.level||item?.range||(isMmpi?(numeric>=65?'상승':numeric<=40?'낮은 편':'평균 범위'):(percent>=70?'높음':percent<=30?'낮음':'보통')));
+    return {label,percent,level,group:String(item?.group||''),...(isMmpi?{tScore:Number(item?.tScore),scoreType:'tScore'}:{scoreType:String(item?.scoreType||'percent')})};
   }).filter(Boolean);
+}
+function isClientAppComprehensiveReport(report){
+  if(!report||typeof report!=='object')return false;
+  if(report.individualAssessmentReport===true)return false;
+  const type=String(report.reportType||report.derivedReportType||'').toLowerCase();
+  if(type.includes('individual')||/개별/.test(String(report.reportType||report.title||'')))return false;
+  return Boolean(report.comprehensiveReport===true||report.assessmentReport===true||type.includes('comprehensive')||/종합/.test(String(report.title||report.testType||'')));
+}
+function clientAppReportTestName(report,reservation){
+  const generic=/^(?:심리검사(?:\s*종합)?(?:\s*결과)?보고서|상담자용\s*심리검사\s*종합보고서)$/;
+  const candidates=[];
+  if(Array.isArray(report?.tests))candidates.push(...report.tests);
+  if(typeof requestedTests==='function'){
+    try{candidates.push(...requestedTests(reservation||{}));}catch(_){}
+  }
+  if(Array.isArray(reservation?.selectedTests))candidates.push(...reservation.selectedTests);
+  if(Array.isArray(reservation?.extraTests))candidates.push(...reservation.extraTests);
+  if(reservation?.testName)candidates.push(reservation.testName);
+  const normalized=[...new Set(candidates.map(v=>typeof normTest==='function'?normTest(v):String(v||'').trim()).filter(Boolean).filter(v=>!generic.test(String(v).trim())))];
+  if(normalized.length)return normalized.join(' · ');
+  const direct=String(report?.testName||report?.testType||'').trim();
+  if(direct&&!generic.test(direct))return typeof normTest==='function'?normTest(direct):direct;
+  return '심리검사';
 }
 function buildClientAppReportPayload(report,reservation){
   const sections=clientReportSectionArray(report);
   const summary=String(report?.summary||report?.coreMind||sections.find(x=>x.key==='keyMessage')?.body||sections[0]?.body||'').trim();
-  const testName=String(report?.testName||report?.testType||report?.title||reservation?.testName||'심리검사').trim();
+  const testName=clientAppReportTestName(report,reservation);
   return {
     id:String(report?.id||`report-${Date.now()}`),
     reservationId:String(report?.reservationId||reservation?.id||''),
     testId:String(report?.testId||report?.testType||''),
     testName,
+    tests:Array.isArray(report?.tests)?report.tests:[],
     title:String(report?.title||'나의 심리리포트'),
     approved:true,
     approvedAt:String(report?.approvedAt||report?.publishedAt||new Date().toISOString()),
@@ -1790,9 +1823,14 @@ async function syncClientAppReportToReservation(report,approved=true){
   if(!target)return null;
   const existing=Array.isArray(target.clientReports)?target.clientReports.filter(Boolean):[];
   const reportId=String(report.id||'');
-  const without=existing.filter(item=>String(item?.id||'')!==reportId);
-  const clientReports=approved?[buildClientAppReportPayload(report,target),...without]:without;
-  const patch={clientReports,clientReport:clientReports[0]||null};
+  const isComprehensive=isClientAppComprehensiveReport(report);
+  const appEligibleExisting=existing.filter(item=>{
+    if(String(item?.id||'')===reportId)return false;
+    const t=String(item?.reportType||'').toLowerCase();
+    return !(t.includes('individual')||/개별/.test(String(item?.reportType||item?.title||'')));
+  });
+  const clientReports=approved&&isComprehensive?[buildClientAppReportPayload(report,target),...appEligibleExisting]:appEligibleExisting;
+  const patch={clientReports,clientReport:clientReports[0]||null,approvedClientReport:clientReports[0]||null};
   const saved=await updateReservation(target.id,patch);
   // 예약 기준본 저장 성공과 별개로 앱 조회 저장소를 직접 갱신합니다.
   // 상태만 리포트승인으로 바뀌고 clientReports가 비는 현상을 차단합니다.
@@ -1881,8 +1919,13 @@ async function toggleReportApproval(id){
     const isIntegrated=Boolean(report.assessmentReport&&!report.individualAssessmentReport&&!report.integratedAssessmentReport);
     const existingClientReports=Array.isArray(target.clientReports)?target.clientReports.filter(Boolean):[];
     const reportIdForClient=String(report.id||'');
-    const otherClientReports=existingClientReports.filter(item=>String(item?.id||'')!==reportIdForClient);
-    const nextClientReports=next?[buildClientAppReportPayload({...report,...approvalPatch},target),...otherClientReports]:otherClientReports;
+    const appEligibleExisting=existingClientReports.filter(item=>{
+      if(String(item?.id||'')===reportIdForClient)return false;
+      const t=String(item?.reportType||'').toLowerCase();
+      return !(t.includes('individual')||/개별/.test(String(item?.reportType||item?.title||'')));
+    });
+    const appEligibleCurrent=!isIndividual&&isClientAppComprehensiveReport({...report,...approvalPatch});
+    const nextClientReports=next&&appEligibleCurrent?[buildClientAppReportPayload({...report,...approvalPatch},target),...appEligibleExisting]:appEligibleExisting;
     const primaryClientReport=nextClientReports[0]||null;
     const patch={
       assessmentReportStatus:next?'승인 완료':'관리자 검토 중',
@@ -1893,7 +1936,7 @@ async function toggleReportApproval(id){
       // RC3.19: 앱 조회용 승인 리포트를 별도 단일 필드에도 보존합니다.
       // 예약 상태는 승인됐지만 clientReports 배열이 유실되는 과거 데이터에서도
       // app-assessment-api가 이 값을 안전하게 fallback으로 반환할 수 있습니다.
-      approvedClientReport:next?primaryClientReport:null,
+      approvedClientReport:primaryClientReport,
       approvedClientReportUpdatedAt:now
     };
     if(isIndividual){

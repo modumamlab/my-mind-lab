@@ -469,7 +469,7 @@ console.info('[MML] UNIFIED-AI-REPORT-ENGINE-STEP12 loaded');
       tests:results.map(item=>item.testType),
       aiResult:ai,
       sections:buildComprehensiveSections(results,ai),
-      title:'심리검사 종합보고서'
+      title:'심리검사 결과보고서'
     });
   }
   function requestedKinds(request={}){

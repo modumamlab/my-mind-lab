@@ -54,6 +54,14 @@ function mergeRows(...lists) {
   );
 }
 
+function appVisibleResultReport(report) {
+  if (!report || report.approved !== true) return false;
+  const type = text(report.reportType || report.derivedReportType, 120).toLowerCase();
+  const label = text(report.title || report.testName, 200);
+  if (type.includes('individual') || /개별/.test(type + ' ' + label)) return false;
+  return true;
+}
+
 function publicStatus(row) {
   const status = text(row?.status, 40);
   const reportApproved =
@@ -472,12 +480,12 @@ exports.handler = async (event) => {
           preferredTime: text(row.preferredTime || row.time, 5),
           clientReports: (() => {
             const list = Array.isArray(row.clientReports)
-              ? row.clientReports.filter(report => report && report.approved === true)
+              ? row.clientReports.filter(appVisibleResultReport)
               : [];
             if (list.length) return list;
-            if (row.clientReport && row.clientReport.approved === true) return [row.clientReport];
+            if (appVisibleResultReport(row.clientReport)) return [row.clientReport];
             // RC3.19: 승인 상태와 payload 저장이 어긋난 기존/경계 케이스용 fallback.
-            if (row.approvedClientReport && row.approvedClientReport.approved === true) return [row.approvedClientReport];
+            if (appVisibleResultReport(row.approvedClientReport)) return [row.approvedClientReport];
             return [];
           })()
         }

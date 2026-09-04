@@ -77,7 +77,7 @@ console.info('[MML] CLIENT-REPORT-PUBLICATION-STEP4 loaded');
     if(kind==='individual'){
       return testType ? `${testType} 개별 심리검사 보고서` : '개별 심리검사 보고서';
     }
-    if(kind==='comprehensive')return '심리검사 종합보고서';
+    if(kind==='comprehensive')return '심리검사 결과보고서';
     if(kind==='integrated')return '통합 심리평가보고서';
     if(kind==='summary')return '심리검사 요약보고서';
 

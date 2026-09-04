@@ -35,7 +35,7 @@ function reportLabel(report={}){
   if(type==='individualReport')return `${text(report.testType||report.testName)||'개별 심리검사'} 보고서`;
   if(type==='parentReport')return '부모·보호자용 심리검사 보고서';
   if(type==='counselorComprehensiveReport')return '상담자용 종합 심리평가보고서';
-  return '심리검사 종합보고서';
+  return '심리검사 결과보고서';
 }
 
 function toReportCard(report={}){
