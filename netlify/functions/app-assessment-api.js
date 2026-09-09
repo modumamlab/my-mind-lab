@@ -287,16 +287,26 @@ exports.handler = async (event) => {
     const provider = text(body.provider, 40);
     const note = text(body.chiefComplaint || body.note, 1000);
     const consultationMethod = text(body.consultationMethod, 20);
-    const allowedConsultationMethods = new Set(['대면상담','비대면상담']);
+    const allowedCounselingMethods = new Set(['대면상담','비대면상담']);
+    const allowedAssessmentMethods = new Set(['AI상담','대면상담','비대면상담']);
+    const scheduledAssessmentMethods = new Set(['대면상담','비대면상담']);
     const preferredDate = text(body.preferredDate || body.date, 10);
     const preferredTime = text(body.preferredTime || body.time, 5);
-    const allowedTimes = new Set(Array.from({length:17}, (_,i) => { const total=9*60+i*30; return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`; }));
+    const isAllowedBookingTime = (dateValue, timeValue) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || !/^\d{2}:\d{2}$/.test(timeValue)) return false;
+      const day = new Date(`${dateValue}T00:00:00+09:00`).getDay();
+      const isWeekend = day === 0 || day === 6;
+      const [hh, mm] = timeValue.split(':').map(Number);
+      const total = hh * 60 + mm;
+      const end = (isWeekend ? 21 : 17) * 60;
+      return (mm === 0 || mm === 30) && total >= 9 * 60 && total <= end;
+    };
     const seoulToday = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     const applicationType = text(body.applicationType, 30);
     const isCounselingApplication = applicationType === 'counseling';
 
     if (isCounselingApplication) {
-      if (!name || phone.length < 9 || note.length < 2 || !allowedConsultationMethods.has(consultationMethod) || !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || preferredDate < seoulToday || !allowedTimes.has(preferredTime)) {
+      if (!name || phone.length < 9 || note.length < 2 || !allowedCounselingMethods.has(consultationMethod) || !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || preferredDate < seoulToday || !isAllowedBookingTime(preferredDate, preferredTime)) {
         return response(400, { ok: false, error: '마음상담 신청정보를 확인해 주세요.' });
       }
 
@@ -344,7 +354,13 @@ exports.handler = async (event) => {
       }
     }
 
-    if (!name || !email || phone.length < 9 || !allowedConsultationMethods.has(consultationMethod) || !allowedTests.has(testId) || !allowedProviders.has(provider) || !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || preferredDate < seoulToday || !allowedTimes.has(preferredTime)) {
+    const needsSchedule = scheduledAssessmentMethods.has(consultationMethod);
+    const scheduleValid = !needsSchedule || (
+      /^\d{4}-\d{2}-\d{2}$/.test(preferredDate) &&
+      preferredDate >= seoulToday &&
+      isAllowedBookingTime(preferredDate, preferredTime)
+    );
+    if (!name || !email || phone.length < 9 || !allowedAssessmentMethods.has(consultationMethod) || !allowedTests.has(testId) || !allowedProviders.has(provider) || !scheduleValid) {
       return response(400, { ok: false, error: '필수 신청정보를 확인해 주세요.' });
     }
 
@@ -364,13 +380,13 @@ exports.handler = async (event) => {
       email,
       type: consultationMethod,
       consultationMethod,
-      counselingFee: consultationMethod === '대면상담' ? 50000 : 30000,
+      counselingFee: consultationMethod === '대면상담' ? 50000 : consultationMethod === '비대면상담' ? 30000 : 0,
       testFee: TEST_PRICES[testId] || 0,
-      estimatedTotal: (consultationMethod === '대면상담' ? 50000 : 30000) + (TEST_PRICES[testId] || 0),
-      date: preferredDate,
-      time: preferredTime,
-      preferredDate,
-      preferredTime,
+      estimatedTotal: (consultationMethod === '대면상담' ? 50000 : consultationMethod === '비대면상담' ? 30000 : 0) + (TEST_PRICES[testId] || 0),
+      date: needsSchedule ? preferredDate : '',
+      time: needsSchedule ? preferredTime : '',
+      preferredDate: needsSchedule ? preferredDate : '',
+      preferredTime: needsSchedule ? preferredTime : '',
       applicationDate: now.toISOString().slice(0, 10),
       program: `개별 심리검사 (${testName})`,
       bookingProgram: '개별 심리검사',
@@ -390,8 +406,8 @@ exports.handler = async (event) => {
         concern: note,
         submittedAt: now.toISOString(),
         consultationMethod,
-        preferredDate,
-        preferredTime
+        preferredDate: needsSchedule ? preferredDate : '',
+        preferredTime: needsSchedule ? preferredTime : ''
       },
       consentForm: {
         privacy: true,

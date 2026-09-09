@@ -9,7 +9,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     location.hostname.endsWith('.local');
 
   const mode = isLocal ? 'development' : 'production';
-  const build = '20260903-rc3-33-jtci-canonical-reservation-v1';
+  const build = '20260909-app-report-edit-v4-preserve';
 
   const core = [
     {
@@ -42,7 +42,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'unified-ai-report-engine',
-      src:'./js/modules/unified-ai-report-engine.js?v=20260725-report-quality-step12',
+      src:'./js/modules/unified-ai-report-engine.js?v=20260904-test-specific-report-schema-v1',
       required:true,
       dependsOn:['report-viewer']
     },
@@ -87,13 +87,13 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260903-rc3-33-jtci-canonical-reservation-v1',
+      src:'./js/modules/assessment-reports.js?v=20260904-rc3-42-local-app-reservation-sync-v1',
       required:true,
       dependsOn:['data-store','print-engine']
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260903-rc3-33-jtci-canonical-reservation-v1',
+      src:'./js/modules/operations-workspace.js?v=20260909-app-report-edit-v4-preserve',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20260903-rc3-33-jtci-canonical-reservation-v1',
+      src:'./js/admin.js?v=20260909-app-report-edit-v4-preserve',
       required:true
     },
     {

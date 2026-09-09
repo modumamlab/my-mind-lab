@@ -890,14 +890,14 @@ function persistReviewedAnalysesAsComprehensiveSource(reservation){
 }
 
 async function generateComprehensiveAssessmentReportDirect(buttonEl){
-  const original=buttonEl?.textContent||'상담자용 심리검사 종합보고서 생성(AI)';
-  if(buttonEl){buttonEl.disabled=true;buttonEl.textContent='상담용 종합보고서 생성 중...';}
+  const original=buttonEl?.textContent||'상담자용 심리검사 보고서 생성(AI)';
+  if(buttonEl){buttonEl.disabled=true;buttonEl.textContent='상담자용 보고서 생성 중...';}
   try{
     const r=assessmentReservation();
     if(!r)throw new Error('대상 회원을 선택해 주세요.');
     const sourceReport=persistReviewedAnalysesAsComprehensiveSource(r);
     if(typeof generateDerivedAssessmentReport!=='function')throw new Error('심리검사 결과보고서 생성 모듈을 불러오지 못했습니다.');
-    await generateDerivedAssessmentReport(sourceReport.id,'client',buttonEl||null);
+    await generateDerivedAssessmentReport(sourceReport.id,'counselor',buttonEl||null);
   }catch(error){
     alert(error?.message||'심리검사 결과보고서를 생성하지 못했습니다.');
   }finally{
@@ -1350,11 +1350,240 @@ function assessmentAnalysisCard(a){
       <iframe title="${esc(individualReportTitle(test))}" src="${previewUrl}" style="display:block;width:100%;height:1180px;border:0;border-radius:16px;background:#e8eeeb" loading="lazy"></iframe>
     </div>
     <div class="border-t border-slate-100 p-5">
-      ${(()=>{const report=assessmentCenterIndividualReportForAnalysis(a.id);const requested=Boolean(report&&typeof reportHasMatchingClientRequest==='function'&&reportHasMatchingClientRequest(report));return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-6"><button id="mml-individual-preview-toggle-${a.id}" type="button" aria-expanded="${assessmentInlinePreviewOpenIds.has(String(a.id))?'true':'false'}" onclick="toggleIndividualAssessmentInlinePreview('${a.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">${assessmentInlinePreviewOpenIds.has(String(a.id))?'접기':'열기'}</button><button onclick="saveGeneratedAssessmentReport('${a.id}')" class="rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700">결과보고서 저장</button>${report?`<button onclick="editIndividualAssessmentReport('${report.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">수정</button>${report.approvedForClient?`<span class="flex items-center justify-center rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-extrabold text-emerald-700">승인완료</span><button onclick="toggleReportApproval('${report.id}')" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold text-slate-600">승인취소</button>`:requested?`<button onclick="toggleReportApproval('${report.id}')" class="rounded-2xl bg-emerald-700 px-4 py-3 text-xs font-extrabold text-white">승인</button>`:`<span class="flex items-center justify-center rounded-2xl bg-amber-50 px-4 py-3 text-xs font-extrabold text-amber-700">사용자 신청 대기</span>`}<button onclick="printReport('${report.id}',true)" class="rounded-2xl border border-orange-200 bg-white px-4 py-3 text-xs font-extrabold text-orange-700">PDF</button>`:''}</div>`})()}
+      ${(()=>{const report=assessmentCenterIndividualReportForAnalysis(a.id);return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4"><button id="mml-individual-preview-toggle-${a.id}" type="button" aria-expanded="${assessmentInlinePreviewOpenIds.has(String(a.id))?'true':'false'}" onclick="toggleIndividualAssessmentInlinePreview('${a.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">${assessmentInlinePreviewOpenIds.has(String(a.id))?'접기':'열기'}</button><button onclick="saveGeneratedAssessmentReport('${a.id}')" class="rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700">결과보고서 저장</button>${report?`<button onclick="editIndividualAssessmentReport('${report.id}')" class="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-800">수정</button><button onclick="printReport('${report.id}',true)" class="rounded-2xl border border-orange-200 bg-white px-4 py-3 text-xs font-extrabold text-orange-700">PDF</button>`:''}</div>`})()}
     </div>
   </section>`;
 }
 
+
+
+
+const assessmentAppPreviewOpenIds=new Set();
+const assessmentAppPreviewEditIds=new Set();
+
+function assessmentAppReportData(report){
+  const raw=report?.sections||{};
+  const s=Array.isArray(raw)?Object.fromEntries(raw.map(item=>[item?.key||item?.title,item?.text||item?.content||''])):raw;
+  const pick=(...keys)=>keys.map(key=>s?.[key]??report?.[key]).find(value=>String(value||'').trim())||'';
+  return {
+    summary:pick('coreFindings','summary','overview','keyMessage'),
+    strength:pick('strengths','strength','strengthsResources'),
+    caution:pick('vulnerabilities','caution','currentSignals'),
+    emotion:pick('emotionalPattern','emotion'),
+    thinking:pick('thinkingPattern','thinking'),
+    relationship:pick('relationshipPattern','relationship'),
+    stress:pick('stressPattern','stress'),
+    direction:pick('helpfulDirections','plan','psychologicalSuggestions')
+  };
+}
+
+function assessmentAppPreviewTextarea(reportId,key,value,rows=5){
+  return `<textarea data-app-inline-report="${esc(String(reportId))}" data-app-inline-key="${esc(key)}" rows="${rows}" class="mt-2 w-full resize-y rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700 outline-none focus:border-indigo-500">${esc(value||'')}</textarea>`;
+}
+
+function assessmentAppReportPreviewHtml(report){
+  const data=assessmentAppReportData(report);
+  const editing=assessmentAppPreviewEditIds.has(String(report?.id));
+  const approved=Boolean(report?.approvedForClient);
+  const text=(key,value,rows=5)=>editing
+    ? assessmentAppPreviewTextarea(report?.id,key,value,rows)
+    : `<p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">${esc(value||'저장된 내용이 없습니다.')}</p>`;
+  const domain=(label,key,value)=>`<div><p class="text-[11px] font-extrabold text-indigo-700">${esc(label)}</p>${editing?assessmentAppPreviewTextarea(report?.id,key,value,4):`<p class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">${esc(value||'저장된 내용이 없습니다.')}</p>`}</div>`;
+
+  return `<div class="mx-auto max-w-[430px] overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl">
+    <div class="bg-slate-950 px-6 py-5 text-white">
+      <p class="text-[10px] font-extrabold tracking-[.15em] text-emerald-300">나의 심리리포트 · APP PREVIEW</p>
+      <h4 class="mt-2 text-lg font-extrabold">${esc(report?.title||`${assessmentTestLabel(report?.testType)} 심리리포트`)}</h4>
+      <p class="mt-1 text-xs text-slate-300">${esc(report?.clientName||'')} · ${esc(String(report?.updatedAt||report?.createdAt||'').slice(0,10))}</p>
+      ${editing?`<p class="mt-3 rounded-lg bg-indigo-500/20 px-3 py-2 text-[11px] font-bold text-indigo-100">현재 보이는 APP 화면에서 바로 수정 중입니다.</p>`:''}
+    </div>
+    <div class="space-y-4 p-5">
+      <section class="rounded-2xl bg-emerald-50 p-4">
+        <p class="text-[11px] font-extrabold text-emerald-700">AI 전문 분석 요약</p>
+        ${text('summary',data.summary,6)}
+      </section>
+      <section class="rounded-2xl border border-slate-100 p-4">
+        <p class="text-xs font-extrabold text-slate-900">01 강점과 자원</p>
+        ${text('strength',data.strength,6)}
+      </section>
+      <section class="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
+        <p class="text-xs font-extrabold text-amber-800">02 주의해서 살펴볼 부분</p>
+        ${text('caution',data.caution,6)}
+      </section>
+      <section class="rounded-2xl border border-slate-100 p-4">
+        <p class="text-xs font-extrabold text-slate-900">03 마음 프로파일</p>
+        <div class="mt-3 space-y-3">
+          ${domain('정서','emotion',data.emotion)}
+          ${domain('사고','thinking',data.thinking)}
+          ${domain('관계','relationship',data.relationship)}
+          ${domain('스트레스','stress',data.stress)}
+        </div>
+      </section>
+      <section class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+        <p class="text-xs font-extrabold text-indigo-800">04 도움이 되는 방향</p>
+        ${text('direction',data.direction,7)}
+      </section>
+      ${editing?`<div class="grid grid-cols-2 gap-2"><button type="button" onclick="cancelAssessmentAppInlineEdit('${report?.id}')" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-600">수정 취소</button><button type="button" onclick="saveAssessmentAppInlineEdit('${report?.id}')" class="rounded-2xl bg-indigo-700 px-4 py-3 text-sm font-extrabold text-white">수정내용 저장</button></div>`:`<button type="button" disabled class="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white opacity-70">이 리포트로 AI 해석상담 시작 · 미리보기</button>`}
+      <p class="text-center text-[10px] font-bold ${approved?'text-emerald-600':'text-amber-600'}">${approved?'현재 사용자 앱 공개 상태':'현재 사용자 앱 비공개 상태'}</p>
+    </div>
+  </div>`;
+}
+
+function toggleAssessmentAppReportPreview(reportId){
+  const id=String(reportId||'');
+  if(!id)return;
+  if(assessmentAppPreviewOpenIds.has(id)){
+    assessmentAppPreviewOpenIds.delete(id);
+    assessmentAppPreviewEditIds.delete(id);
+  }else{
+    assessmentAppPreviewOpenIds.add(id);
+  }
+  render();
+}
+window.toggleAssessmentAppReportPreview=toggleAssessmentAppReportPreview;
+
+function startAssessmentAppInlineEdit(reportId){
+  const id=String(reportId||'');
+  if(!id)return;
+  assessmentAppPreviewOpenIds.add(id);
+  assessmentAppPreviewEditIds.add(id);
+  render();
+}
+window.startAssessmentAppInlineEdit=startAssessmentAppInlineEdit;
+
+function cancelAssessmentAppInlineEdit(reportId){
+  assessmentAppPreviewEditIds.delete(String(reportId||''));
+  render();
+}
+window.cancelAssessmentAppInlineEdit=cancelAssessmentAppInlineEdit;
+
+function saveAssessmentAppInlineEdit(reportId){
+  const report=(state.reports||[]).find(item=>String(item.id)===String(reportId));
+  if(!report){alert('수정할 APP 심리리포트를 찾지 못했습니다.');return;}
+  const get=key=>String(document.querySelector(`[data-app-inline-report="${CSS.escape(String(reportId))}"][data-app-inline-key="${key}"]`)?.value||'').trim();
+  const summary=get('summary');
+  const strength=get('strength');
+  const caution=get('caution');
+  const emotion=get('emotion');
+  const thinking=get('thinking');
+  const relationship=get('relationship');
+  const stress=get('stress');
+  const direction=get('direction');
+
+  const sections={...(report.sections&&typeof report.sections==='object'&&!Array.isArray(report.sections)?report.sections:{})};
+  sections.coreFindings=summary;
+  sections.summary=summary;
+  sections.strengths=strength;
+  sections.vulnerabilities=caution;
+  sections.emotionalPattern=emotion;
+  sections.thinkingPattern=thinking;
+  sections.relationshipPattern=relationship;
+  sections.stressPattern=stress;
+  sections.helpfulDirections=direction;
+
+  const now=new Date().toISOString();
+  const next={
+    ...report,
+    summary,
+    strength,
+    caution,
+    plan:direction,
+    sections,
+    approved:false,
+    approvedForClient:false,
+    clientVisible:false,
+    published:false,
+    approvedAt:'',
+    publishedAt:'',
+    approvalUpdatedAt:now,
+    updatedAt:now,
+    status:'APP 수정완료 · 공개 승인대기'
+  };
+  const rows=(state.reports||[]).map(item=>String(item.id)===String(reportId)?next:item);
+  commitAssessmentReports(rows);
+  try{window.MMLClientReportPublication?.sync?.({force:true,reason:'app-report-inline-edited'});}catch(error){console.warn('[MML] APP 리포트 수정 공개상태 갱신 실패',error);}
+  try{
+    if(typeof window.mmlSyncAssessmentAppReportToReservation==='function'){
+      window.mmlSyncAssessmentAppReportToReservation(next,false).catch(error=>console.warn('[MML] APP 수정 후 공개본 회수 실패',error));
+    }
+  }catch(error){console.warn('[MML] APP 수정 후 공개본 회수 실패',error);}
+  assessmentAppPreviewEditIds.delete(String(reportId));
+  alert('APP 미리보기에서 수정한 내용을 저장했습니다. 내용을 다시 확인한 뒤 APP 공개 승인을 진행해 주세요.');
+  render();
+}
+window.saveAssessmentAppInlineEdit=saveAssessmentAppInlineEdit;
+
+// 이전 팝업 편집 함수는 호환성을 위해 유지하되, 실제 버튼은 미리보기 직접 수정 기능을 사용합니다.
+function editAssessmentAppReport(reportId){
+  startAssessmentAppInlineEdit(reportId);
+}
+window.editAssessmentAppReport=editAssessmentAppReport;
+
+async function toggleAssessmentAppPublication(reportId){
+  const report=(state.reports||[]).find(item=>String(item.id)===String(reportId));
+  if(!report){alert('APP 심리리포트를 찾지 못했습니다.');return;}
+  const approved=Boolean(report.approvedForClient);
+  const message=approved?'사용자 앱 공개를 취소할까요?':'이 심리리포트를 사용자 앱에 공개할까요?';
+  if(!confirm(message))return;
+
+  const now=new Date().toISOString();
+  const next={
+    ...report,
+    approved:!approved,
+    approvedForClient:!approved,
+    clientVisible:!approved,
+    published:!approved,
+    approvedAt:!approved?now:'',
+    publishedAt:!approved?now:'',
+    approvalUpdatedAt:now,
+    updatedAt:now,
+    status:!approved?'APP 공개 승인완료':'APP 공개 승인대기'
+  };
+
+  try{
+    if(typeof window.mmlSyncAssessmentAppReportToReservation!=='function'){
+      throw new Error('APP 리포트 서버 동기화 기능을 찾지 못했습니다.');
+    }
+    // 서버 반영이 성공한 뒤 관리자 승인상태를 확정합니다.
+    await window.mmlSyncAssessmentAppReportToReservation(next,!approved);
+    const rows=(state.reports||[]).map(item=>String(item.id)===String(reportId)?next:item);
+    commitAssessmentReports(rows);
+    try{window.MMLClientReportPublication?.sync?.({force:true,reason:!approved?'app-report-published':'app-report-unpublished'});}catch(error){console.warn('[MML] APP 공개상태 동기화 실패',error);}
+    alert(!approved?'사용자 앱에 심리리포트를 공개했습니다.':'사용자 앱 공개를 취소했습니다.');
+    render();
+  }catch(error){
+    console.error('[MML] APP 공개 서버 반영 실패',error);
+    alert(error?.message||'사용자 앱에 심리리포트를 반영하지 못했습니다.');
+  }
+}
+window.toggleAssessmentAppPublication=toggleAssessmentAppPublication;
+
+function assessmentAppReportSection(reservation,analyses=[]){
+  const reports=(analyses||[]).map(a=>assessmentCenterIndividualReportForAnalysis(a.id)).filter(Boolean);
+  const cards=reports.length?reports.map(report=>{
+    const approved=Boolean(report.approvedForClient);
+    const open=assessmentAppPreviewOpenIds.has(String(report.id));
+    const editing=assessmentAppPreviewEditIds.has(String(report.id));
+    return `<article class="overflow-hidden rounded-[2rem] border border-indigo-200 bg-white shadow-sm">
+      <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h4 class="text-base font-extrabold text-slate-900">${esc(assessmentTestLabel(report.testType))} APP 나의 심리리포트</h4>
+            <span class="rounded-full px-2.5 py-1 text-[10px] font-extrabold ${approved?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${approved?'APP 공개 승인완료':'APP 공개 승인대기'}</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-400">실제 APP 화면을 그대로 보면서 문구를 직접 수정하고 공개 여부를 결정합니다.</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <button type="button" onclick="toggleAssessmentAppReportPreview('${report.id}')" class="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-xs font-extrabold text-indigo-700">${open?'미리보기 닫기':'APP 미리보기'}</button>
+          <button type="button" onclick="${editing?`cancelAssessmentAppInlineEdit('${report.id}')`:`startAssessmentAppInlineEdit('${report.id}')`}" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-extrabold text-slate-700">${editing?'수정 취소':'미리보기 수정'}</button>
+          <button type="button" onclick="toggleAssessmentAppPublication('${report.id}')" class="rounded-xl ${approved?'border border-amber-200 bg-white text-amber-700':'bg-emerald-700 text-white'} px-4 py-2.5 text-xs font-extrabold">${approved?'APP 승인취소':'APP 공개 승인'}</button>
+        </div>
+      </div>
+      ${open?`<div class="border-t border-slate-100 bg-slate-100/70 p-5">${assessmentAppReportPreviewHtml(report)}</div>`:''}
+    </article>`;
+  }).join(''):`<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-400">먼저 2. 개별 심리검사 보고서에서 결과보고서를 저장해 주세요.</div>`;
+  return `<section id="assessment-app-reports" class="space-y-4"><div class="flex items-end justify-between"><div><h3 class="text-xl font-extrabold">3. APP 나의 심리리포트</h3><p class="mt-1 text-xs text-slate-400">APP 미리보기 화면 자체에서 문구를 수정한 뒤 공개 승인합니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${reports.length}건</span></div>${cards}</section>`;
+}
 
 function assessmentComprehensiveReportsForReservation(reservationId){
   let rows=[];
@@ -1364,8 +1593,7 @@ function assessmentComprehensiveReportsForReservation(reservationId){
   }catch(_){rows=[]}
   const filtered=(Array.isArray(rows)?rows:[])
     .filter(report=>String(report?.reservationId||'')===String(reservationId)
-      && report?.audience!=='counselor'
-      && (report?.comprehensiveReport===true||report?.reportType==='comprehensiveReport'||report?.derivedReportType==='clientComprehensiveReport'))
+      && (report?.audience==='counselor'||report?.integratedAssessmentReport===true||report?.reportType==='counselorComprehensiveReport'||report?.derivedReportType==='counselorComprehensiveReport'))
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
   return filtered.length?[filtered[0]]:[];
 }
@@ -1391,31 +1619,10 @@ window.printAssessmentComprehensiveReport=printAssessmentComprehensiveReport;
 function assessmentComprehensiveReportSection(reservation){
   const reports=assessmentComprehensiveReportsForReservation(reservation?.id);
   const cards=reports.length?reports.map(report=>{
-    const approved=Boolean(report.approvedForClient);
-    const saved=report.status==='saved'||report.reviewStatus==='saved'||approved;
-    const statusText=approved?'승인완료 · 사용자 열람 가능':saved?'저장완료 · 승인대기':'작성 중';
-    const statusTone=approved?'bg-emerald-100 text-emerald-700':saved?'bg-amber-100 text-amber-700':'bg-slate-100 text-slate-600';
     const tests=Array.isArray(report.tests)?report.tests.join(' · '):String(report.tests||'');
-    return `<article class="rounded-[2rem] border border-emerald-200 bg-white p-5 shadow-sm">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div class="min-w-0">
-          <div class="flex flex-wrap items-center gap-2"><h4 class="text-base font-extrabold text-slate-900">상담자용 심리검사 종합보고서</h4><span class="rounded-full px-2.5 py-1 text-[10px] font-extrabold ${statusTone}">${statusText}</span></div>
-          <p class="mt-2 text-xs text-slate-500">${esc(tests||'통합 심리검사')} · ${esc(String(report.updatedAt||report.createdAt||'').replace('T',' ').slice(0,16))} · v${Number(report.version||1)}</p>
-          <p class="mt-1 text-[11px] text-slate-400">저장된 종합보고서를 다시 열어 수정·승인·승인취소·PDF 출력할 수 있습니다.</p>
-        </div>
-        <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <button type="button" onclick="openAssessmentComprehensiveReport('${report.id}')" class="rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs font-extrabold text-emerald-800">열기</button>
-          <button type="button" onclick="editAssessmentComprehensiveReport('${report.id}')" class="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-xs font-extrabold text-indigo-700">수정</button>
-          <button type="button" onclick="toggleDerivedAssessmentReportApproval('${report.id}')" class="rounded-xl ${approved?'border border-amber-200 bg-white text-amber-700':'bg-emerald-700 text-white'} px-4 py-2.5 text-xs font-extrabold">${approved?'승인취소':'승인'}</button>
-          <button type="button" onclick="printAssessmentComprehensiveReport('${report.id}')" class="rounded-xl border border-orange-200 bg-white px-4 py-2.5 text-xs font-extrabold text-orange-700">PDF</button>
-        </div>
-      </div>
-    </article>`;
-  }).join(''):`<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-400">아직 저장된 상담자용 심리검사 종합보고서가 없습니다. 상단의 <b>상담자용 심리검사 종합보고서 생성(AI)</b>으로 작성한 뒤 저장하면 이곳에 계속 표시됩니다.</div>`;
-  return `<section id="assessment-comprehensive-reports" class="space-y-4">
-    <div class="flex items-end justify-between"><div><h3 class="text-xl font-extrabold">3. 상담자용 심리검사 종합보고서</h3><p class="mt-1 text-xs text-slate-400">여러 검사결과를 상담사가 종합적으로 이해하도록 AI가 보조하는 보고서입니다. 승인 시 사용자 앱 결과보고서와 AI 해석상담에 연결됩니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${reports.length}건</span></div>
-    ${cards}
-  </section>`;
+    return `<article class="rounded-[2rem] border border-emerald-200 bg-white p-5 shadow-sm"><div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><h4 class="text-base font-extrabold text-slate-900">상담자용 심리검사 보고서</h4><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-extrabold text-slate-600">내부 상담자료</span></div><p class="mt-2 text-xs text-slate-500">${esc(tests||'통합 심리검사')} · ${esc(String(report.updatedAt||report.createdAt||'').replace('T',' ').slice(0,16))} · v${Number(report.version||1)}</p><p class="mt-1 text-[11px] text-slate-400">상담자 참고용 보고서입니다. 사용자 공개 승인은 필요하지 않습니다.</p></div><div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"><button type="button" onclick="openAssessmentComprehensiveReport('${report.id}')" class="rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs font-extrabold text-emerald-800">열기</button><button type="button" onclick="editAssessmentComprehensiveReport('${report.id}')" class="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-xs font-extrabold text-indigo-700">수정</button><button type="button" onclick="printAssessmentComprehensiveReport('${report.id}')" class="rounded-xl border border-orange-200 bg-white px-4 py-2.5 text-xs font-extrabold text-orange-700">PDF</button></div></div></article>`;
+  }).join(''):`<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-400">아직 저장된 상담자용 심리검사 보고서가 없습니다. 상단의 <b>상담자용 심리검사 보고서 생성(AI)</b>으로 작성한 뒤 저장하면 이곳에 표시됩니다.</div>`;
+  return `<section id="assessment-comprehensive-reports" class="space-y-4"><div class="flex items-end justify-between"><div><h3 class="text-xl font-extrabold">4. 상담자용 심리검사 보고서</h3><p class="mt-1 text-xs text-slate-400">상담자가 검사결과를 종합적으로 이해하고 상담에 활용하는 내부 보고서입니다. 생성·열기·수정·PDF만 사용하며 승인 기능은 없습니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${reports.length}건</span></div>${cards}</section>`;
 }
 
 function testInterpretationView(){
@@ -1425,7 +1632,8 @@ function testInterpretationView(){
   return layout(`<div class="space-y-6">${r?assessmentReportRequestStatusCard(r,analyses):''}<div class="rounded-[2rem] bg-gradient-to-r from-slate-950 via-indigo-950 to-emerald-950 p-7 text-white shadow-xl"><p class="text-xs font-extrabold text-emerald-300">AI MASTER PSYCHOLOGICAL ASSESSMENT ENGINE 1.0</p><h2 class="mt-2 text-2xl font-extrabold">심리평가센터</h2><p class="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">모든 심리검사 결과와 상담자 검토 내용을 하나의 통합 마스터 보고서로 취합합니다. 심리평가센터에서 검사결과 분석부터 보고서 저장·승인·내담자 공개까지 한 번에 진행합니다.</p></div>
   <div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_auto]"><select onchange="setAssessmentReservation(this.value)" class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold"><option value="">회원·예약 선택</option>${state.reservations.map(x=>`<option value="${x.id}" ${String(state.assessmentReservationId)===String(x.id)?'selected':''}>${esc(x.name)} · ${esc(programBaseName(x.program))} · ${esc(x.date)} ${esc(x.time)}</option>`).join('')}</select>${r?`<button onclick="generateComprehensiveAssessmentReportDirect(this)" ${state.integratedReportLoading?'disabled':''} class="rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">${state.integratedReportLoading?'상담용 종합보고서 생성 중...':'상담자용 심리검사 종합보고서 생성(AI)'}</button>`:''}</div>${r?`<div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-5"><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">회원</p><p class="mt-1 font-extrabold">${esc(r.name)}님</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">프로그램</p><p class="mt-1 font-extrabold">${esc(programBaseName(r.program))}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">신청 검사</p><p class="mt-1 font-extrabold">${requested.length?requested.map(esc).join(', '):'검사 미등록'}</p></div><div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-400">분석 현황</p><p class="mt-1 font-extrabold">${analyses.filter(x=>x.reviewed).length}/${Math.max(requested.length,analyses.length)} 검토 완료</p></div>${(()=>{const reportStatus=assessmentTopReportStatus(r,analyses);const tone=reportStatus.tone==='emerald'?'bg-emerald-50 text-emerald-700':reportStatus.tone==='amber'?'bg-amber-50 text-amber-700':reportStatus.tone==='indigo'?'bg-indigo-50 text-indigo-700':'bg-slate-50 text-slate-600';return `<div class="rounded-2xl p-4 ${tone}"><p class="text-xs font-bold opacity-60">${esc(reportStatus.label)}</p><p class="mt-1 font-extrabold">${esc(reportStatus.text)}</p></div>`})()}</div>`:''}</div>
   ${r?`<div class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 class="text-xl font-extrabold">1. 심리검사 결과 관리</h3><p class="mt-1 text-xs text-slate-400">검사결과를 추가하거나 검사별 파일을 변경·재분석·삭제할 수 있습니다.</p></div><label class="cursor-pointer rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white">검사결과 추가<input type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFiles(this.files)"/></label></div><div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">${available.length?available.map(test=>{const a=analysisForTest(r.id,test);const loading=state.assessmentLoading[`${r.id}_${test}`];return`<div class="rounded-2xl border ${a?'border-emerald-200 bg-emerald-50':'border-slate-200 bg-slate-50'} p-5"><div class="flex items-center justify-between"><p class="font-extrabold">${esc(assessmentTestLabel(test))}</p><span class="rounded-full bg-white px-2 py-1 text-[10px] font-bold ${a?.reviewed?'text-emerald-700':a?'text-amber-700':'text-slate-400'}">${a?.reviewed?'검토완료':a?'분석완료':'업로드 대기'}</span></div>${a?`<div class="mt-4 grid grid-cols-3 gap-2"><label class="cursor-pointer rounded-xl border border-slate-200 bg-white px-2 py-3 text-center text-[11px] font-extrabold text-indigo-700">파일 변경<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label><label class="cursor-pointer rounded-xl border border-slate-200 bg-white px-2 py-3 text-center text-[11px] font-extrabold text-slate-700">${loading?'분석 중...':'재분석'}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label><button onclick="deleteAssessmentTestResult('${r.id}','${esc(test)}')" class="rounded-xl border border-rose-200 bg-white px-2 py-3 text-[11px] font-extrabold text-rose-600">삭제</button></div>`:`<label class="mt-4 block cursor-pointer rounded-xl border-2 border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs font-extrabold text-indigo-700">${loading?'분석 중...':'결과 파일 업로드·분석'}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label>`}</div>`}).join(''):'<p class="text-sm text-slate-400">신청 검사 정보가 없습니다.</p>'}</div><div class="mt-5 flex flex-wrap gap-2">${ASSESSMENT_TEST_OPTIONS.filter(x=>!available.includes(x)).map(test=>`<label class="cursor-pointer rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">+ ${esc(test)}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" class="hidden" onchange="analyzeAssessmentFile('${r.id}','${esc(test)}',this.files[0])"/></label>`).join('')}</div></div>
-  <div id="assessment-individual-reports" class="space-y-4"><div class="flex items-end justify-between"><div><h3 class="text-xl font-extrabold">2. 개별 심리검사 보고서</h3><p class="mt-1 text-xs text-slate-400">검사별로 생성된 결과보고서를 저장한 뒤 이 화면에서 수정·승인·승인취소·PDF 출력을 진행합니다. 승인된 개별 보고서는 홈페이지 검사결과에 반영되며 사용자 앱 결과보고서에는 전송되지 않습니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${analyses.length}건</span></div>${analyses.length?analyses.map(assessmentAnalysisCard).join(''):'<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-400">검사결과 파일을 업로드하면 개별 심리검사 보고서 초안이 여기에 표시됩니다.</div>'}</div>
+  <div id="assessment-individual-reports" class="space-y-4"><div class="flex items-end justify-between"><div><h3 class="text-xl font-extrabold">2. 개별 심리검사 보고서</h3><p class="mt-1 text-xs text-slate-400">검사별 원본 결과보고서를 확인·저장·수정·PDF 출력합니다. 사용자 앱 공개 승인은 아래 3. APP 나의 심리리포트에서만 진행합니다.</p></div><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">${analyses.length}건</span></div>${analyses.length?analyses.map(assessmentAnalysisCard).join(''):'<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-400">검사결과 파일을 업로드하면 개별 심리검사 보고서 초안이 여기에 표시됩니다.</div>'}</div>
+  ${assessmentAppReportSection(r,analyses)}
   ${assessmentComprehensiveReportSection(r)}</div>`:`<div class="rounded-[2rem] border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-400">먼저 회원과 예약을 선택해 주세요.</div>`}</div>`)
 }
 
