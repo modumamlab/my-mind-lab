@@ -2297,7 +2297,8 @@ function layout(content){return`<main class="min-h-screen bg-slate-100">
             <div><p class="text-[11px] font-extrabold text-emerald-700">상담운영센터 2.0 · BUILD 20260909-ADMIN-NORMALIZED-V4</p><h2 class="text-xl font-extrabold text-slate-950 sm:text-2xl">${titleForMenu()}</h2><p class="mt-1 hidden text-xs text-slate-400 sm:block">${todayDisplayLabel()}</p></div>
             <div class="hidden sm:flex items-center gap-2">
               <button type="button" onclick="window.open('https://modumam-lab.netlify.app/','_blank','noopener')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">홈페이지</button>
-              <button type="button" onclick="window.open('http://localhost:5174/','mmlUserApp','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱</button>
+              <button type="button" onclick="window.open('http://localhost:5174/','mmlUserAppPreview','width=430,height=900,resizable=yes,scrollbars=yes')" class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white">사용자 앱 · 수정 확인</button>
+              <button type="button" onclick="window.open('https://modumam-app.netlify.app/','_blank','noopener')" class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700">운영 앱</button>
             </div>
           </div>
           <nav class="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">${navButton('dashboard','오늘 업무')}${navButton('clients','내담자')}${navButton('reservation','예약')}${navButton('interpretation','심리평가')}${navButton('journal','상담일지')}${navButton('intake','AI모니터링')}${navButton('settings','설정')}<button onclick="logout()" class="shrink-0 rounded-xl bg-rose-50 px-4 py-2 text-xs font-extrabold text-rose-600">로그아웃</button></nav>
@@ -3239,7 +3240,7 @@ function resultUploadsView(){
                 <span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${statusClass(st)}">${esc(st)}</span>
                 <span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${aiClass}">AI 상담 ${aiLabel}</span>
               </div>
-              <p class="mt-2 text-xs text-slate-500">${esc(r.phone||'연락처 없음')} · 신청일 ${esc(r.createdAt||r.date||'')}</p>
+              <p class="mt-2 text-xs text-slate-500">${esc(r.phone||'연락처 없음')}${(r.email||r.userEmail)?` · ${esc(r.email||r.userEmail)}`:''} · 신청일 ${esc(r.createdAt||r.date||'')}</p>
 
               <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">예약일정</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(r.date||'미정')} ${esc(r.time||'')}</p></div>
