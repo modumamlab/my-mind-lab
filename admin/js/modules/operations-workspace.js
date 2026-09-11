@@ -302,7 +302,7 @@ function reservationView(){
             <p class="mt-1 text-[11px] text-slate-400">${esc(r.phone||'연락처 없음')}${(r.applicationForm?.email||r.email||r.userEmail)?` · ${esc(r.applicationForm?.email||r.email||r.userEmail)}`:''}</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            ${normalizeStatus(r.status)!=='예약취소' && window.isAiCounselingReservation?.(r)
+            ${normalizeStatus(r.status)!=='예약취소'
               ? window.renderAiCounselingActivationControl?.(r) || ''
               : ''}
             ${normalizeStatus(r.status)==='취소요청'
