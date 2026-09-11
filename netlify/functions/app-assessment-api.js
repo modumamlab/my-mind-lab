@@ -105,6 +105,73 @@ function aiAccessPayload(row) {
   };
 }
 
+async function authenticatedAppUser(event) {
+  const authorization = String(event.headers?.authorization || event.headers?.Authorization || '').trim();
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+
+  const supabaseUrl = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '')
+    .replace(/\/rest\/v1\/?$/i, '')
+    .replace(/\/+$/, '');
+  const supabaseKey = String(
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    ''
+  ).trim();
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[app-assessment-api] Supabase auth config missing');
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      method: 'GET',
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${match[1]}` },
+      cache: 'no-store'
+    });
+    if (!res.ok) return null;
+    const user = await res.json().catch(() => null);
+    if (!user?.id || !user?.email) return null;
+    return { id: String(user.id), email: String(user.email).trim().toLowerCase() };
+  } catch (error) {
+    console.error('[app-assessment-api] user auth failed', error);
+    return null;
+  }
+}
+
+function clientApplicationPayload(row) {
+  const id = text(row?.appApplicationId || row?.id, 100);
+  return {
+    id,
+    accessToken: text(row?.appAccessToken, 120),
+    applicationType: text(row?.applicationType || 'assessment', 40),
+    name: text(row?.name || row?.clientName, 80),
+    email: text(row?.email || row?.userEmail, 160).toLowerCase(),
+    phone: text(row?.phone, 40),
+    status: publicStatus(row),
+    testId: text(row?.clientTestId || row?.testId || row?.test, 100),
+    testName: text(row?.testName || row?.test || row?.program, 200),
+    provider: text(row?.provider, 100),
+    consultationMethod: text(row?.consultationMethod || row?.type, 80),
+    preferredDate: text(row?.preferredDate || row?.date, 10),
+    preferredTime: text(row?.preferredTime || row?.time, 5),
+    date: text(row?.preferredDate || row?.date, 10),
+    time: text(row?.preferredTime || row?.time, 5),
+    createdAt: text(row?.createdAt || row?.submittedAt, 80),
+    updatedAt: text(row?.updatedAt || row?.createdAt, 80),
+    testUrl: text(row?.testUrl || row?.assessmentUrl, 1000),
+    clientReports: (() => {
+      const list = Array.isArray(row?.clientReports) ? row.clientReports.filter(appVisibleResultReport) : [];
+      if (list.length) return list;
+      if (appVisibleResultReport(row?.clientReport)) return [row.clientReport];
+      if (appVisibleResultReport(row?.approvedClientReport)) return [row.approvedClientReport];
+      return [];
+    })()
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return response(204, {});
 
@@ -129,9 +196,44 @@ exports.handler = async (event) => {
 
   const isAdminRequest = String(event.queryStringParameters?.admin || '') === '1';
 
-  // RC3.2: 운영 안전을 위해 예약 전체 삭제 API를 노출하지 않습니다.
+  // 관리자 삭제는 반드시 단일 예약 ID를 지정해야 합니다. 전체 삭제는 허용하지 않습니다.
   if (event.httpMethod === 'DELETE' && isAdminRequest) {
-    return response(405, { ok: false, error: '예약 전체 삭제 API는 비활성화되었습니다.' });
+    if (!adminAuthorized(event)) return response(401,{ok:false,error:'관리자 인증이 필요합니다.'});
+    const requestedId=text(event.queryStringParameters?.id,100);
+    if(!requestedId)return response(400,{ok:false,error:'삭제할 예약 ID가 필요합니다.'});
+    try{
+      const current=rows(await store.get(KEY,{type:'json'}).catch(()=>null));
+      const index=current.findIndex(row=>String(row?.appApplicationId||row?.id||'')===requestedId || String(row?.id||'')===requestedId);
+      if(index<0)return response(404,{ok:false,error:'이미 삭제되었거나 예약을 찾을 수 없습니다.'});
+      const target=current[index];
+      const isAppRow=Boolean(text(target?.appAccessToken,120)) || target?.applicationSource==='modumam-app-v1' || /^APP-/i.test(String(target?.appApplicationId||target?.id||''));
+      if(!isAppRow)return response(409,{ok:false,error:'사용자 App 신청 원본이 아니어서 삭제하지 않았습니다.'});
+      const next=current.filter((_,i)=>i!==index);
+      await store.setJSON(KEY,next);
+      return response(200,{ok:true,deletedId:requestedId,count:next.length});
+    }catch(error){
+      console.error('[app-assessment-api] delete failed',error);
+      return response(503,{ok:false,error:'앱 신청 원본을 삭제하지 못했습니다.',detail:String(error?.message||error)});
+    }
+  }
+
+  // 로그인 계정을 기준으로 서버 원본 신청내역을 반환합니다.
+  // 브라우저 localStorage는 원본이 아니며, 같은 계정이면 어느 기기/브라우저에서도 같은 결과를 받습니다.
+  if (event.httpMethod === 'GET' && String(event.queryStringParameters?.action || '') === 'my-applications') {
+    const user = await authenticatedAppUser(event);
+    if (!user) return response(401, { ok:false, error:'로그인 인증이 필요합니다.' });
+    try {
+      const current = rows(await store.get(KEY, { type:'json' }).catch(() => null));
+      const applications = current
+        .filter(row => Boolean(text(row?.appAccessToken, 120)))
+        .filter(row => text(row?.email || row?.userEmail, 160).toLowerCase() === user.email)
+        .map(clientApplicationPayload)
+        .sort((a,b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+      return response(200, { ok:true, applications, count:applications.length });
+    } catch (error) {
+      console.error('[app-assessment-api] my applications failed', error);
+      return response(503, { ok:false, error:'신청내역을 불러오지 못했습니다.', detail:String(error?.message || error) });
+    }
   }
 
   if (event.httpMethod === 'GET' && isAdminRequest) {

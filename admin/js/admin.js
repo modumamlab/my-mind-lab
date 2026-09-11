@@ -170,6 +170,27 @@ async function saveServerReservations(rows){
   return putReservationSource(LEGACY_RESERVATION_SERVER_API,list,'예약 서버');
 }
 
+
+async function deleteAppReservationCanonical(reservation){
+  const appId=String(reservation?.appApplicationId||reservation?.id||'').trim();
+  const isAppReservation=Boolean(
+    reservation?.applicationSource==='modumam-app-v1' ||
+    reservation?.appApplicationId || reservation?.appAccessToken || /^APP-/i.test(appId)
+  );
+  if(!isAppReservation || !appId)return true;
+  const urls=[`/.netlify/functions/app-assessment-api?admin=1&id=${encodeURIComponent(appId)}`];
+  if(['localhost','127.0.0.1'].includes(String(location.hostname||''))){
+    urls.push(`${APP_RESERVATION_PRODUCTION_API}&id=${encodeURIComponent(appId)}`);
+  }
+  for(const url of [...new Set(urls)]){
+    const response=await fetch(url,{method:'DELETE',headers:{'X-MML-Admin-Password':ADMIN_PASSWORD},cache:'no-store'});
+    const body=await response.json().catch(()=>({}));
+    if(response.status===404)continue;
+    if(!response.ok || body?.ok!==true)throw new Error(body?.error||`앱 예약 삭제 실패 (${response.status})`);
+  }
+  return true;
+}
+
 async function saveReservationCanonical(reservation){
   if(!reservation || reservation.id===undefined || reservation.id===null){
     throw new Error('저장할 예약 정보가 없습니다.');
@@ -188,18 +209,25 @@ async function saveReservationCanonical(reservation){
   // 모두맘 앱에서 생성된 신청은 앱 전용 조회 저장소에도 같은 변경사항을 반영합니다.
   // 리포트 승인/AI 활성화 등의 관리자 변경이 앱에 즉시 보이도록 두 서버 원본을 동기화합니다.
   if(saved?.applicationSource==='modumam-app-v1' || saved?.appApplicationId){
-    try{
-      const appResponse=await fetch('/.netlify/functions/app-assessment-api?admin=1',{
-        method:'PATCH',
-        headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},
-        cache:'no-store',
-        body:JSON.stringify({reservation:saved})
-      });
-      const appBody=await appResponse.json().catch(()=>({}));
-      if(!appResponse.ok || appBody?.ok!==true){
-        console.warn('[앱 신청 동기화 실패]',appBody?.error||appResponse.status);
-      }
-    }catch(error){console.warn('[앱 신청 동기화 실패]',error);}
+    const appSyncUrls=['/.netlify/functions/app-assessment-api?admin=1'];
+    // 로컬 관리자에서 상태를 변경해도 실제 사용자 App이 보는 운영 서버까지 같은 신청건을 갱신합니다.
+    if(['localhost','127.0.0.1'].includes(String(location.hostname||''))){
+      appSyncUrls.push(APP_RESERVATION_PRODUCTION_API);
+    }
+    for(const url of [...new Set(appSyncUrls)]){
+      try{
+        const appResponse=await fetch(url,{
+          method:'PATCH',
+          headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},
+          cache:'no-store',
+          body:JSON.stringify({reservation:saved})
+        });
+        const appBody=await appResponse.json().catch(()=>({}));
+        if(!appResponse.ok || appBody?.ok!==true){
+          console.warn('[앱 신청 동기화 실패]',url,appBody?.error||appResponse.status);
+        }
+      }catch(error){console.warn('[앱 신청 동기화 실패]',url,error);}
+    }
   }
   return saved;
 }
@@ -1228,15 +1256,21 @@ async function deleteReservation(id){
   if(!confirm(`${target.name||'내담자'}님의 이 예약만 삭제하시겠습니까?\n\n다른 예약과 상담·검사·보고서 기록은 유지됩니다.`))return;
   const previous=[...state.reservations];
   state.reservations=state.reservations.filter(r=>String(r.id)!==String(id));
+  markReservationDeleted(target.id);
   try{
-    await saveServerReservations(state.reservations);
+    const legacySaved=await saveServerReservations(state.reservations);
+    if(legacySaved!==true)throw new Error('예약 서버 삭제 반영에 실패했습니다.');
+    await deleteAppReservationCanonical(target);
+    await deleteIndexedReservation(target.id);
     appendAuditLog('예약만 삭제',String(id),`${target.name||''} ${target.date||''} ${target.time||''}`);
     render();
-    alert('해당 예약만 삭제되었습니다.');
+    alert('해당 예약이 서버 원본에서도 삭제되었습니다.');
   }catch(error){
+    unmarkReservationDeleted(target.id);
     state.reservations=previous;
+    try{await saveServerReservations(previous);}catch(_){}
     render();
-    alert('예약을 삭제하지 못했습니다.\n'+String(error?.message||error));
+    alert('예약 삭제를 완료하지 못했습니다. 다시 시도해 주세요.\n'+String(error?.message||error));
   }
 }
 
@@ -1254,6 +1288,18 @@ async function deleteClientCompletelyByReservation(id){
   const typed=prompt('실수 방지를 위해 "전체삭제"를 입력해 주세요.','');
   if(typed!=='전체삭제'){alert('전체삭제가 취소되었습니다.');return;}
 
+  try{
+    for(const reservation of clientReservations){
+      markReservationDeleted(reservation.id);
+      await deleteAppReservationCanonical(reservation);
+      await deleteIndexedReservation(reservation.id);
+    }
+  }catch(error){
+    clientReservations.forEach(reservation=>unmarkReservationDeleted(reservation.id));
+    alert('사용자 App 예약 원본 삭제에 실패했습니다. 전체삭제를 중단합니다.\n'+String(error?.message||error));
+    return;
+  }
+
   state.reservations=state.reservations.filter(r=>clientKey(r.name,r.phone)!==key);
   state.intakes=state.intakes.filter(x=>clientKey(x.name,x.phone)!==key);
   state.reports=state.reports.filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
@@ -1263,7 +1309,14 @@ async function deleteClientCompletelyByReservation(id){
   state.assessmentCrossAnalyses=(state.assessmentCrossAnalyses||[]).filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
   state.testInterpretations=(state.testInterpretations||[]).filter(x=>!reservationIds.has(String(x.reservationId))&&clientKey(x.clientName,x.phone)!==key);
 
-  try{await saveServerReservations(state.reservations);}catch(error){alert('예약 서버 정리에 실패했습니다.\n'+String(error?.message||error));return;}
+  try{
+    const legacySaved=await saveServerReservations(state.reservations);
+    if(legacySaved!==true)throw new Error('예약 서버 정리에 실패했습니다.');
+  }catch(error){
+    clientReservations.forEach(reservation=>unmarkReservationDeleted(reservation.id));
+    alert('예약 서버 정리에 실패했습니다.\n'+String(error?.message||error));
+    return;
+  }
   localStorage.setItem('modumam_intake_summaries',JSON.stringify(state.intakes));
   persistReports(state.reports);
   localStorage.setItem('modumam_test_result_uploads',JSON.stringify(state.resultUploads));
@@ -3240,10 +3293,11 @@ function resultUploadsView(){
                 <span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${statusClass(st)}">${esc(st)}</span>
                 <span class="rounded-full px-3 py-1 text-[11px] font-extrabold ${aiClass}">AI 상담 ${aiLabel}</span>
               </div>
-              <p class="mt-2 text-xs text-slate-500">${esc(r.phone||'연락처 없음')}${(r.email||r.userEmail)?` · ${esc(r.email||r.userEmail)}`:''} · 신청일 ${esc(r.createdAt||r.date||'')}</p>
+              <p class="mt-2 text-xs text-slate-500">${esc(r.phone||'연락처 없음')}${(r.applicationForm?.email||r.email||r.userEmail)?` · ${esc(r.applicationForm?.email||r.email||r.userEmail)}`:''}</p>
 
-              <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">예약일정</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(r.date||'미정')} ${esc(r.time||'')}</p></div>
+              <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">접수일</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(r.applicationDate||String(r.createdAt||'').slice(0,10)||'-')}</p></div>
+                <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">상담일정</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(r.date||r.preferredDate||'확인 중')} ${esc(r.time||r.preferredTime||'')}</p></div>
                 <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">프로그램명</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(programBaseName(r.program)||'미정')}</p></div>
                 <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">검사명</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(tests.join(', ')||'없음')}</p></div>
                 <div class="rounded-2xl border border-slate-100 bg-white p-4"><p class="text-[10px] font-extrabold text-slate-400">상담방식</p><p class="mt-1 text-sm font-extrabold text-slate-900">${esc(r.type||'미정')}</p></div>

@@ -93,7 +93,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20260909-app-report-edit-v4-preserve',
+      src:'./js/modules/operations-workspace.js?v=20260910-ai-method-display-v1',
       required:true,
       dependsOn:['data-store','ui-components']
     }
