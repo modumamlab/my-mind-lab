@@ -797,7 +797,55 @@ function saveHomeAuthSession(session, profile = {}) {
             // Mind Chatbot / Analyzer Input
             const [mindState, setMindState] = useState('');
             const [mindPunctuation, setMindPunctuation] = useState('?');
+            const [hasMindSignalSelected, setHasMindSignalSelected] = useState(false);
+            const [selectedMindImageCard, setSelectedMindImageCard] = useState(null);
+            const [isMindImageDeckOpen, setIsMindImageDeckOpen] = useState(false);
+
+            // [MOD-20260912-MIND-IMAGE-CARDS]
+            // 1번 마음 신호에 따라 2번에 서로 다른 그림카드 5장을 보여줍니다.
+            // 카드 제목/키워드는 선택 전에는 노출하지 않아 이미지 자체에 마음이 가도록 구성합니다.
+            const mindImageCardSets = {
+                '?': [
+                    { id: 'q-fog-road', art: '🌫️', bg: 'from-slate-200 via-slate-100 to-indigo-100', label: '안개 낀 길' },
+                    { id: 'q-thread', art: '🧶', bg: 'from-rose-100 via-orange-50 to-amber-100', label: '엉킨 실' },
+                    { id: 'q-door', art: '🚪', bg: 'from-stone-100 via-yellow-50 to-amber-100', label: '열린 문' },
+                    { id: 'q-water', art: '🌊', bg: 'from-cyan-100 via-sky-100 to-blue-200', label: '흐르는 물' },
+                    { id: 'q-moon', art: '🌙', bg: 'from-indigo-200 via-slate-200 to-slate-300', label: '밤하늘' }
+                ],
+                '!': [
+                    { id: 'e-sunrise', art: '🌅', bg: 'from-amber-100 via-orange-100 to-rose-100', label: '떠오르는 빛' },
+                    { id: 'e-spark', art: '✨', bg: 'from-yellow-100 via-amber-50 to-white', label: '작은 반짝임' },
+                    { id: 'e-step', art: '🪜', bg: 'from-emerald-100 via-teal-50 to-sky-100', label: '한 계단' },
+                    { id: 'e-bird', art: '🕊️', bg: 'from-sky-100 via-white to-blue-100', label: '날아오르는 새' },
+                    { id: 'e-path', art: '🛤️', bg: 'from-lime-100 via-emerald-50 to-stone-100', label: '이어지는 길' }
+                ],
+                ',': [
+                    { id: 'c-chair', art: '🪑', bg: 'from-amber-50 via-orange-50 to-stone-100', label: '빈 의자' },
+                    { id: 'c-cup', art: '☕', bg: 'from-orange-100 via-amber-50 to-rose-50', label: '따뜻한 한 잔' },
+                    { id: 'c-leaf', art: '🍃', bg: 'from-emerald-100 via-green-50 to-lime-100', label: '바람에 흔들리는 잎' },
+                    { id: 'c-cloud', art: '☁️', bg: 'from-sky-100 via-blue-50 to-white', label: '느린 구름' },
+                    { id: 'c-bed', art: '🛏️', bg: 'from-violet-100 via-pink-50 to-rose-100', label: '조용한 방' }
+                ],
+                '.': [
+                    { id: 'p-seed', art: '🌱', bg: 'from-lime-100 via-emerald-50 to-green-100', label: '새싹' },
+                    { id: 'p-window', art: '🪟', bg: 'from-sky-100 via-cyan-50 to-white', label: '열린 창' },
+                    { id: 'p-bridge', art: '🌉', bg: 'from-indigo-100 via-violet-50 to-rose-100', label: '건너는 다리' },
+                    { id: 'p-shoes', art: '👟', bg: 'from-stone-100 via-slate-50 to-blue-50', label: '첫걸음' },
+                    { id: 'p-sun', art: '☀️', bg: 'from-yellow-100 via-orange-50 to-white', label: '아침 햇살' }
+                ]
+            };
             const [analysisResult, setAnalysisResult] = useState('');
+
+            // [MOD-20260912-DAILY-MIND-READING]
+            // AI 마음읽기는 하루 1회 확정합니다. 카드 탐색/재선택은 마음읽기 실행 전까지 자유롭게 가능합니다.
+            const getDailyMindReadingKey = () => {
+                let member = {};
+                try { member = JSON.parse(localStorage.getItem("modumamUser") || "{}"); } catch (e) {}
+                const memberId = String(member.email || member.phone || member.name || "guest").replace(/[^a-zA-Z0-9가-힣_-]/g, "_");
+                const today = new Date();
+                const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+                return `modumam_daily_mind_reading_${memberId}_${dateKey}`;
+            };
             const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [mindInputError, setMindInputError] = useState(false);
             const [mindRecords, setMindRecords] = useState(() => {
@@ -1481,7 +1529,7 @@ const handleAuthSubmit = async (e) => {
                 return () => clearAiIntakeIdleTimers();
             }, [isAiIntakeOpen]);
 
-            const resetAiIntake = () => {
+            const resetAiIntake = (mindReadingContext = null) => {
                 setAiIntakeStep(0);
                 setAiIntakeInput("");
                 setAiIntakeReport(null);
@@ -1503,7 +1551,11 @@ const handleAuthSubmit = async (e) => {
                 setAiIntakeMessages([
                     {
                         role: "ai",
-                        text: `안녕하세요.
+                        text: mindReadingContext?.imageLabel
+                            ? `방금 마음읽기에서 ‘${mindReadingContext.imageLabel}’ 카드를 선택했네요!
+
+그 카드를 선택한 이유가 있다면 편하게 이야기해 주세요.`
+                            : `안녕하세요.
 저는 모두의 마음연구소 AI 마음지기입니다.
 
 "친구에게 말하자니 괜히 징징대는 것 같고..."
@@ -1520,6 +1572,7 @@ const handleAuthSubmit = async (e) => {
 당신의 이야기를 충분히 듣고 함께하겠습니다.
 
 오늘은 어떤 마음으로 찾아오셨나요?`,
+                        mindReadingContext: mindReadingContext || null,
                         time: getChatTime()
                     }
                 ]);
@@ -1554,7 +1607,18 @@ const handleAuthSubmit = async (e) => {
                     return;
                 }
 
-                resetAiIntake();
+                let mindReadingContext = null;
+                try {
+                    const savedMindReadingContext = sessionStorage.getItem('modumam_mind_reading_context');
+                    mindReadingContext = savedMindReadingContext ? JSON.parse(savedMindReadingContext) : null;
+                    if (savedMindReadingContext) {
+                        sessionStorage.removeItem('modumam_mind_reading_context');
+                    }
+                } catch (e) {
+                    mindReadingContext = null;
+                }
+
+                resetAiIntake(mindReadingContext);
                 if (savedUser) {
                     setAiIntakeUser({
                         name: savedUser.name || '',
@@ -4540,27 +4604,54 @@ const psychTests = [
 
            const generateMindAnalysis = () => {
 
-    // 2. 글자 입력 여부 체크 (기존 코드)
-    if (!mindState.trim()) {
+    // [MOD-20260912-MIND-READING]
+    // 부호 + 사용자가 고른 그림을 바탕으로 짧은 자기성찰형 해석을 제공합니다.
+    // 그림 선택만으로 성격/심리상태를 단정하거나 진단하지 않습니다.
+    if (!hasMindSignalSelected || !selectedMindImageCard) {
         setMindInputError(true);
         return;
     }
+
+    // 오늘 이미 마음읽기를 완료했다면 새 카드로 다시 실행하지 않습니다.
+    try {
+        const todayReading = JSON.parse(localStorage.getItem(getDailyMindReadingKey()) || 'null');
+        if (todayReading?.result) {
+            setMindPunctuation(todayReading.punctuation || '?');
+            setHasMindSignalSelected(true);
+            const savedCard = Object.values(mindImageCardSets).flat().find((card) => card.id === todayReading.cardId);
+            if (savedCard) setSelectedMindImageCard(savedCard);
+            setIsMindImageDeckOpen(false);
+            setAnalysisResult(todayReading.result);
+            alert("오늘의 마음읽기는 이미 완료했어요. 오늘 선택한 카드와 해석을 다시 보여드릴게요.");
+            return;
+        }
+    } catch (e) {}
+
     setMindInputError(false);
     setIsAnalyzing(true);
     setAnalysisResult('');
 
-    // 3. Netlify 서버리스 함수 호출 (기존 코드)
+    const cardPrompt = `선택한 마음 신호: ${mindPunctuation}
+선택한 그림: ${selectedMindImageCard.label}
+
+선택한 그림과 마음 신호를 바탕으로 지금의 마음을 자연스럽고 따뜻하게 읽어 주세요.
+그림의 장면에서 느껴지는 분위기와 현재 마음을 부드럽게 연결하되, 그림을 '골랐다/고르다'는 선택 행동 자체를 해석하지 마세요.
+사용자의 성격, 무의식이나 심리상태를 단정하거나 진단하지 말고, 자기 마음을 편안하게 돌아볼 수 있도록 이야기해 주세요.
+필요하면 '마음 한 줄', '알아차림', '마음 연결'처럼 자연스럽게 나누어도 좋습니다.
+마지막은 부담 없는 한 문장으로 마무리해 주세요.
+서비스 소개, 상담 권유, 심리검사 안내, 전문가 자격 안내는 결과 본문에 넣지 마세요.`;
+
     fetch('/.netlify/functions/gemini', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-    mindState,
+    mindState: cardPrompt,
     mindPunctuation,
-    aiRole: "Modumam Lab 상담 접수를 담당하는 AI 마음지기",
-    aiPurpose: "AI 마음리포트와 AI 마음대화를 통해 마음을 이해하고 현재의 마음을 정리하며, 필요한 경우 심리검사를 추천합니다. 진단이나 최종 해석은 하지 않습니다.",
-    expertRole: "심리검사 최종 해석과 상담은 국가기술자격 임상심리사 1급이 진행합니다."
+    selectedImageLabel: selectedMindImageCard.label,
+    aiRole: "모두의 마음연구소 AI 마음지기",
+    aiPurpose: "사용자가 선택한 마음 신호와 그림을 바탕으로 현재 마음을 돌아볼 수 있는 자기성찰형 그림 해석을 제공합니다. 진단이나 투사검사식 단정은 하지 않습니다."
 })
     })
     .then(function(response) {
@@ -4572,13 +4663,34 @@ const psychTests = [
     .then(function(result) {
         const text = result?.text;
         if (text) {
-            setAnalysisResult(text);
+            const naturalReading = String(text)
+                .split('\n')
+                .filter((line) => !/(본 리포트는|심리검사 신청|임상심리사|전문가 상담|모두의 마음연구소는|AI 마음지기와 이야기를 이어|AI 마음대화 시작하기|보다 깊이 있는 마음정리가 필요하다면)/i.test(line))
+                .join('\n')
+                .replace(/^\s*[-_─—]{3,}\s*$/gm, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+            const finalizedReading = naturalReading || text;
+            setAnalysisResult(finalizedReading);
+
+            try {
+                localStorage.setItem(getDailyMindReadingKey(), JSON.stringify({
+                    createdAt: new Date().toISOString(),
+                    punctuation: mindPunctuation,
+                    cardId: selectedMindImageCard.id,
+                    imageLabel: selectedMindImageCard.label,
+                    result: finalizedReading
+                }));
+            } catch (e) {}
+
             const newRecord = {
                 id: Date.now(),
                 createdAt: new Date().toLocaleString(),
                 punctuation: mindPunctuation,
-                input: mindState,
-                result: text
+                input: `${mindPunctuation} · ${selectedMindImageCard.label}`,
+                selectedImage: selectedMindImageCard.label,
+                result: naturalReading || text
             };
             setMindRecords((prev) => {
                 const next = [newRecord, ...prev].slice(0, 20);
@@ -5429,25 +5541,27 @@ if (userAge === 'parent') {
 
                     <main className="flex-grow">
                         
-                        <section id="home" className="relative py-20 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-mind-bg overflow-hidden">
+                        <section id="home" className="relative py-20 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-white via-sky-50/40 to-emerald-50/40 overflow-hidden">
+                            <div className="absolute -left-24 top-32 w-80 h-80 rounded-full bg-blue-100/35 blur-3xl pointer-events-none"></div>
+                            <div className="absolute -right-24 top-40 w-80 h-80 rounded-full bg-emerald-100/35 blur-3xl pointer-events-none"></div>
                             <div className="max-w-7xl mx-auto relative z-10">
-                                <div className="text-center max-w-3xl mx-auto">
+                                <div className="text-center max-w-4xl mx-auto">
                                     <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 mb-6 tracking-wide">
                                         마음을 이해하는 4단계
                                     </span>
-                                    <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-normal leading-relaxed mb-6 font-cozy">
-                                        마음을 알아차리고,<br className="sm:hidden" /> 이해하고,<br className="sm:hidden" /> 다시 연결합니다.
+                                    <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-normal leading-[1.35] sm:leading-[1.4] mb-7 font-cozy">
+                                        지금 나의 마음은?
                                     </h2>
-                                    <p className="max-w-2xl mx-auto text-sm sm:text-base text-slate-500 leading-relaxed mb-8 font-friendly">
-                                        AI 마음리포트에서 가볍게 시작하고, AI 마음대화로 마음을 더 깊이 살펴본 뒤,
-                                        심리검사와 임상심리사의 해석상담으로 이어집니다.
+                                    <p className="max-w-3xl mx-auto text-xl sm:text-[22px] text-slate-600 leading-[1.9] mb-9 font-friendly">
+                                        <span className="font-semibold"><span className="text-blue-500">AI가 심리검사를 분석하고</span> 마음을 이해하도록 돕습니다.</span><br className="hidden sm:block" />
+                                        검사 결과를 통해 나에게 필요한 답을 찾아보세요.
                                     </p>
                                     <button
                                         type="button"
                                         onClick={() => scrollToSection('mind-care')}
-                                        className="w-full sm:w-auto bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-900/10 hover:scale-[1.02] transition-all"
+                                        className="w-full sm:w-auto bg-slate-900 text-white px-9 py-4 rounded-2xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-900/10 hover:scale-[1.02] transition-all"
                                     >
-                                        AI 마음리포트 시작하기
+                                        AI 마음리포트 시작하기 <span className="ml-2">→</span>
                                     </button>
                                 </div>
 
@@ -5533,14 +5647,14 @@ if (userAge === 'parent') {
                 AI 마음상담
             </span>
 
-            <h2 className="text-3xl font-extrabold text-slate-900">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight">
                 내 마음을 부탁해
             </h2>
 
-            <p className="mt-4 text-slate-500 text-sm sm:text-base leading-relaxed">
-               모두의 마음연구소 AI 마음상담은 AI 마음리포트와 AI 마음대화를 통해 마음을 이해하고 알아차릴 수 있도록 돕습니다.
+            <p className="mt-5 text-slate-500 text-base sm:text-lg leading-8">
+               지금의 마음을 가볍게 살펴보고, AI와 조금 더 깊이 이야기해보세요.
                <br />
-               AI 마음리포트로 지금의 마음을 살펴보고, AI 마음대화에서 AI 마음지기와의 채팅형 대화를 이어가 보세요.
+               AI 마음리포트로 시작해 AI 마음대화까지 이어갈 수 있습니다.
             </p>
         </div>
 
@@ -5556,57 +5670,190 @@ if (userAge === 'parent') {
                                             <div className="grid grid-cols-4 gap-3">
                                                 <button 
                                                     type="button"
-                                                    onClick={() => setMindPunctuation('?')}
-                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '?' ? 'border-mind-question bg-indigo-50/50 text-mind-question' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    onClick={() => {
+                                                        const changingSignal = hasMindSignalSelected && mindPunctuation !== '?';
+                                                        setMindPunctuation('?');
+                                                        setHasMindSignalSelected(true);
+                                                        setSelectedMindImageCard(null);
+                                                        setIsMindImageDeckOpen(!changingSignal);
+                                                    }}
+                                                    className={`min-h-[116px] py-5 rounded-2xl flex items-center justify-center border-2 transition-all shadow-sm ${mindPunctuation === '?' ? 'border-blue-300 bg-blue-100 text-blue-700 ring-2 ring-blue-200 shadow-md -translate-y-0.5' : 'border-blue-200 bg-blue-100 text-blue-500 hover:border-blue-300'}`}
                                                 >
-                                                    <span className="text-4xl font-black font-mono">?</span>
-                                                    <span className="text-sm font-bold mt-3">지금 내 마음은</span>
+                                                    <span className={`${mindPunctuation === '?' ? 'text-6xl sm:text-7xl font-black' : 'text-5xl sm:text-6xl font-extrabold'} font-mono leading-none transition-all duration-200`}>?</span>
                                                 </button>
                                                 <button 
                                                     type="button"
-                                                    onClick={() => setMindPunctuation('!')}
-                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '!' ? 'border-mind-exclamation bg-amber-50/50 text-mind-exclamation' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    onClick={() => {
+                                                        const changingSignal = hasMindSignalSelected && mindPunctuation !== '!';
+                                                        setMindPunctuation('!');
+                                                        setHasMindSignalSelected(true);
+                                                        setSelectedMindImageCard(null);
+                                                        setIsMindImageDeckOpen(!changingSignal);
+                                                    }}
+                                                    className={`min-h-[116px] py-5 rounded-2xl flex items-center justify-center border-2 transition-all shadow-sm ${mindPunctuation === '!' ? 'border-yellow-300 bg-yellow-100 text-yellow-700 ring-2 ring-yellow-200 shadow-md -translate-y-0.5' : 'border-yellow-200 bg-yellow-100 text-yellow-500 hover:border-yellow-300'}`}
                                                 >
-                                                    <span className="text-4xl font-black font-mono">!</span>
-                                                    <span className="text-sm font-bold mt-3">알아차림</span>
+                                                    <span className={`${mindPunctuation === '!' ? 'text-6xl sm:text-7xl font-black' : 'text-5xl sm:text-6xl font-extrabold'} font-mono leading-none transition-all duration-200`}>!</span>
                                                 </button>
                                                 <button 
                                                     type="button"
-                                                    onClick={() => setMindPunctuation(',')}
-                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === ',' ? 'border-mind-comma bg-emerald-50/50 text-mind-comma' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    onClick={() => {
+                                                        const changingSignal = hasMindSignalSelected && mindPunctuation !== ',';
+                                                        setMindPunctuation(',');
+                                                        setHasMindSignalSelected(true);
+                                                        setSelectedMindImageCard(null);
+                                                        setIsMindImageDeckOpen(!changingSignal);
+                                                    }}
+                                                    className={`min-h-[116px] py-5 rounded-2xl flex items-center justify-center border-2 transition-all shadow-sm ${mindPunctuation === ',' ? 'border-emerald-300 bg-emerald-100 text-emerald-700 ring-2 ring-emerald-200 shadow-md -translate-y-0.5' : 'border-emerald-200 bg-emerald-100 text-emerald-500 hover:border-emerald-300'}`}
                                                 >
-                                                    <span className="text-4xl font-black font-mono">,</span>
-                                                    <span className="text-sm font-bold mt-3">쉼</span>
+                                                    <span className={`${mindPunctuation === ',' ? 'text-6xl sm:text-7xl font-black' : 'text-5xl sm:text-6xl font-extrabold'} font-mono leading-none transition-all duration-200`}>,</span>
                                                 </button>
                                                 <button 
                                                     type="button"
-                                                    onClick={() => setMindPunctuation('.')}
-                                                    className={`min-h-[132px] py-6 rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${mindPunctuation === '.' ? 'border-mind-period bg-slate-100 text-mind-period' : 'border-slate-100 hover:border-slate-200 text-slate-400'}`}
+                                                    onClick={() => {
+                                                        const changingSignal = hasMindSignalSelected && mindPunctuation !== '.';
+                                                        setMindPunctuation('.');
+                                                        setHasMindSignalSelected(true);
+                                                        setSelectedMindImageCard(null);
+                                                        setIsMindImageDeckOpen(!changingSignal);
+                                                    }}
+                                                    className={`min-h-[116px] py-5 rounded-2xl flex items-center justify-center border-2 transition-all shadow-sm ${mindPunctuation === '.' ? 'border-slate-400 bg-slate-200 text-slate-800 ring-2 ring-slate-200 shadow-md -translate-y-0.5' : 'border-slate-200 bg-slate-200 text-slate-500 hover:border-slate-300'}`}
                                                 >
-                                                    <span className="text-4xl font-black font-mono">.</span>
-                                                    <span className="text-sm font-bold mt-3">다시시작</span>
+                                                    <span className={`${mindPunctuation === '.' ? 'text-6xl sm:text-7xl font-black' : 'text-5xl sm:text-6xl font-extrabold'} font-mono leading-none transition-all duration-200`}>.</span>
                                                 </button>
                                             </div>
                                         </div>
 
                                         <div className="mb-6 relative">
                                             <label className="block text-sm font-bold text-slate-700 mb-3">
-                                                2. 어떤 고민이나 일들이 머릿속을 스치고 지나가나요? (자세히 적을수록 분석이 섬세해집니다)
+                                                2. 마음이 가는 그림카드를 골라보세요.
                                             </label>
-                                            <textarea 
-                                                rows="5" 
-                                                value={mindState}
-                                                onChange={(e) => {
-    setMindState(e.target.value);
-}}
-                                                placeholder="예) 요즘 아무리 쉬어도 지친 감정이 해소되지 않고 마음이 무겁습니다. 자존감도 부쩍 떨어지고 일도 손에 안 잡히는데... 왜 그런 것인지 어떻게 해야 할까요?"
-                                                className={`w-full px-5 py-4 border rounded-2xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-300 resize-none text-sm leading-relaxed min-h-[150px] ${mindInputError ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200'}`}
-                                            ></textarea>
-                                            
-                                            {mindInputError && (
-                                                <div className="mt-2 text-xs font-semibold text-rose-500 flex items-center bg-rose-50 p-2.5 rounded-lg border border-rose-100 fade-in">
-                                                    <Icon name="alert-circle" className="w-4 h-4 mr-1.5 shrink-0" />
-                                                    고민 사연을 적어주시면 '모두의 마음연구소'만의 따뜻한 심층 치유 코멘트를 추천해 드릴 수 있습니다.
+
+                                            {!hasMindSignalSelected ? (
+                                                <div>
+                                                    <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                                                        {[0, 1, 2, 3, 4].map((card) => (
+                                                            <div
+                                                                key={card}
+                                                                className="relative aspect-[3/4] rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-md overflow-hidden"
+                                                            >
+                                                                <div className="absolute inset-2 rounded-xl border border-white/20"></div>
+                                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-white/30 flex items-center justify-center text-white/80 text-lg sm:text-xl font-black">
+                                                                        ?
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <p className="mt-3 text-center text-xs sm:text-sm font-semibold text-slate-400">
+                                                        1번 카드를 먼저 고르면 그림카드가 열립니다.
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="fade-in">
+                                                    {!selectedMindImageCard ? (
+                                                        isMindImageDeckOpen ? (
+                                                            <>
+                                                                <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                                                                    {(mindImageCardSets[mindPunctuation] || mindImageCardSets['?']).map((card) => (
+                                                                        <button
+                                                                            key={card.id}
+                                                                            type="button"
+                                                                            aria-label="마음 그림카드 선택"
+                                                                            onClick={() => {
+                                                                                setSelectedMindImageCard(card);
+                                                                                setIsMindImageDeckOpen(false);
+                                                                            }}
+                                                                            className="group relative aspect-[3/4] rounded-2xl border-2 border-white overflow-hidden shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                                                                        >
+                                                                            <div className={`absolute inset-0 bg-gradient-to-br ${card.bg}`}></div>
+                                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                                <span className="text-4xl sm:text-5xl drop-shadow-sm transform transition-transform duration-300 group-hover:scale-110" aria-hidden="true">{card.art}</span>
+                                                                            </div>
+                                                                            <div className="absolute inset-2 rounded-xl border border-white/55 pointer-events-none"></div>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="mt-3 text-center text-xs sm:text-sm font-semibold text-slate-400">그림카드 한 장을 선택해 주세요.</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                                                                    {[0, 1, 2, 3, 4].map((card) => (
+                                                                        <div
+                                                                            key={card}
+                                                                            className="relative aspect-[3/4] rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-md overflow-hidden"
+                                                                        >
+                                                                            <div className="absolute inset-2 rounded-xl border border-white/20"></div>
+                                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-white/30 flex items-center justify-center text-white/80 text-lg sm:text-xl font-black">
+                                                                                    ?
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="mt-4 text-center">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setIsMindImageDeckOpen(true)}
+                                                                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                                                    >
+                                                                        그림카드 열기
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )
+                                                    ) : (
+                                                        <>
+                                                            <p className="mb-3 text-xs sm:text-sm text-slate-500">
+                                                                선택한 카드는 열린 채로 두고, 나머지 카드는 다시 뒤집어 두었어요.
+                                                            </p>
+                                                            <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                                                                {(mindImageCardSets[mindPunctuation] || mindImageCardSets['?']).map((card) => {
+                                                                    const selected = selectedMindImageCard?.id === card.id;
+                                                                    return selected ? (
+                                                                        <div
+                                                                            key={card.id}
+                                                                            className={`relative aspect-[3/4] rounded-2xl border-2 border-slate-900 bg-gradient-to-br ${card.bg} shadow-lg overflow-hidden transition-all duration-300 ring-2 ring-slate-900/10 -translate-y-1`}
+                                                                        >
+                                                                            <div className="absolute inset-0 flex items-center justify-center text-4xl sm:text-5xl" aria-label={card.label}>
+                                                                                {card.art}
+                                                                            </div>
+                                                                            <div className="absolute right-2 top-2 w-6 h-6 rounded-full bg-white text-slate-900 flex items-center justify-center shadow-md">
+                                                                                <Icon name="check" className="w-3.5 h-3.5" />
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div
+                                                                            key={card.id}
+                                                                            className="relative aspect-[3/4] rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 shadow-md overflow-hidden transition-all duration-300"
+                                                                        >
+                                                                            <div className="absolute inset-2 rounded-xl border border-white/20"></div>
+                                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-white/30 flex items-center justify-center text-white/80 text-lg sm:text-xl font-black">
+                                                                                    ?
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            <div className="mt-4 rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 text-center fade-in">
+                                                                <p className="text-sm font-bold text-slate-700">카드 선택이 완료되었습니다.</p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setSelectedMindImageCard(null);
+                                                                        setIsMindImageDeckOpen(true);
+                                                                    }}
+                                                                    className="mt-2 text-xs font-bold text-slate-500 underline underline-offset-4 hover:text-slate-800"
+                                                                >
+                                                                    다시 고르기
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -5626,17 +5873,20 @@ if (userAge === 'parent') {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
             </svg>
-            <span>마음의 소리 분석 중...</span>
+            <span>AI 마음읽기 중...</span>
         </>
     ) : (
         <>
             <Icon name="sparkles" className="w-5 h-5" />
-            <span>AI 마음리포트 받기</span>
+            <span>AI 마음읽기</span>
         </>
     )}
 </button>
                                         <p className="mt-4 text-center text-xs text-slate-400 font-medium">
                                             ※ AI가 무료로 내 마음을 분석해 드려요.
+                                        </p>
+                                        <p className="mt-1 text-center text-xs text-slate-400 font-medium">
+                                            하루에 한 번, 지금 마음이 가는 카드를 골라보세요.
                                         </p>
                                         </div>
                                     </div>
@@ -5644,13 +5894,15 @@ if (userAge === 'parent') {
                                     {/* Analysis Output Window */}
                                     {analysisResult && (
                                         <div className="border-t border-slate-100 bg-slate-50 p-6 sm:p-10 fade-in">
-                                            <div className="flex items-center space-x-3 mb-4">
-                                                <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white">
-                                                    <Icon name="smile" className="w-5 h-5" />
-                                              </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800">모두의 마음연구소 AI 마음지기</h4>
-                                                    <p className="text-xs text-slate-400">당신의 이야기에 정성을 모아 답변을 드려요</p>
+                                            <div className="mb-5">
+                                                <p className="text-xs font-bold text-emerald-600 mb-2">내가 선택한 그림 해석</p>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${selectedMindImageCard?.bg || 'from-slate-100 to-slate-200'} flex items-center justify-center text-2xl shadow-sm`}>
+                                                        {selectedMindImageCard?.art}
+                                                    </div>
+                                                    <h4 className="text-xl sm:text-2xl font-extrabold text-slate-900">
+                                                        {selectedMindImageCard?.label}
+                                                    </h4>
                                                 </div>
                                             </div>
                                             
@@ -5658,27 +5910,25 @@ if (userAge === 'parent') {
                                              {analysisResult}
                                             </div>
 
-                                            <div className="mt-6 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 justify-end">
-                                                <button onClick={() => setAnalysisResult('')} className="text-xs font-semibold text-slate-400 hover:text-slate-600 px-4 py-2">
-                                                    닫기
-                                                </button>
-                                                
+                                            <div className="mt-6 pt-5 border-t border-slate-200">
+                                                <p className="text-sm font-bold text-slate-700 mb-3">대화가 필요하다면</p>
                                                 <button
-                                                  onClick={() => window.open('https://pf.kakao.com/_hQSXX/chat', '_blank')}
-                                                  className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all">
-                                                    카카오 채널 문의
-                                                 </button> 
-                                                
-                                                 <button
-   onClick={() => {
-    openAiIntakeChat();
-}}
-    className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-sm transition-all"
->
-    AI 마음대화 시작하기
-</button>
-
-                                                </div>
+                                                    type="button"
+                                                    onClick={() => {
+                                                        try {
+                                                            sessionStorage.setItem('modumam_mind_reading_context', JSON.stringify({
+                                                                punctuation: mindPunctuation,
+                                                                imageLabel: selectedMindImageCard?.label || '',
+                                                                interpretation: analysisResult
+                                                            }));
+                                                        } catch (e) {}
+                                                        openAiIntakeChat();
+                                                    }}
+                                                    className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold px-6 py-3 rounded-2xl shadow-sm transition-all"
+                                                >
+                                                    AI 마음대화 시작하기 →
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
