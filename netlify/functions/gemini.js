@@ -1,7 +1,26 @@
 export const handler = async (event) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "https://modumam-app.netlify.app",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: corsHeaders,
+      body: ""
+    };
+  }
+
   const json = (text, statusCode = 200) => ({
     statusCode,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "https://modumam-app.netlify.app",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS"
+    },
     body: JSON.stringify({ text })
   });
 
