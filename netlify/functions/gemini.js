@@ -1,8 +1,19 @@
 export const handler = async (event) => {
+  const requestOrigin = event.headers?.origin || event.headers?.Origin || "";
+  const allowedOrigins = new Set([
+    "https://modumam-app.netlify.app",
+    "http://localhost:5174",
+    "http://localhost:5173"
+  ]);
+  const allowedOrigin = allowedOrigins.has(requestOrigin)
+    ? requestOrigin
+    : "https://modumam-app.netlify.app";
+
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "https://modumam-app.netlify.app",
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin"
   };
 
   if (event.httpMethod === "OPTIONS") {
@@ -17,9 +28,7 @@ export const handler = async (event) => {
     statusCode,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "https://modumam-app.netlify.app",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS"
+      ...corsHeaders
     },
     body: JSON.stringify({ text })
   });
