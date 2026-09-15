@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eef8f5">
+<title>모두의 마음연구소 | 디지털 명함</title>
+<style>
+:root{--ink:#073d4d;--teal:#087f7b;--muted:#718995;--line:#d4e0e3}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eaf6f3;color:var(--ink)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Noto Sans KR","Segoe UI",sans-serif;display:flex;justify-content:center;padding:18px 10px}
+.card{width:min(100%,480px);min-height:760px;background:linear-gradient(180deg,#fff 0%,#fff 80%,#eef9f6 100%);border-radius:32px;box-shadow:0 16px 48px rgba(17,72,80,.12);overflow:hidden;padding:30px 24px 0;display:flex;flex-direction:column}
+.logo{margin:0 auto;text-align:center}
+.symbols{display:flex;align-items:center;justify-content:center}
+.symbol{height:43px;width:54px;border:3px solid var(--teal);display:grid;place-items:center;font-size:25px;font-weight:900;margin-right:-3px;background:#fff}
+.q{border-radius:14px 4px 4px 14px;color:#6938da}.e{border-radius:4px;color:#ff6b19}.c{border-radius:4px 14px 14px 4px;color:#07975d}
+.dot{border:0;width:18px;margin:0 0 -14px 4px;background:transparent;color:#173d49;font-size:27px}
+.word{color:var(--teal);font-size:12px;font-weight:700;letter-spacing:.29em;margin-top:4px}
+h1{text-align:center;font-size:35px;line-height:1.12;letter-spacing:-.055em;margin:26px 0 8px;font-weight:900}
+.sub{text-align:center;color:#6f8591;font-size:16px;letter-spacing:.06em}
+.rule{width:44px;height:1px;background:#becdd2;margin:18px auto}
+.lead{text-align:center;color:#607a87;font-size:17px;line-height:1.55;margin:0}
+.meanings{display:grid;grid-template-columns:repeat(4,1fr);margin:28px -4px 0}
+.meaning{text-align:center;padding:0 6px}
+.meaning+.meaning{border-left:1px solid var(--line)}
+.mark{font-size:42px;font-weight:900;line-height:1;margin-bottom:7px}
+.meaning:nth-child(1) .mark{color:#6938da}.meaning:nth-child(2) .mark{color:#ff6b19}.meaning:nth-child(3) .mark{color:#07975d}.meaning:nth-child(4) .mark{color:#3da9e6}
+.meaning b{font-size:13px;line-height:1.5;display:block;word-break:keep-all}
+.cheer{text-align:center;color:#168a80;font-size:18px;line-height:1.55;margin:28px 0 25px;font-style:italic}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.action{text-decoration:none;color:var(--ink);text-align:center;padding:10px 2px 12px;border-radius:18px}
+.action:hover{background:#f6fbfa}
+.circle{width:64px;height:64px;margin:0 auto 9px;border-radius:50%;display:grid;place-items:center;background:#eef8f5;border:1px solid rgba(8,127,123,.08);box-shadow:inset 0 0 0 5px rgba(255,255,255,.48)}
+.action:nth-child(2) .circle{background:#e9f8f7}.action:nth-child(3) .circle{background:#edf6fb}
+.circle svg{width:28px;height:28px;fill:none;stroke:#087f7b;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.action:nth-child(3) .circle svg{stroke:#318ec3}
+.action strong{display:block;font-size:12px;line-height:1.35;word-break:keep-all}
+.action span{display:block;color:#82949d;font-size:11px;margin-top:4px}
+.footer{margin:28px -24px 0;padding:25px 24px 28px;background:linear-gradient(160deg,#f2fbf8,#dff3ed);text-align:center;margin-top:auto}
+.brand{font-size:12px;letter-spacing:.28em;color:#63838f;margin-bottom:11px}
+.rep{font-size:14px;color:#68808c}.rep b{font-size:19px;color:var(--ink);margin-left:5px}
+.tag{font-size:12px;color:#6e8994;margin-top:10px}
+@media(max-width:430px){
+ body{padding:0;background:#fff}
+ .card{border-radius:0;box-shadow:none;width:100%;min-height:100vh;padding:27px 18px 0}
+ h1{font-size:33px;margin-top:25px}
+ .sub{font-size:15px}
+ .lead{font-size:16px}
+ .meaning{padding:0 4px}.mark{font-size:40px}.meaning b{font-size:12.5px}
+ .cheer{font-size:17px}
+ .circle{width:62px;height:62px}
+ .action strong{font-size:11.5px}
+ .footer{margin-left:-18px;margin-right:-18px;padding-bottom:24px}
+}
+</style>
+</head>
+<body>
+<main class="card">
+ <header>
+  <div class="logo">
+   <div class="symbols"><span class="symbol q">?</span><span class="symbol e">!</span><span class="symbol c">,</span><span class="symbol dot">.</span></div>
+   <div class="word">modumam.lab</div>
+  </div>
+  <h1>모두의 마음연구소</h1>
+  <div class="sub">심리검사 기반 심리상담</div>
+  <div class="rule"></div>
+  <p class="lead">마음을 이해하는 연구,<br>더 나은 오늘</p>
+ </header>
+
+ <section class="meanings">
+  <div class="meaning"><div class="mark">?</div><b>지금<br>내 마음은?</b></div>
+  <div class="meaning"><div class="mark">!</div><b>심리검사로<br>마음 알기</b></div>
+  <div class="meaning"><div class="mark">,</div><b>나를 위한<br>쉼</b></div>
+  <div class="meaning"><div class="mark">.</div><b>힘든 마음 끝<br>새로운 시작</b></div>
+ </section>
+
+ <div class="cheer">오늘도,<br>당신의 마음을 응원합니다.</div>
+
+ <section class="actions">
+  <a class="action" href="tel:01052361369"><div class="circle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.5 9.5 7.8 7.8 9.5c1.2 2.7 3.4 4.9 6.1 6.1l1.7-1.7 4.3 2.3c.5.3.8.8.7 1.4l-.4 2.2c-.1.7-.7 1.2-1.4 1.2C10.1 21 3 13.9 3 5.2c0-.7.5-1.3 1.2-1.4l2.2-.4c.3-.1.6 0 .8.1Z"/></svg></div><strong>전화하기</strong><span>010-5236-1369</span></a>
+  <a class="action" href="https://modumam-app.netlify.app/"><div class="circle"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.2"/><path d="M9.2 5.5h5.6M10.5 18.4h3"/></svg></div><strong>모두의 마음연구소 App</strong><span>앱 바로가기</span></a>
+  <a class="action" href="https://modumam-lab.netlify.app/"><div class="circle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 11 8.5-7 8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></svg></div><strong>홈페이지 바로가기</strong><span>modumam.lab</span></a>
+ </section>
+
+ <footer class="footer">
+  <div class="brand">MODUMAM.LAB</div>
+  <div class="rep">대표 <b>백인영</b></div>
+  <div class="tag">마음을 이해하면 오늘이 조금 더 편해집니다.</div>
+ </footer>
+</main>
+</body>
+</html>

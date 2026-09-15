@@ -11,6 +11,7 @@ function copyLegacyRuntimeFiles() {
         ['admin/js', 'admin/js'],
         ['ai', 'ai'],
         ['client', 'client'],
+        ['card', 'card'],
         ['js/report-viewer.js', 'js/report-viewer.js'],
         ['js/app.jsx', 'js/app.jsx']
       ];
