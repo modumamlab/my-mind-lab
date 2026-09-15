@@ -5552,9 +5552,11 @@ if (userAge === 'parent') {
                                     <h2 className="text-3xl sm:text-5xl font-bold text-slate-800 tracking-normal leading-[1.35] sm:leading-[1.4] mb-7 font-cozy">
                                         지금 나의 마음은?
                                     </h2>
-                                    <p className="max-w-3xl mx-auto text-xl sm:text-[22px] text-slate-600 leading-[1.9] mb-9 font-friendly">
-                                        <span className="font-semibold"><span className="text-blue-500">AI가 심리검사를 분석하고</span> 마음을 이해하도록 돕습니다.</span><br className="hidden sm:block" />
-                                        검사 결과를 통해 나에게 필요한 답을 찾아보세요.
+                                    <p className="max-w-3xl mx-auto text-xl sm:text-[22px] text-slate-600 leading-[1.9] mb-3 font-friendly">
+                                        <span className="font-semibold text-slate-700">임상심리사가 함께하는 모두의 마음연구소입니다.</span>
+                                    </p>
+                                    <p className="max-w-3xl mx-auto text-lg sm:text-xl text-slate-600 leading-[1.9] mb-9 font-friendly">
+                                        AI가 심리검사를 분석하고, 검사 결과를 바탕으로 나의 마음을 이해하도록 돕습니다.
                                     </p>
                                     <button
                                         type="button"
