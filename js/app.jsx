@@ -5662,8 +5662,11 @@ if (userAge === 'parent') {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden h-full flex flex-col">
-                                    <div className="p-6 sm:p-10 h-full flex flex-col">
-                                        <span className="inline-block self-start text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full mb-4">AI 마음리포트</span>
+                                    <div className="p-8 sm:p-10 h-full flex flex-col">
+                                        <span className="inline-block self-start text-sm sm:text-base font-bold bg-emerald-100 text-emerald-800 px-4 py-1.5 rounded-full mb-3">AI 마음리포트</span>
+                                        <p className="mb-6 text-sm sm:text-base text-slate-500 font-medium leading-relaxed">
+                                            하루에 한 번, 지금 마음이 가는 카드를 골라보세요.
+                                        </p>
 
                                         <div className="mb-7">
                                             <label className="block text-sm font-bold text-slate-700 mb-3">
@@ -5887,9 +5890,6 @@ if (userAge === 'parent') {
                                         <p className="mt-4 text-center text-xs text-slate-400 font-medium">
                                             ※ AI가 무료로 내 마음을 분석해 드려요.
                                         </p>
-                                        <p className="mt-1 text-center text-xs text-slate-400 font-medium">
-                                            하루에 한 번, 지금 마음이 가는 카드를 골라보세요.
-                                        </p>
                                         </div>
                                     </div>
 
@@ -5934,18 +5934,18 @@ if (userAge === 'parent') {
                                         </div>
                                     )}
                                 </div>
-            <div className="bg-white rounded-3xl border border-amber-100 p-6 sm:p-8 shadow-xl h-full flex flex-col">
-                <span className="inline-block text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full mb-4">AI 마음상담</span>
-                <h3 className="text-2xl font-extrabold text-slate-900 leading-tight mb-4">AI 마음대화</h3>
-                <p className="text-sm text-slate-600 leading-relaxed mb-6">
+            <div className="bg-white rounded-3xl border border-amber-100 p-8 sm:p-10 shadow-xl h-full flex flex-col">
+                <span className="inline-block self-start text-sm sm:text-base font-bold bg-amber-100 text-amber-800 px-4 py-1.5 rounded-full mb-3">AI 마음상담</span>
+                
+                <p className="text-sm sm:text-base text-slate-600 leading-relaxed mb-7">
                     새벽 2시에도, 마음 편하게 털어놓을 수 있는 나만의 AI 마음지기입니다. 언제든지, 무엇이든 편안하게 이야기해 보세요. AI 마음지기가 당신의 이야기를 충분히 듣고, 현재의 마음을 이해할 수 있도록 함께합니다.
                 </p>
-                <div className="space-y-3 mb-6">
-                    <div className="bg-amber-50 rounded-2xl p-4"><p className="font-bold text-amber-800 text-sm">1. 회원으로 이용하기</p><p className="text-xs text-slate-500 mt-1">로그인 후 안전하게 대화를 이어갈 수 있습니다.</p></div>
-                    <div className="bg-slate-50 rounded-2xl p-4"><p className="font-bold text-slate-900 text-sm">2. 24시간 마음 대화</p><p className="text-xs text-slate-500 mt-1">시간과 장소에 상관없이 내가 원할 때 언제든 AI 마음지기와 이야기를 나눠보세요.</p></div>
-                    <div className="bg-emerald-50 rounded-2xl p-4"><p className="font-bold text-emerald-800 text-sm">3. 마음 이해하기</p><p className="text-xs text-slate-500 mt-1">대화를 통해 지금의 마음을 천천히 알아차리고 이해해 보세요.</p></div>
+                <div className="space-y-4 mb-7">
+                    <div className="bg-amber-50 rounded-2xl p-5"><p className="font-bold text-amber-800 text-sm sm:text-base">1. 회원으로 이용하기</p><p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">로그인 후 안전하게 대화를 이어갈 수 있습니다.</p></div>
+                    <div className="bg-slate-50 rounded-2xl p-5"><p className="font-bold text-slate-900 text-sm sm:text-base">2. 24시간 마음 대화</p><p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">시간과 장소에 상관없이 내가 원할 때 언제든 AI 마음지기와 이야기를 나눠보세요.</p></div>
+                    <div className="bg-emerald-50 rounded-2xl p-5"><p className="font-bold text-emerald-800 text-sm sm:text-base">3. 마음 이해하기</p><p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">대화를 통해 지금의 마음을 천천히 알아차리고 이해해 보세요.</p></div>
                 </div>
-                <button type="button" onClick={openAiIntakeChat} className="mt-auto w-full h-[54px] bg-slate-900 hover:bg-slate-800 text-white px-7 rounded-2xl text-sm font-extrabold shadow-lg">
+                <button type="button" onClick={openAiIntakeChat} className="mt-auto w-full h-[58px] bg-slate-900 hover:bg-slate-800 text-white px-7 rounded-2xl text-sm sm:text-base font-extrabold shadow-lg">
                     AI 마음대화 시작하기
                 </button>
                 <p className="mt-4 text-center text-xs text-slate-400 font-medium leading-relaxed">※ 회원 가입 또는 로그인 후 이용할 수 있습니다.</p>
@@ -7091,7 +7091,7 @@ if (userAge === 'parent') {
     </p>
 </div>
 
-<div className="max-w-3xl mx-auto">
+<div className="max-w-5xl mx-auto">
 
             {showAssessmentReportApplication ? (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4" onClick={() => setShowAssessmentReportApplication(false)}>
@@ -7197,9 +7197,9 @@ if (userAge === 'parent') {
             ) : null}
 
     {/* 예약 신청서 */}
-    <div className="bg-slate-50 p-6 sm:p-8 rounded-3xl border border-slate-100">
-        <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
-            <Icon name="calendar" className="w-5 h-5 mr-2 text-slate-800" />
+    <div className="bg-slate-50 p-7 sm:p-10 rounded-3xl border border-slate-100">
+        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-7 flex items-center">
+            <Icon name="calendar" className="w-6 h-6 mr-2.5 text-slate-800" />
             간편 예약 신청
         </h3>
 
@@ -7209,10 +7209,10 @@ if (userAge === 'parent') {
             </div>
         )}
 
-        <form onSubmit={handleAddBooking} className="space-y-4">
+        <form onSubmit={handleAddBooking} className="space-y-5">
             {/* 1. 신청 프로그램 선택 */}
 <div>
-    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+    <label className="block text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
         신청 프로그램
     </label>
 
@@ -7241,7 +7241,7 @@ if (userAge === 'parent') {
                 setBookingType('찾아오는(대면)');
             }
         }}
-        className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+        className="w-full bg-white border border-slate-200 px-5 py-4 rounded-xl text-base font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
     >
         <option value="개인 마음상담">개인 마음상담</option>
         <option value="개별 심리검사">개별 심리검사</option>
@@ -7253,7 +7253,7 @@ if (userAge === 'parent') {
        [MOD-20260712-PARENT-BOOKING-010] 모든 프로그램 공통 안내
        - 개인/부부/부모-자녀 선택과 관계없이 항상 표시
     ===================================================== */}
-    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
+    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-relaxed text-slate-600">
         {bookingProgram === "개인 마음상담" ? (
           <p>※ 개인 마음상담은 심리검사 없이 신청할 수 있습니다. 이벤트 기간에는 상담 신청자 모두 AI 해석상담을 무료로 이용할 수 있습니다.</p>
         ) : bookingProgram === "개별 심리검사" ? (
@@ -7270,10 +7270,10 @@ if (userAge === 'parent') {
            {/* 2. 검사 선택 - 개인 마음상담은 검사 없이 상담방식만 선택 */}
             {bookingProgram !== "개인 마음상담" && (
             <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-              <button type="button" onClick={() => setBookingTestsOpen(!bookingTestsOpen)} aria-expanded={bookingTestsOpen} className="flex w-full items-center justify-between px-4 py-4 text-sm font-extrabold text-slate-900">
+              <button type="button" onClick={() => setBookingTestsOpen(!bookingTestsOpen)} aria-expanded={bookingTestsOpen} className="flex w-full items-center justify-between px-5 py-5 text-base font-extrabold text-slate-900">
                 <span>검사 선택</span><span className={`text-slate-400 transition-transform ${bookingTestsOpen ? 'rotate-180' : ''}`}>⌄</span>
               </button>
-              {bookingTestsOpen && <div className="border-t border-slate-100 px-4 pb-4">
+              {bookingTestsOpen && <div className="border-t border-slate-100 px-5 pb-5">
 
 {/* 부부 마음이음 */}
 {bookingProgram.includes("부부 마음이음") && (
@@ -7323,18 +7323,15 @@ if (userAge === 'parent') {
 )}
 {/* 개별 심리검사 */}
 {bookingProgram === "개별 심리검사" && (
-  <div className="mt-4 p-4 bg-violet-50 border border-violet-200 rounded-2xl">
-    <p className="text-xs font-bold text-violet-700 mb-1">
+  <div className="mt-5 p-5 sm:p-6 bg-violet-50 border border-violet-200 rounded-2xl">
+    <p className="text-base font-bold text-violet-700 mb-2">
       개별 심리검사 선택
     </p>
-    <p className="text-[11px] text-violet-600 mb-3">
+    <p className="text-sm text-violet-600 mb-4 leading-relaxed">
       프로그램 기본검사 없이 필요한 검사만 선택합니다. 기존에 TCI 등을 실시한 경우 다른 검사만 추가로 신청할 수 있습니다.
     </p>
 
-    <p className="text-xs font-bold text-violet-700 mb-3">
-      심리검사 선택 (검사별 가격)
-    </p>
-    <div className="grid grid-cols-2 gap-2 mb-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {[
         "TCI 기질 및 성격검사",
         "JTCI 청소년 기질 및 성격검사",
@@ -7345,38 +7342,17 @@ if (userAge === 'parent') {
         "STS 6요인 기질검사",
         "K-CDI 아동발달검사"
       ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-violet-100 bg-white">
+        <label key={test} className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-white cursor-pointer border border-violet-100 bg-white">
           <input
             type="checkbox"
             checked={selectedTests.includes(test)}
             onChange={() => toggleTest(test)}
           />
-          <span className="text-xs text-slate-700">{test}</span>
+          <span className="text-sm sm:text-base text-slate-700">{test}</span>
         </label>
       ))}
     </div>
 
-    <p className="text-xs font-bold text-violet-700 mb-3">
-      무료 보조검사
-    </p>
-    <div className="grid grid-cols-2 gap-2">
-      {[
-        "문장완성검사(무료)",
-        "집-나무-사람 그림검사(무료)",
-        "우울검사(무료)",
-        "불안검사(무료)",
-        "스트레스검사(무료)"
-      ].map((test) => (
-        <label key={test} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer border border-violet-100 bg-white">
-          <input
-            type="checkbox"
-            checked={selectedTests.includes(test)}
-            onChange={() => toggleTest(test)}
-          />
-          <span className="text-xs text-slate-700">{test}</span>
-        </label>
-      ))}
-    </div>
   </div>
 )}
 
