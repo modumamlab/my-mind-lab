@@ -619,6 +619,20 @@ function buildRelationshipStyle(body,profile){
   if(evidence)return `${evidence}\n\n이 결과는 관계능력의 좋고 나쁨을 뜻하기보다, 사람과 상황에 따라 가까워지는 속도, 감정을 표현하는 방식, 긴장이나 갈등에 대응하는 방식에서 나타날 수 있는 경향을 보여줍니다. 실제 대인관계에서 이러한 모습이 언제 두드러지는지는 상담 과정에서 생활 경험과 함께 확인하는 것이 적절합니다.`;
   return `제공된 검사자료만으로 특정한 대인관계 양상을 단정하기는 어렵습니다. 다만 현재의 정서적 부담과 비교적 지속적인 성격 특성이 관계에서의 긴장, 감정 표현, 거리 조절 방식에 영향을 줄 수 있으므로 실제 생활에서 편안한 관계와 부담스러운 관계가 어떻게 다른지 함께 살펴볼 필요가 있습니다.`;
 }
+function buildCurrentSignals(body,profile){
+  const testVulnerabilities=(body.tests||[]).map(t=>{
+    const name=clean(t.testType,120);
+    const vulnerability=usable(t.vulnerabilities,1100);
+    return vulnerability?`${name}에서 확인된 주의할 특성은 다음과 같습니다. ${vulnerability}`:'';
+  }).filter(Boolean);
+  const profileVulnerability=usable(profile.vulnerabilities,1800);
+  const maintaining=usable(profile.formulation?.perpetuating,1400);
+  return joinUnique([
+    ...testVulnerabilities,
+    profileVulnerability?`검사 결과를 종합하면 특히 살펴볼 부분은 다음과 같습니다. ${profileVulnerability}`:'',
+    maintaining?`이러한 특성이 부담으로 이어질 수 있는 반복 양상은 다음과 같습니다. ${maintaining}`:''
+  ],4200)||'현재 검사자료에서 별도로 두드러진 취약요인이 확인되지 않았습니다. 다만 스트레스가 높아지는 상황에서 평소의 대처 방식이 부담으로 이어지는지는 실제 생활 경험과 함께 살펴보는 것이 좋습니다.';
+}
 function buildSuggestions(body,profile){
   const current=usable(profile.currentState,1600);
   const maintaining=usable(profile.formulation?.perpetuating,1600)||usable(profile.vulnerabilities,1600);
@@ -680,7 +694,7 @@ function fill(report,body){
   out.stressRecovery=out.clinicalFormulation||out.clientFunctionalFormulation;
   out.strengthsResources=out.clinicalProtectiveFactors||out.clientStrengthGuide;
   out.integratedUnderstanding=out.counselorCoreUnderstanding||out.clientFunctionalFormulation||out.professionalSummary;
-  out.currentSignals=out.counselorRiskProtection||out.counselorMonitoringPoints||out.clientDifferences;
+  out.currentSignals=buildCurrentSignals(body,localClinicalProfile(body));
   out.psychologicalSuggestions=out.clientRecoveryGuide||out.counselorInterventionGuide||out.counselorCounselingFocus;
   out.disclaimer=out.clientDisclaimer;
 
