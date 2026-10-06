@@ -968,7 +968,7 @@ async function issueExistingGuestAccess(reservationId){
   if(!reservation){alert('등록 정보를 찾지 못했습니다.');return;}
   try{
     const directGuestApi=APP_RESERVATION_PRODUCTION_API.replace('?admin=1','');
-    const response=await fetch(directGuestApi,{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({action:'admin-existing-guest-link',reservationId:String(reservation.id)})});
+    const response=await fetch(directGuestApi,{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({action:'admin-existing-guest-link',reservationId:String(reservation.id),reservation})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok||!data.ok)throw new Error(data.error||`SERVER_ERROR_${response.status}`);
     const app=data.application;
@@ -4203,4 +4203,4 @@ window.toggleAiCounselingActivation=toggleAiCounselingActivation;
 
 
 
-// BUILD 20261006-DIRECT-GUEST-V8: existing reservation guest-link button enabled.
+// BUILD 20261006-DIRECT-GUEST-V9: existing reservation guest-link button enabled.
