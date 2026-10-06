@@ -344,20 +344,31 @@ exports.handler = async (event) => {
       if (!reservationId) return response(400, { ok:false, error:'대상 신청정보가 필요합니다.' });
       try {
         const current = rows(await store.get(KEY, { type:'json' }).catch(() => null));
-        const index = current.findIndex(r => String(r.id || '') === reservationId || String(r.appApplicationId || '') === reservationId);
-        if (index < 0) return response(404, { ok:false, error:'등록된 신청내역을 찾을 수 없습니다.' });
-        const row = current[index];
+        let index = current.findIndex(r => String(r.id || '') === reservationId || String(r.appApplicationId || '') === reservationId);
+        // Local admin can display a reservation from its local reservations-api store while the
+        // production app-assessment store does not yet contain that row.  In that case the admin
+        // sends the selected reservation itself; because this route is admin-authenticated we can
+        // safely seed the production app store instead of forcing duplicate registration.
+        // Existing reservations shown in the admin UI can originate from reservations-api and
+        // may use a different identifier field than app-assessment-api. The request is already
+        // admin-authenticated, so accept the selected reservation payload itself when the app
+        // store does not yet contain a matching row. Do not require reservation.id to equal the
+        // UI reservationId; normalize the identifiers below instead.
+        let row = index >= 0 ? current[index] : (body?.reservation && typeof body.reservation === 'object' ? body.reservation : null);
+        if (!row) return response(404, { ok:false, error:'등록된 신청내역을 찾을 수 없습니다.' });
         const accessToken = text(row.appAccessToken, 120) || token();
-        const appApplicationId = text(row.appApplicationId, 120) || String(row.id);
+        const appApplicationId = text(row.appApplicationId, 120) || String(row.id || reservationId);
         const updated = {
           ...row,
+          id: row.id || reservationId,
           appApplicationId,
           appAccessToken: accessToken,
           guestAccessEnabled: true,
           guestAccessIssuedAt: row.guestAccessIssuedAt || new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        current[index] = updated;
+        if (index >= 0) current[index] = updated;
+        else current.unshift(updated);
         await store.setJSON(KEY, current);
         return response(200, { ok:true, application:clientApplicationPayload(updated) });
       } catch (error) {
