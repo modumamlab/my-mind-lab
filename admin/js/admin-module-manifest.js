@@ -93,7 +93,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20261006-direct-guest-v5',
+      src:'./js/modules/operations-workspace.js?v=20261006-direct-guest-v8',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20261006-direct-guest-v5',
+      src:'./js/admin.js?v=20261006-direct-guest-v8',
       required:true
     },
     {

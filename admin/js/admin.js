@@ -950,7 +950,10 @@ async function createDirectGuestAccess(){
   const testEl=document.getElementById('admin-guest-test'); const testId=testEl?.value||'TCI'; const testName=testEl?.selectedOptions?.[0]?.textContent?.trim()||testId;
   if(!name){alert('내담자 이름을 입력해 주세요.');return;} if(!phone){alert('연락처를 입력해 주세요.');return;}
   try{
-    const response=await fetch('/.netlify/functions/app-assessment-api',{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({action:'admin-direct-guest',name,phone,email,testId,testName})});
+    // 간편접속 이용자는 운영 사용자 앱에서 조회하므로 항상 운영 app-assessment-api에 저장합니다.
+    // 특히 localhost:8888 관리자에서 생성해도 로컬 Blob에만 저장되지 않도록 운영 API를 직접 사용합니다.
+    const directGuestApi=APP_RESERVATION_PRODUCTION_API.replace('?admin=1','');
+    const response=await fetch(directGuestApi,{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({action:'admin-direct-guest',name,phone,email,testId,testName})});
     const data=await response.json().catch(()=>({})); if(!response.ok||!data.ok)throw new Error(data.error||`SERVER_ERROR_${response.status}`);
     const app=data.application; const base=load('modumam_user_app_url','https://modumam-app.netlify.app/'); const u=new URL(base); u.searchParams.set('guestId',app.id);u.searchParams.set('guestToken',app.accessToken);
     await refreshSharedOperatingData(true).catch(()=>{}); render();
@@ -958,6 +961,26 @@ async function createDirectGuestAccess(){
   }catch(error){console.error('[간편접속 등록]',error);alert('간편접속 등록 실패\n'+String(error?.message||error));}
 }
 window.createDirectGuestAccess=createDirectGuestAccess;
+
+
+async function issueExistingGuestAccess(reservationId){
+  const reservation=state.reservations.find(r=>String(r.id)===String(reservationId));
+  if(!reservation){alert('등록 정보를 찾지 못했습니다.');return;}
+  try{
+    const directGuestApi=APP_RESERVATION_PRODUCTION_API.replace('?admin=1','');
+    const response=await fetch(directGuestApi,{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({action:'admin-existing-guest-link',reservationId:String(reservation.id)})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok||!data.ok)throw new Error(data.error||`SERVER_ERROR_${response.status}`);
+    const app=data.application;
+    const base=load('modumam_user_app_url','https://modumam-app.netlify.app/');
+    const u=new URL(base);
+    u.searchParams.set('guestId',app.id);
+    u.searchParams.set('guestToken',app.accessToken);
+    await refreshSharedOperatingData(true).catch(()=>{}); render();
+    setTimeout(()=>prompt('간편접속 링크입니다. 복사해서 이용자에게 전달하세요.',u.href),50);
+  }catch(error){console.error('[기존 이용자 간편접속]',error);alert('간편접속 링크 발급 실패\n'+String(error?.message||error));}
+}
+window.issueExistingGuestAccess=issueExistingGuestAccess;
 
 function createAdminReservation(){
   const name=document.getElementById('admin-reservation-name')?.value?.trim()||'';
@@ -4110,6 +4133,7 @@ function renderAiCounselingActivationControl(reservation){
       <div class="flex flex-wrap items-center gap-2">
         <span class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-700">AI 상담 ${statusText}</span>
         <button type="button" data-mml-action="ai-counseling-toggle" data-reservation-id="${id}" data-next-enabled="false" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-extrabold text-slate-600">비활성화</button>
+        <button type="button" onclick="issueExistingGuestAccess('${id}')" class="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-[11px] font-extrabold text-emerald-700">간편접속 링크 생성/복사</button>
         ${expired?`<button type="button" data-mml-action="ai-counseling-toggle" data-reservation-id="${id}" data-next-enabled="true" class="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-extrabold text-violet-700">60분 재부여</button>`:''}
       </div>
     `;
@@ -4128,6 +4152,7 @@ function renderAiCounselingActivationControl(reservation){
           : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
       }"
     >AI 상담 비활성</button>
+    <button type="button" onclick="issueExistingGuestAccess('${id}')" class="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-[11px] font-extrabold text-emerald-700">간편접속 링크 생성/복사</button>
   `;
 }
 
@@ -4177,3 +4202,5 @@ window.toggleAiCounselingActivation=toggleAiCounselingActivation;
 
 
 
+
+// BUILD 20261006-DIRECT-GUEST-V8: existing reservation guest-link button enabled.

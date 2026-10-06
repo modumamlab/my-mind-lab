@@ -337,6 +337,34 @@ exports.handler = async (event) => {
     try { body = JSON.parse(event.body || '{}'); }
     catch (_) { return response(400, { ok:false, error:'요청 형식이 올바르지 않습니다.' }); }
 
+    // v8: existing reservations can be issued a guest access token without re-registration.
+    if (body?.action === 'admin-existing-guest-link') {
+      if (!adminAuthorized(event)) return response(401, { ok:false, error:'관리자 인증이 필요합니다.' });
+      const reservationId = text(body.reservationId, 120);
+      if (!reservationId) return response(400, { ok:false, error:'대상 신청정보가 필요합니다.' });
+      try {
+        const current = rows(await store.get(KEY, { type:'json' }).catch(() => null));
+        const index = current.findIndex(r => String(r.id || '') === reservationId || String(r.appApplicationId || '') === reservationId);
+        if (index < 0) return response(404, { ok:false, error:'등록된 신청내역을 찾을 수 없습니다.' });
+        const row = current[index];
+        const accessToken = text(row.appAccessToken, 120) || token();
+        const appApplicationId = text(row.appApplicationId, 120) || String(row.id);
+        const updated = {
+          ...row,
+          appApplicationId,
+          appAccessToken: accessToken,
+          guestAccessEnabled: true,
+          guestAccessIssuedAt: row.guestAccessIssuedAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        current[index] = updated;
+        await store.setJSON(KEY, current);
+        return response(200, { ok:true, application:clientApplicationPayload(updated) });
+      } catch (error) {
+        return response(503, { ok:false, error:'간편접속 링크 발급에 실패했습니다.', detail:String(error?.message || error) });
+      }
+    }
+
     if (body?.action === 'admin-direct-guest') {
       if (!adminAuthorized(event)) return response(401, { ok:false, error:'관리자 인증이 필요합니다.' });
       const name=text(body.name,80), phone=normalizePhone(body.phone), email=text(body.email,160).toLowerCase();
