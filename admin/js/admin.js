@@ -943,6 +943,22 @@ function saveCurrentReservationChanges(id){
 }
 window.saveCurrentReservationChanges=saveCurrentReservationChanges;
 
+async function createDirectGuestAccess(){
+  const name=document.getElementById('admin-guest-name')?.value?.trim()||'';
+  const phone=document.getElementById('admin-guest-phone')?.value?.trim()||'';
+  const email=document.getElementById('admin-guest-email')?.value?.trim()||'';
+  const testEl=document.getElementById('admin-guest-test'); const testId=testEl?.value||'TCI'; const testName=testEl?.selectedOptions?.[0]?.textContent?.trim()||testId;
+  if(!name){alert('내담자 이름을 입력해 주세요.');return;} if(!phone){alert('연락처를 입력해 주세요.');return;}
+  try{
+    const response=await fetch('/.netlify/functions/app-assessment-api',{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':ADMIN_PASSWORD},body:JSON.stringify({action:'admin-direct-guest',name,phone,email,testId,testName})});
+    const data=await response.json().catch(()=>({})); if(!response.ok||!data.ok)throw new Error(data.error||`SERVER_ERROR_${response.status}`);
+    const app=data.application; const base=load('modumam_user_app_url','https://modumam-app.netlify.app/'); const u=new URL(base); u.searchParams.set('guestId',app.id);u.searchParams.set('guestToken',app.accessToken);
+    await refreshSharedOperatingData(true).catch(()=>{}); render();
+    setTimeout(()=>prompt('간편접속 링크가 생성되었습니다. 복사해서 구매자에게 전달하세요.',u.href),50);
+  }catch(error){console.error('[간편접속 등록]',error);alert('간편접속 등록 실패\n'+String(error?.message||error));}
+}
+window.createDirectGuestAccess=createDirectGuestAccess;
+
 function createAdminReservation(){
   const name=document.getElementById('admin-reservation-name')?.value?.trim()||'';
   const phone=document.getElementById('admin-reservation-phone')?.value?.trim()||'';

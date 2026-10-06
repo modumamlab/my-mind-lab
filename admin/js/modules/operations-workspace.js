@@ -164,50 +164,19 @@ function reservationSyncStatus(){
   return `<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3"><div><p class="text-xs font-extrabold text-sky-900">예약 데이터</p><p class="mt-1 text-[11px] text-sky-700">서버 기준 ${state.reservations.length}건</p>${state.reservationSyncError?`<p class="mt-1 text-[11px] font-bold text-rose-600">서버 오류: ${esc(state.reservationSyncError)}</p>`:''}</div><button type="button" onclick="refreshSharedOperatingData(true)" class="rounded-xl bg-sky-700 px-4 py-2 text-xs font-extrabold text-white">예약 새로 불러오기</button></div>`;
 }
 function adminReservationCreatePanel(){
-  const today=new Date().toISOString().slice(0,10);
-  const defaultMethod=COUNSELING_METHODS[0]||'장소 조율(대면)';
-  const defaultTimes=counselingTimesForMethod(defaultMethod);
-  const defaultTests=(OPERATING_SETTINGS.programDefaultTests?.['개인 마음이음']||['TCI 기질 및 성격검사']).join(', ');
-  return `<section class="rounded-[1.5rem] border border-indigo-100 bg-white p-4 shadow-sm">
-    <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-      <div>
-        <p class="text-xs font-extrabold text-indigo-600">ADMIN DIRECT RESERVATION</p>
-        <h3 class="mt-0.5 text-lg font-extrabold text-slate-950">관리자 직접 예약등록</h3>
-        <p class="mt-1 text-[11px] leading-relaxed text-slate-500">전화·현장·테스트 예약을 직접 등록합니다. 저장 즉시 예약관리와 심리평가센터에서 같은 예약을 사용합니다.</p>
-      </div>
-      <span class="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-[11px] font-extrabold text-indigo-700">기존 저장 로직 복구</span>
+  return `<section class="rounded-[1.5rem] border border-emerald-100 bg-white p-4 shadow-sm">
+    <div>
+      <p class="text-xs font-extrabold text-emerald-600">DIRECT GUEST ACCESS</p>
+      <h3 class="mt-0.5 text-lg font-extrabold text-slate-950">관리자 직접 간편접속 등록</h3>
+      <p class="mt-1 text-[11px] leading-relaxed text-slate-500">결제 확인 후 이름·연락처·검사만 등록합니다. 회원가입 없이 이용할 개인 접속링크가 생성됩니다.</p>
     </div>
     <div class="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-      <label class="text-xs font-extrabold text-slate-500">내담자 이름
-        <input id="admin-reservation-name" type="text" placeholder="홍길동" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
-      </label>
-      <label class="text-xs font-extrabold text-slate-500">연락처
-        <input id="admin-reservation-phone" type="tel" placeholder="010-0000-0000" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
-      </label>
-      <label class="text-xs font-extrabold text-slate-500">예약일
-        <input id="admin-reservation-date" type="date" value="${today}" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
-      </label>
-      <label class="text-xs font-extrabold text-slate-500">예약시간
-        <select id="admin-reservation-time" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">${defaultTimes.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
-      </label>
-      <label class="text-xs font-extrabold text-slate-500">상담방식
-        <select id="admin-reservation-method" onchange="updateAdminReservationTimeOptions()" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">${COUNSELING_METHODS.map(method=>`<option value="${esc(method)}">${esc(counselingMethodLabel(method))}</option>`).join('')}</select>
-      </label>
-      <label class="text-xs font-extrabold text-slate-500">서비스 / 프로그램
-        <select id="admin-reservation-program" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
-          <option value="개별 심리검사">개별 심리검사</option>
-          <option value="개인 마음이음">개인 마음이음</option>
-          <option value="부부 마음이음">부부 마음이음</option>
-          <option value="부모-자녀 마음이음">부모-자녀 마음이음</option>
-        </select>
-      </label>
-      <label class="text-xs font-extrabold text-slate-500 md:col-span-2">신청 검사 <span class="font-medium text-slate-400">(쉼표로 구분)</span>
-        <input id="admin-reservation-tests" type="text" value="${esc(defaultTests)}" placeholder="TCI, MMPI-2" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-900">
-      </label>
+      <label class="text-xs font-extrabold text-slate-500">내담자 이름 <span class="text-rose-500">*</span><input id="admin-guest-name" type="text" placeholder="홍길동" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold"></label>
+      <label class="text-xs font-extrabold text-slate-500">연락처 <span class="text-rose-500">*</span><input id="admin-guest-phone" type="tel" placeholder="010-0000-0000" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold"></label>
+      <label class="text-xs font-extrabold text-slate-500">이메일 <span class="font-medium text-slate-400">(선택)</span><input id="admin-guest-email" type="email" placeholder="선택 입력" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold"></label>
+      <label class="text-xs font-extrabold text-slate-500">신청 검사 <span class="text-rose-500">*</span><select id="admin-guest-test" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold"><option value="TCI">TCI 기질 및 성격검사</option><option value="JTCI">JTCI 청소년 기질 및 성격검사</option><option value="MMPI-2">MMPI-2 다면적 인성검사</option><option value="MMPI-A">MMPI-A 청소년 다면적 인성검사</option><option value="PAI">PAI 성격평가질문지</option><option value="PAT-2">PAT-2 부모양육태도검사</option><option value="STS">STS 6요인 기질검사</option><option value="K-CDI">K-CDI 아동발달검사</option></select></label>
     </div>
-    <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
-      <button type="button" onclick="createAdminReservation()" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-indigo-700">예약 등록</button>
-    </div>
+    <div class="mt-3 flex justify-end"><button type="button" onclick="createDirectGuestAccess()" class="rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white">등록 및 간편접속 링크 생성</button></div>
   </section>`;
 }
 function reservationView(){

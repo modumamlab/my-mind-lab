@@ -337,6 +337,18 @@ exports.handler = async (event) => {
     try { body = JSON.parse(event.body || '{}'); }
     catch (_) { return response(400, { ok:false, error:'요청 형식이 올바르지 않습니다.' }); }
 
+    if (body?.action === 'admin-direct-guest') {
+      if (!adminAuthorized(event)) return response(401, { ok:false, error:'관리자 인증이 필요합니다.' });
+      const name=text(body.name,80), phone=normalizePhone(body.phone), email=text(body.email,160).toLowerCase();
+      const testId=text(body.testId,40)||'TCI';
+      const testName=text(body.testName,200)||testId;
+      if(!name || phone.length<9 || !allowedTests.has(testId)) return response(400,{ok:false,error:'이름, 연락처, 검사 정보를 확인해 주세요.'});
+      const now=new Date(); const id=`GUEST-${now.getTime()}-${crypto.randomBytes(3).toString('hex')}`; const accessToken=token();
+      const reservation={id,name,phone,email,program:`개별 심리검사 (${testName})`,bookingProgram:'개별 심리검사',bookingCategory:'individual-test',assessmentTestCode:testId,testId,testName,selectedTests:[testId],requestedTests:[testName],extraTests:[testId],appApplicationId:id,appAccessToken:accessToken,applicationSource:'admin-direct-guest-v1',applicationType:'assessment',status:'예약승인',aiCounselingEnabled:false,aiEnabled:false,aiResultCounselingEnabled:false,createdAt:now.toISOString(),updatedAt:now.toISOString(),adminCreated:true};
+      try { const current=rows(await store.get(KEY,{type:'json'}).catch(()=>null)); await store.setJSON(KEY,[reservation,...current].slice(0,3000)); return response(201,{ok:true,application:clientApplicationPayload(reservation)}); }
+      catch(error){ return response(503,{ok:false,error:'간편접속 등록에 실패했습니다.',detail:String(error?.message||error)}); }
+    }
+
     if (body?.action === 'ai-start') {
       const id = text(body.id, 100);
       const accessToken = text(body.token, 100);
