@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20261021-service-pricing',
+      src:'./js/admin.js?v=20261022-counseling-methods',
       required:true
     },
     {

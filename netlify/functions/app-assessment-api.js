@@ -440,9 +440,9 @@ exports.handler = async (event) => {
     const provider = text(body.provider, 40);
     const note = text(body.chiefComplaint || body.note, 1000);
     const consultationMethod = text(body.consultationMethod, 20);
-    const allowedCounselingMethods = new Set(['대면상담','비대면상담']);
-    const allowedAssessmentMethods = new Set(['AI상담','대면상담','비대면상담']);
-    const scheduledAssessmentMethods = new Set(['대면상담','비대면상담']);
+    const allowedCounselingMethods = new Set(['전문가상담','AI상담']);
+    const allowedAssessmentMethods = new Set(['전문가상담','AI상담']);
+    const scheduledAssessmentMethods = new Set(['전문가상담']);
     const preferredDate = text(body.preferredDate || body.date, 10);
     const preferredTime = text(body.preferredTime || body.time, 5);
     const isAllowedBookingTime = (dateValue, timeValue) => {
@@ -459,18 +459,20 @@ exports.handler = async (event) => {
     const isCounselingApplication = applicationType === 'counseling';
 
     if (isCounselingApplication) {
-      if (!name || phone.length < 9 || note.length < 2 || !allowedCounselingMethods.has(consultationMethod) || !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || preferredDate < seoulToday || !isAllowedBookingTime(preferredDate, preferredTime)) {
+      const needsSchedule = consultationMethod === '전문가상담';
+      const scheduleValid = !needsSchedule || (/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) && preferredDate >= seoulToday && isAllowedBookingTime(preferredDate, preferredTime));
+      if (!name || phone.length < 9 || note.length < 2 || !allowedCounselingMethods.has(consultationMethod) || !scheduleValid) {
         return response(400, { ok: false, error: '마음상담 신청정보를 확인해 주세요.' });
       }
 
       const now = new Date();
       const id = `APP-${now.getTime()}-${crypto.randomBytes(3).toString('hex')}`;
       const accessToken = token();
-      const counselingFee = consultationMethod === '대면상담' ? 100000 : 50000;
+      const counselingFee = consultationMethod === '전문가상담' ? 50000 : 0;
       const reservation = {
         id, name, phone, email, concern: note, chiefComplaint: note, type: consultationMethod, consultationMethod,
         counselingFee, testFee: 0, estimatedTotal: counselingFee,
-        date: preferredDate, time: preferredTime, preferredDate, preferredTime,
+        date: needsSchedule ? preferredDate : '', time: needsSchedule ? preferredTime : '', preferredDate: needsSchedule ? preferredDate : '', preferredTime: needsSchedule ? preferredTime : '',
         applicationDate: now.toISOString().slice(0, 10),
         program: '개인 마음상담', bookingProgram: '개인 마음상담', bookingCategory: 'counseling',
         extraTests: [], selectedTests: [], additionalTests: [],
@@ -490,8 +492,8 @@ exports.handler = async (event) => {
             accessToken,
             status: '신청접수',
             createdAt: now.toISOString(),
-            preferredDate,
-            preferredTime,
+            preferredDate: needsSchedule ? preferredDate : '',
+            preferredTime: needsSchedule ? preferredTime : '',
             consultationMethod,
             counselingFee,
             chiefComplaint: note
@@ -533,9 +535,9 @@ exports.handler = async (event) => {
       email,
       type: consultationMethod,
       consultationMethod,
-      counselingFee: consultationMethod === '대면상담' ? 100000 : consultationMethod === '비대면상담' ? 50000 : 0,
+      counselingFee: consultationMethod === '전문가상담' ? 50000 : 0,
       testFee: TEST_PRICES[testId] || 0,
-      estimatedTotal: (consultationMethod === '대면상담' ? 100000 : consultationMethod === '비대면상담' ? 50000 : 0) + (TEST_PRICES[testId] || 0),
+      estimatedTotal: (consultationMethod === '전문가상담' ? 50000 : 0) + (TEST_PRICES[testId] || 0),
       date: needsSchedule ? preferredDate : '',
       time: needsSchedule ? preferredTime : '',
       preferredDate: needsSchedule ? preferredDate : '',

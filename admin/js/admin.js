@@ -17,7 +17,7 @@ const DEFAULT_OPERATING_SETTINGS={
   openTime:'09:00',
   closeTime:'17:00',
   intervalMinutes:30,
-  enabledMethods:['장소 조율(대면)','찾아가는(대면)','Zoom(비대면)','24시 AI상담(비대면)'],
+  enabledMethods:['전문가상담','AI상담'],
   programDefaultTests:{
     '개인 마음이음':['TCI 기질 및 성격검사'],
     '부부 마음이음':['본인 TCI 기질 및 성격검사','배우자 TCI 기질 및 성격검사'],
@@ -28,7 +28,10 @@ const DEFAULT_OPERATING_SETTINGS={
 };
 function getOperatingSettings(){
   const saved=load('modumam_operating_settings',{});
-  return {...DEFAULT_OPERATING_SETTINGS,...saved,programDefaultTests:{...DEFAULT_OPERATING_SETTINGS.programDefaultTests,...(saved.programDefaultTests||{})}};
+  const enabledMethods=Array.isArray(saved.enabledMethods)&&saved.enabledMethods.length
+    ? [...new Set(saved.enabledMethods.map(method=>isAiCounselingMethod(method)?'AI상담':'전문가상담'))]
+    : DEFAULT_OPERATING_SETTINGS.enabledMethods;
+  return {...DEFAULT_OPERATING_SETTINGS,...saved,enabledMethods,programDefaultTests:{...DEFAULT_OPERATING_SETTINGS.programDefaultTests,...(saved.programDefaultTests||{})}};
 }
 function buildCounselingTimes(settings=getOperatingSettings()){
   const toMin=v=>{const [h,m]=String(v||'00:00').split(':').map(Number);return h*60+m};
@@ -48,7 +51,7 @@ function counselingTimesForMethod(method,settings=getOperatingSettings()){
   return isAiCounselingMethod(method)?buildAiCounselingTimes(settings.intervalMinutes):buildCounselingTimes(settings);
 }
 function counselingMethodLabel(method){
-  return isAiCounselingMethod(method)?'24시 AI상담(비대면)':(method==='Zoom(비대면)'?'화상(비대면)':String(method||''));
+  return isAiCounselingMethod(method)?'AI상담':'전문가상담';
 }
 let OPERATING_SETTINGS=getOperatingSettings();
 let COUNSELING_METHODS=[...OPERATING_SETTINGS.enabledMethods];
@@ -396,9 +399,8 @@ function getPaymentInfo(r){
   // 'AI(비대면)'에도 '대면' 글자가 포함되므로 비대면 여부를 먼저 판별합니다.
   const isNonFace=/AI|Zoom|화상|전화|비대면/i.test(type);
   const isAi=/AI/i.test(type);
-  const isVisiting=type.includes('찾아가는');
-  const counselingFee=isAi?0:(isVisiting?100000:50000);
-  const counselingLabel=isAi?'24시 AI상담 무료':`상담비 ${counselingFee.toLocaleString()}원`;
+  const counselingFee=isAi?0:50000;
+  const counselingLabel=isAi?'AI상담 무료':`전문가상담 ${counselingFee.toLocaleString()}원`;
 
   // 결제안내에는 '기본검사 1건' 같은 표현 대신 실제 심리검사명을 표시합니다.
   // requestedTests()가 프로그램 기본검사와 신청자가 선택한 검사를 중복 없이 합쳐 줍니다.
@@ -572,15 +574,12 @@ function shortTestName(test){
 }
 function counselingMethodKey(type){
   const t=String(type||'');
-  if(t.includes('찾아가는'))return '찾아가는';
-  if(t.includes('장소'))return '장소 조율';
-  if(t.includes('Zoom')||t.includes('화상'))return '화상';
   if(t.includes('AI'))return 'AI';
-  return t||'미정';
+  return t?'전문가':'미정';
 }
 function counselingMethodChips(type){
   const selected=counselingMethodKey(type);
-  const methods=['장소 조율','찾아가는','화상','AI'];
+  const methods=['전문가','AI'];
   return `<div class="flex flex-wrap gap-2 mt-2">${methods.map(m=>`<span class="rounded-full px-3 py-1.5 text-xs border ${selected===m?'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm':'bg-white text-slate-400 border-slate-200 font-semibold'}">${m}${selected===m?' · 선택':''}</span>`).join('')}${renderAiCounselingActivationControl(reservation)}</div>`;
 }
 function electronicChartTestChips(client, latest, tests){
@@ -884,7 +883,7 @@ function updateCounselingMethod(id,value){
 function updateCounselingTime(id,value){
   const reservation=state.reservations.find(r=>String(r.id)===String(id));
   const allowed=counselingTimesForMethod(reservation?.type);
-  if(!allowed.includes(value)){alert(isAiCounselingMethod(reservation?.type)?'24시 AI상담은 00:00~23:30 사이에서 선택해 주세요.':`대면·화상 상담시간은 ${OPERATING_SETTINGS.openTime}부터 ${OPERATING_SETTINGS.closeTime}까지 ${OPERATING_SETTINGS.intervalMinutes}분 단위로 선택해 주세요.`);render();return;}
+  if(!allowed.includes(value)){alert(isAiCounselingMethod(reservation?.type)?'AI상담은 00:00~23:30 사이에서 선택해 주세요.':`전문가상담 시간은 ${OPERATING_SETTINGS.openTime}부터 ${OPERATING_SETTINGS.closeTime}까지 ${OPERATING_SETTINGS.intervalMinutes}분 단위로 선택해 주세요.`);render();return;}
   updateScheduleWithHistory(id,{time:value},'상담시간 변경');
 }
 function updateCounselingDate(id,value){
@@ -925,7 +924,7 @@ function saveCurrentReservationChanges(id){
   }
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('예약일을 올바르게 선택해 주세요.');return;}
   const allowedTimes=isOnlineAssessment?buildCounselingTimes():counselingTimesForMethod(type);
-  if(!allowedTimes.includes(time)){alert(isAiCounselingMethod(type)?'24시 AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'예약시간은 09:00~17:00 사이에서 선택해 주세요.');return;}
+  if(!allowedTimes.includes(time)){alert(isAiCounselingMethod(type)?'AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'전문가상담 시간은 09:00~17:00 사이에서 선택해 주세요.');return;}
   if(!type){alert('상담방식을 선택해 주세요.');return;}
 
   const changed=date!==String(reservation.date||'') || time!==String(reservation.time||'') || type!==String(reservation.type||'');
@@ -996,7 +995,7 @@ function createAdminReservation(){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('예약일자를 선택해 주세요.');return;}
   if(!type){alert('상담방식을 선택해 주세요.');return;}
   const allowed=counselingTimesForMethod(type);
-  if(!allowed.includes(time)){alert(isAiCounselingMethod(type)?'24시 AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'대면·화상 상담은 09:00~17:00 사이에서 선택해 주세요.');return;}
+  if(!allowed.includes(time)){alert(isAiCounselingMethod(type)?'AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'전문가상담은 09:00~17:00 사이에서 선택해 주세요.');return;}
   const now=new Date();
   const id=Number(`${Date.now()}${Math.floor(Math.random()*1000).toString().padStart(3,'0')}`);
   const selectedTests=testsRaw.split(',').map(v=>v.trim()).filter(Boolean);
@@ -3946,7 +3945,7 @@ function terminationKey(reservationId){return 'modumam_termination_'+String(rese
 
 /* V26: 사례종결평가 및 상담성과 통계 코드는 js/modules/outcomes-workspace.js로 분리되었습니다. */
 
-function settingsView(){const st=getOperatingSettings();const allMethods=['장소 조율(대면)','찾아가는(대면)','Zoom(비대면)','24시 AI상담(비대면)'];return layout(`<div class="space-y-6 max-w-5xl">
+function settingsView(){const st=getOperatingSettings();const allMethods=['전문가상담','AI상담'];return layout(`<div class="space-y-6 max-w-5xl">
   <div class="rounded-[2rem] bg-slate-950 p-6 text-white"><p class="text-xs font-extrabold text-emerald-300">OPERATING SETTINGS</p><h2 class="mt-2 text-2xl font-extrabold">환경설정</h2><p class="mt-2 text-sm text-slate-300">상담시간, 예약 간격, 상담방식과 프로그램별 기본검사를 코드 수정 없이 관리합니다.</p></div>
   <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><h3 class="text-lg font-extrabold">운영센터 기본정보</h3><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2"><label class="text-xs font-bold text-slate-500">운영센터명<input id="setting-center-name" value="${esc(st.centerName)}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label><label class="text-xs font-bold text-slate-500">상담사명<input id="setting-counselor-name" value="${esc(st.counselorName)}" placeholder="선택 입력" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label></div><label class="mt-4 block text-xs font-bold text-slate-500">회원 안내문<textarea id="setting-contact-message" rows="3" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm">${esc(st.contactMessage)}</textarea></label></section>
   <section class="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"><h3 class="text-lg font-extrabold">예약 운영시간</h3><div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3"><label class="text-xs font-bold text-slate-500">시작시간<input id="setting-open-time" type="time" value="${esc(st.openTime)}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label><label class="text-xs font-bold text-slate-500">종료시간<input id="setting-close-time" type="time" value="${esc(st.closeTime)}" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></label><label class="text-xs font-bold text-slate-500">예약 간격<select id="setting-interval" class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"><option value="30" ${Number(st.intervalMinutes)===30?'selected':''}>30분</option><option value="60" ${Number(st.intervalMinutes)===60?'selected':''}>60분</option></select></label></div><p class="mt-3 text-xs text-slate-400">현재 생성되는 예약시간: ${buildCounselingTimes(st).join(', ')}</p></section>

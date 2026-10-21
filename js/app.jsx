@@ -690,14 +690,14 @@ function saveHomeAuthSession(session, profile = {}) {
             // Booking form inputs
             const [bookingName, setBookingName] = useState('');
             const [bookingPhone, setBookingPhone] = useState('');
-            const [bookingType, setBookingType] = useState('찾아오는(대면)');
+            const [bookingType, setBookingType] = useState('전문가상담');
             const [bookingDate, setBookingDate] = useState('');
             const [bookingTime, setBookingTime] = useState('');
             // [MOD-20260714-BOOKING-OPERATING-SETTINGS] 관리자 환경설정과 예약시간을 연결합니다.
             const bookingOperatingSettings = (() => {
                 const defaults = {
                     openTime: '09:00', closeTime: '18:00', intervalMinutes: 30,
-                    enabledMethods: ['찾아오는(대면)', '찾아가는(대면)', 'Zoom(비대면)', '24시 AI상담(비대면)']
+                    enabledMethods: ['전문가상담', 'AI상담']
                 };
                 try {
                     return { ...defaults, ...(JSON.parse(localStorage.getItem('modumam_operating_settings') || '{}')) };
@@ -706,9 +706,9 @@ function saveHomeAuthSession(session, profile = {}) {
                 }
             })();
             // [MOD-20260726-BOOKING-HOURS] 상담방식별 예약시간
-            // - 찾아오는/찾아가는/화상: 09:00~17:00
-            // - 24시 AI상담: 00:00~23:30
-            const is24HourAiBooking = ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType);
+            // - 전문가상담: 09:00~17:00
+            // - AI상담: 00:00~23:30
+            const is24HourAiBooking = ['AI상담', '24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType);
             const bookingTimeOptions = (() => {
                 const start = is24HourAiBooking ? 0 : 9 * 60;
                 const end = is24HourAiBooking ? (23 * 60 + 30) : 17 * 60;
@@ -728,11 +728,6 @@ function saveHomeAuthSession(session, profile = {}) {
             }, [bookingType]);
             const [bookingProgram, setBookingProgram] = useState('개인 마음상담');
             const [selectedTests, setSelectedTests] = useState([]);
-            useEffect(() => {
-                if (bookingProgram === '개인 마음상담' && is24HourAiBooking) {
-                    setBookingType('Zoom(비대면)');
-                }
-            }, [bookingProgram, bookingType]);
             const [bookingAlert, setBookingAlert] = useState(null);
             const [bookingTestsOpen, setBookingTestsOpen] = useState(false);
             const [bookingMethodOpen, setBookingMethodOpen] = useState(true);
@@ -742,34 +737,42 @@ function saveHomeAuthSession(session, profile = {}) {
 
             const getBookingMethodGuide = (type) => {
                 const guides = {
+                    '전문가상담': {
+                        title: '전문가상담',
+                        text: '전문가가 예약 일정에 맞춰 상담을 진행합니다.'
+                    },
+                    'AI상담': {
+                        title: 'AI상담',
+                        text: '이벤트 기간 동안 60분 AI상담을 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 시작할 수 있습니다.'
+                    },
                     '찾아오는(대면)': {
-                        title: '찾아오는(대면)',
+                        title: '전문가상담',
                         text: '예약 확정 후 상담 장소를 안내드립니다.'
                     },
                     // 기존 저장 예약 호환
                     '장소 조율(대면)': {
-                        title: '찾아오는(대면)',
+                        title: '전문가상담',
                         text: '예약 확정 후 상담 장소를 안내드립니다.'
                     },
                     '찾아가는(대면)': {
-                        title: '찾아가는(대면)',
+                        title: '전문가상담',
                         text: '이동이 어렵거나 익숙한 환경에서 상담받기를 원하는 경우, 협의된 기관이나 가정으로 찾아가 진행합니다.'
                     },
                     'Zoom(비대면)': {
-                        title: '화상(비대면)',
+                        title: '전문가상담',
                         text: 'Zoom을 이용해 얼굴을 보며 진행하는 비대면 해석상담입니다. 안정적인 인터넷과 조용한 공간이 필요합니다.'
                     },
                     '24시 AI상담(비대면)': {
-                        title: '24시 AI상담(비대면)',
+                        title: 'AI상담',
                         text: '이벤트 기간 동안 상담 신청자는 60분 AI 해석상담을 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 AI 상담 시작을 누르면 그 시점부터 60분간 이용할 수 있습니다.'
                     },
                     // 기존 저장 예약 호환
                     'AI(비대면)': {
-                        title: '24시 AI상담(비대면)',
+                        title: 'AI상담',
                         text: '이벤트 기간 동안 상담 신청자는 60분 AI 해석상담을 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 AI 상담 시작을 누르면 그 시점부터 60분간 이용할 수 있습니다.'
                     }
                 };
-                return guides[type] || guides['찾아오는(대면)'];
+                return guides[type] || guides['전문가상담'];
             };
 
 
@@ -1135,7 +1138,7 @@ function saveHomeAuthSession(session, profile = {}) {
                     return [];
                 }
             });
-            const REVIEW_SERVICE_OPTIONS = ['심리검사 상담', '24시 AI상담', '비대면 화상상담', '기타상담'];
+            const REVIEW_SERVICE_OPTIONS = ['전문가상담', 'AI상담', '심리검사 상담', '기타상담'];
             const [reviewCategories, setReviewCategories] = useState(['심리검사 상담']);
             const [reviewRating, setReviewRating] = useState(5);
             const [reviewText, setReviewText] = useState('');
@@ -2135,7 +2138,7 @@ const userText = pendingInput;
                 if (aiIntakeReport?.counselingRecommendation) {
                     if (aiIntakeReport.counselingRecommendation.includes("부모-자녀")) {
                         setBookingProgram("부모-자녀 마음이음");
-                        setBookingType("찾아가는(대면)");
+                        setBookingType("전문가상담");
                     } else if (aiIntakeReport.counselingRecommendation.includes("부부")) {
                         setBookingProgram("부부 마음이음");
                     } else {
@@ -3754,7 +3757,7 @@ const userText = pendingInput;
                 const assessmentSource = buildUploadedAssessmentCounselingSource(reservation);
                 const report = assessmentSource || {
                     id: `AI-COUNSELING-${reservation.id}`,
-                    title: '24시 AI상담(비대면)',
+                    title: 'AI상담',
                     testType: '',
                     summary: '',
                     generalAiCounseling: true
@@ -4777,8 +4780,8 @@ const toggleTest = (test) => {
                     setBookingAlert({
                         type: 'error',
                         message: is24HourAiBooking
-                            ? '24시 AI상담은 00:00부터 23:30까지 30분 단위로 선택해 주세요.'
-                            : '대면·화상 상담은 09:00부터 17:00까지 30분 단위로 선택해 주세요.'
+                            ? 'AI상담은 00:00부터 23:30까지 30분 단위로 선택해 주세요.'
+                            : '전문가상담은 09:00부터 17:00까지 30분 단위로 선택해 주세요.'
                     });
                     return;
                 }
@@ -4786,14 +4789,9 @@ const toggleTest = (test) => {
                 /* [MOD-20260712-PARENT-BOOKING-013] 제출 단계 최종 검증 */
                 const isParentBooking = bookingProgram.includes('부모-자녀 마음이음');
                 const behaviorSelected = isParentBooking && selectedTests.includes('행동관찰');
-                if (bookingType === '찾아가는(대면)' && !behaviorSelected) {
-                    setBookingType('찾아오는(대면)');
-                    setBookingAlert({ type: 'error', message: "찾아가는(대면)은 부모-자녀 마음이음의 '행동관찰'을 선택한 경우에만 신청할 수 있습니다." });
-                    return;
-                }
-                if (behaviorSelected && bookingType !== '찾아가는(대면)') {
-                    setBookingType('찾아가는(대면)');
-                    setBookingAlert({ type: 'error', message: "행동관찰은 찾아가는(대면) 방식으로만 신청할 수 있습니다." });
+                if (behaviorSelected && bookingType !== '전문가상담') {
+                    setBookingType('전문가상담');
+                    setBookingAlert({ type: 'error', message: '행동관찰은 전문가상담으로만 신청할 수 있습니다.' });
                     return;
                 }
 
@@ -4858,9 +4856,9 @@ const toggleTest = (test) => {
   },
   documentStatus: '예약 필수 동의 완료 / 신청서·동의서 발송 예정',
   status: '승인대기',
-  aiCounseling: ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType),
-  counselingDurationMinutes: ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType) ? 60 : null,
-  reportRequired: ['24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType)
+  aiCounseling: ['AI상담', '24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType),
+  counselingDurationMinutes: ['AI상담', '24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType) ? 60 : null,
+  reportRequired: ['AI상담', '24시 AI상담(비대면)', 'AI(비대면)'].includes(bookingType)
 };
 
                 const updatedReservations = mergeReservationRows(newBooking, reservations);
@@ -4939,8 +4937,7 @@ const getPaymentInfo = (res) => {
   const isFaceToFace = !isRemote && (type.includes("대면") || type.includes("찾아가는") || type.includes("찾아오는") || type.includes("장소 조율"));
   const isAi = /AI/i.test(type);
   const isPersonalCounseling = program.includes("개인 마음상담") || res.bookingCategory === 'personal-counseling';
-  const isVisiting = type.includes("찾아가는");
-  const counselingAmount = isAi ? 0 : (isVisiting ? 100000 : 50000);
+  const counselingAmount = isAi ? 0 : 50000;
   const counselingLabel = isAi ? "AI 해석상담 무료(이벤트)" : `${isPersonalCounseling?'상담비':'해석상담비'} ${counselingAmount.toLocaleString()}원`;
 
   const tests = isPersonalCounseling ? [] : (typeof requestedTests === 'function' ? requestedTests(res) : (res.selectedTests || res.extraTests || []));
@@ -5321,12 +5318,12 @@ if (userAge === 'parent') {
 
             /* =====================================================
                [MOD-20260712-PARENT-BOOKING-008] 부모-자녀 행동관찰 예약 조건
-               - 찾아가는(대면)은 부모-자녀 마음이음 + 행동관찰 선택 시에만 활성화
+               - 행동관찰 선택 시 전문가상담만 활성화
                - 공통 안내문은 모든 신청 프로그램에서 항상 표시
             ===================================================== */
             const isParentChildProgram = bookingProgram.includes('부모-자녀 마음이음');
             const hasBehaviorObservation = isParentChildProgram && selectedTests.includes('행동관찰');
-            const isAiBookingDisabled = hasBehaviorObservation || bookingProgram === '개인 마음상담';
+            const isAiBookingDisabled = hasBehaviorObservation;
 
             return (
                 <div className="min-h-screen flex flex-col selection:bg-slate-200">
@@ -6106,7 +6103,7 @@ if (userAge === 'parent') {
                                             <div className="mb-5">
                                                 <h3 className="text-lg font-extrabold text-slate-900">상담·예약 내역</h3>
                                                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                                                    상담과 심리검사 예약 현황을 확인합니다. 이벤트 기간에는 상담 신청자 모두 24시 AI상담(비대면)을 60분 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 시작할 수 있습니다.
+                                                    상담과 심리검사 예약 현황을 확인합니다. 이벤트 기간에는 AI상담을 60분 무료로 이용할 수 있습니다. 관리자 활성화 후 원하는 시간에 시작할 수 있습니다.
                                                 </p>
                                             </div>
 
@@ -6187,7 +6184,7 @@ if (userAge === 'parent') {
                                                                                     ? 'bg-violet-100 text-violet-700'
                                                                                     : 'bg-slate-100 text-slate-700'
                                                                             }`}>
-                                                                                {isAiReservation ? '24시 AI상담(비대면)' : reservation.type}
+                                                                                {isAiReservation ? 'AI상담' : '전문가상담'}
                                                                             </span>
                                                                             <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold ${getStatusStyle(reservation.status)}`}>
                                                                                 {normalizedReservationStatus}
@@ -7234,13 +7231,7 @@ if (userAge === 'parent') {
             setBookingMethodOpen(isPersonalCounseling);
             setBookingInfoOpen(isPersonalCounseling);
             setBookingConsentOpen(isPersonalCounseling);
-            // [MOD-20260712-PARENT-BOOKING-009]
-            // 행동관찰을 새로 선택하기 전에는 찾아가는(대면)을 사용할 수 없습니다.
-            if (program === '부모-자녀 마음이음') {
-                setBookingType('찾아가는(대면)');
-            } else if (bookingType === '찾아가는(대면)') {
-                setBookingType('찾아오는(대면)');
-            }
+            if (program === '부모-자녀 마음이음') setBookingType('전문가상담');
         }}
         className="w-full bg-white border border-slate-200 px-5 py-4 rounded-xl text-base font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
     >
@@ -7262,9 +7253,7 @@ if (userAge === 'parent') {
         ) : (
           <p>※ 프로그램별 권장 검사가 기본 선택되어 있으며, 선택된 검사·관찰 비용이 결제 예정 금액에 합산됩니다.</p>
         )}
-        {bookingProgram !== "개인 마음상담" && (
-          <p className="mt-1">※ 찾아가는(대면) 상담은 부모-자녀 마음이음의 '행동관찰'을 선택한 경우에만 신청할 수 있습니다.</p>
-        )}
+        {bookingProgram !== "개인 마음상담" && <p className="mt-1">※ 상담방식은 전문가상담 또는 AI상담 중 선택할 수 있습니다.</p>}
     </div>
 </div>
             
@@ -7364,7 +7353,7 @@ if (userAge === 'parent') {
       검사·행동관찰 선택 (기본 선택 · 항목별 가격)
     </p>
     <p className="text-[11px] text-emerald-600 mb-3">
-      PAT-2, K-CDI, 행동관찰, STS(영유아), STS(성인)가 기본 선택됩니다. 행동관찰 선택 시 찾아가는(대면)으로 진행됩니다.
+      PAT-2, K-CDI, 행동관찰, STS(영유아), STS(성인)가 기본 선택됩니다. 행동관찰 선택 시 전문가상담으로 진행됩니다.
     </p>
 
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -7384,7 +7373,7 @@ if (userAge === 'parent') {
                 if (test === '행동관찰') {
                     const willSelect = !selectedTests.includes(test);
                     toggleTest(test);
-                    setBookingType(willSelect ? '찾아가는(대면)' : '찾아오는(대면)');
+                    if (willSelect) setBookingType('전문가상담');
                     return;
                 }
                 toggleTest(test);
@@ -7415,53 +7404,25 @@ if (userAge === 'parent') {
                 <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
                     <button
                         type="button"
-                        disabled={hasBehaviorObservation}
-                        onClick={() => { if (!hasBehaviorObservation) setBookingType('찾아오는(대면)'); }}
-                        className={`p-3 rounded-xl border text-center transition-all ${hasBehaviorObservation ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed' : bookingType === '찾아오는(대면)' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        onClick={() => setBookingType('전문가상담')}
+                        className={`p-3 rounded-xl border text-center transition-all ${bookingType === '전문가상담' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                     >
-                        찾아오는(대면)
-                    </button>
-                    <button
-                        type="button"
-                        disabled={!hasBehaviorObservation}
-                        onClick={() => {
-                            if (hasBehaviorObservation) setBookingType('찾아가는(대면)');
-                        }}
-                        className={`p-3 rounded-xl border text-center transition-all ${
-                            !hasBehaviorObservation
-                                ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed'
-                                : bookingType === '찾아가는(대면)'
-                                    ? 'border-slate-900 bg-slate-900 text-white'
-                                    : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                    >
-                        찾아가는(대면)
-                    </button>
-                    <button 
-                        type="button" 
-                        disabled={hasBehaviorObservation}
-                        onClick={() => { if (!hasBehaviorObservation) setBookingType('Zoom(비대면)'); }}
-                        className={`p-3 rounded-xl border text-center transition-all ${hasBehaviorObservation ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed' : bookingType === 'Zoom(비대면)' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                    >
-                        화상(비대면)
+                        전문가상담 · 50,000원
                     </button>
                     <button 
                         type="button" 
                         disabled={isAiBookingDisabled}
-                        onClick={() => { if (!isAiBookingDisabled) setBookingType('24시 AI상담(비대면)'); }}
-                        className={`p-3 rounded-xl border text-center transition-all ${isAiBookingDisabled ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed' : bookingType === '24시 AI상담(비대면)' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        onClick={() => { if (!isAiBookingDisabled) setBookingType('AI상담'); }}
+                        className={`p-3 rounded-xl border text-center transition-all ${isAiBookingDisabled ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed' : bookingType === 'AI상담' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                     >
-                        24시 AI상담(비대면) · 무료
+                        AI상담 · 무료
                     </button>
                 </div>
-                {/* [MOD-20260712-PARENT-BOOKING-012]
-                    행동관찰을 선택해 찾아가는(대면)이 자동 선택된 경우에는
-                    중복되는 상담방식 설명 박스를 표시하지 않습니다. */}
-                {!(hasBehaviorObservation && bookingType === '찾아가는(대면)') && (() => {
+                {(() => {
                     const guide = getBookingMethodGuide(bookingType);
                     return (
                         <div className={`mt-3 rounded-2xl border p-4 leading-relaxed ${
-                            bookingType === '24시 AI상담(비대면)'
+                            bookingType === 'AI상담'
                                 ? 'border-violet-100 bg-violet-50 text-violet-800'
                                 : 'border-slate-200 bg-slate-50 text-slate-700'
                         }`}>
@@ -7567,7 +7528,7 @@ if (userAge === 'parent') {
                             <option key={value} value={value}>{value}</option>
                         ))}
                     </select>
-                    <p className="mt-1 text-[11px] text-slate-400">{is24HourAiBooking ? '24시 AI상담은 00:00~23:30 중 원하는 시작시간을 30분 단위로 선택해 주세요.' : '대면·화상 상담은 09:00~17:00 중 30분 단위로 선택해 주세요.'}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">{is24HourAiBooking ? 'AI상담은 00:00~23:30 중 원하는 시작시간을 30분 단위로 선택해 주세요.' : '전문가상담은 09:00~17:00 중 30분 단위로 선택해 주세요.'}</p>
                 </div>
             </div>
 
@@ -8424,19 +8385,18 @@ if (userAge === 'parent') {
 
     <li>
       <strong className="block text-slate-200 mb-1">
-        온라인 마음 링크 서비스 (비대면)
+        전문가상담
       </strong>
-      Zoom · 화상 · 전화 상담<br />
-      상담 2만 원 / 기본검사 3만 원 / 추가검사 3만 원
+      상담 방식은 예약 확인 후 안내<br />
+      상담비 5만 원
     </li>
 
     <li>
       <strong className="block text-slate-200 mb-1">
-        찾아가는 프리미엄 서비스 (대면)
+        AI상담
       </strong>
-      장소 조율 · 방문 상담<br />
-      상담 5만 원 / 기본검사 3만 원 / 추가검사 3만 원<br />
-      ※ 천안·아산 외 지역은 별도 문의
+      마음 정리를 돕는 AI 상담<br />
+      이벤트 기간 무료
     </li>
 
     </ul>
@@ -8536,7 +8496,7 @@ if (userAge === 'parent') {
                             <div className="border-b border-slate-100 px-5 py-4 sm:px-7 flex items-center justify-between gap-4">
                                 <div>
                                     <p className="text-xs font-extrabold text-violet-700">24시간 예약 가능한 비대면 AI 상담</p>
-                                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">24시 AI상담(비대면)</h3>
+                                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">AI상담</h3>
                                     <p className="mt-1 text-xs text-slate-500">
                                         {aiResultSessionPhase === 'closed'
                                             ? '상담이 종료되었습니다.'
@@ -8564,7 +8524,7 @@ if (userAge === 'parent') {
                                 <aside className="hidden lg:block lg:col-span-4 border-r border-slate-100 bg-violet-50/40 p-5 overflow-y-auto">
                                     <div className="rounded-2xl bg-white border border-violet-100 p-4">
                                         <p className="text-xs font-extrabold text-violet-700">이용 안내</p>
-                                        <h4 className="mt-2 text-sm font-extrabold text-slate-900">24시 AI상담(비대면)</h4>
+                                        <h4 className="mt-2 text-sm font-extrabold text-slate-900">AI상담</h4>
                                         <p className="mt-2 text-xs text-slate-500">
                                             남은 상담시간은 상단에서 확인할 수 있습니다. 재입장해도 이용시간이 새로 시작되지 않습니다.
                                         </p>
