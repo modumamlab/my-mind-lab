@@ -32,13 +32,13 @@ function rows(v) {
 }
 
 function adminAuthorized(event) {
-  const expected = String(process.env.MML_RESERVATION_ADMIN_PASSWORD || 'modumam2026');
+  const expected = String(process.env.MML_RESERVATION_ADMIN_PASSWORD || '');
   const supplied = String(
     event.headers?.['x-mml-admin-password'] ||
     event.headers?.['X-MML-Admin-Password'] ||
     ''
   );
-  return supplied === expected;
+  return Boolean(expected) && supplied === expected;
 }
 
 function mergeRows(...lists) {
@@ -466,7 +466,7 @@ exports.handler = async (event) => {
       const now = new Date();
       const id = `APP-${now.getTime()}-${crypto.randomBytes(3).toString('hex')}`;
       const accessToken = token();
-      const counselingFee = consultationMethod === '대면상담' ? 50000 : 30000;
+      const counselingFee = 50000;
       const reservation = {
         id, name, phone, email, concern: note, chiefComplaint: note, type: consultationMethod, consultationMethod,
         counselingFee, testFee: 0, estimatedTotal: counselingFee,
@@ -533,9 +533,9 @@ exports.handler = async (event) => {
       email,
       type: consultationMethod,
       consultationMethod,
-      counselingFee: consultationMethod === '대면상담' ? 50000 : consultationMethod === '비대면상담' ? 30000 : 0,
+      counselingFee: consultationMethod === '대면상담' || consultationMethod === '비대면상담' ? 50000 : 0,
       testFee: TEST_PRICES[testId] || 0,
-      estimatedTotal: (consultationMethod === '대면상담' ? 50000 : consultationMethod === '비대면상담' ? 30000 : 0) + (TEST_PRICES[testId] || 0),
+      estimatedTotal: (consultationMethod === '대면상담' || consultationMethod === '비대면상담' ? 50000 : 0) + (TEST_PRICES[testId] || 0),
       date: needsSchedule ? preferredDate : '',
       time: needsSchedule ? preferredTime : '',
       preferredDate: needsSchedule ? preferredDate : '',

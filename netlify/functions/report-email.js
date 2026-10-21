@@ -1,9 +1,9 @@
 const json=(statusCode,body)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(body)});
 const esc=(v)=>String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function adminAuthorized(event){
-  const expected=String(process.env.MML_RESERVATION_ADMIN_PASSWORD||'modumam2026');
+  const expected=String(process.env.MML_RESERVATION_ADMIN_PASSWORD||'');
   const supplied=String(event.headers?.['x-mml-admin-password']||event.headers?.['X-MML-Admin-Password']||'');
-  return supplied===expected;
+  return Boolean(expected)&&supplied===expected;
 }
 exports.handler=async(event)=>{
   if(event.httpMethod!=='POST')return json(405,{error:'Method not allowed'});

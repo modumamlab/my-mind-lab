@@ -1,6 +1,6 @@
 
-const MODUMAM_TEST_PRICES = {'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':30000};
-const getModumamTestPrice = (value) => { const t=String(value||'').toUpperCase(); if(t.includes('MMPI-A'))return 25000;if(t.includes('MMPI-2')||t.includes('MMPI2'))return 25000;if(t.includes('JTCI'))return 20000;if(t.includes('TCI'))return 20000;if(t.includes('PAI'))return 20000;if(t.includes('PAT'))return 15000;if(t.includes('STS'))return 15000;if(t.includes('K-CDI')||t.includes('KCDI'))return 10000;if(String(value||'').includes('행동관찰'))return 30000;return 0; };
+const MODUMAM_TEST_PRICES = {'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':15000};
+const getModumamTestPrice = (value) => { const t=String(value||'').toUpperCase(); if(t.includes('MMPI-A'))return 25000;if(t.includes('MMPI-2')||t.includes('MMPI2'))return 25000;if(t.includes('JTCI'))return 20000;if(t.includes('TCI'))return 20000;if(t.includes('PAI'))return 20000;if(t.includes('PAT'))return 15000;if(t.includes('STS'))return 15000;if(t.includes('K-CDI')||t.includes('KCDI'))return 10000;if(String(value||'').includes('행동관찰'))return 15000;return 0; };
 /* =========================================================
    모두의 마음연구소 사용자 페이지 App · STEP5 보고서 공개연결
    파일 역할: 메인 홈페이지, 회원가입/로그인, 예약, AI 마음상담 화면
@@ -4177,15 +4177,7 @@ const userText = pendingInput;
 
             const submitAdminLogin = (e) => {
                 e.preventDefault();
-                if (adminPassword === "modumam2026") {
-                    setIsAdmin(true);
-                    window.location.href = './admin/index.html';
-                    setIsAdminLoginOpen(false);
-                    setAdminPassword('');
-                    setAdminLoginError('');
-                    return;
-                }
-                setAdminLoginError("비밀번호가 맞지 않습니다.");
+                window.location.href = './admin/index.html';
             };
 
             useEffect(() => {
@@ -4939,7 +4931,8 @@ const getPaymentInfo = (res) => {
   const isFaceToFace = !isRemote && (type.includes("대면") || type.includes("찾아가는") || type.includes("찾아오는") || type.includes("장소 조율"));
   const isAi = /AI/i.test(type);
   const isPersonalCounseling = program.includes("개인 마음상담") || res.bookingCategory === 'personal-counseling';
-  const counselingAmount = isAi ? 0 : (isFaceToFace ? 50000 : 30000);
+  const isVisiting = type.includes("찾아가는");
+  const counselingAmount = isAi ? 0 : (isVisiting ? 100000 : 50000);
   const counselingLabel = isAi ? "AI 해석상담 무료(이벤트)" : `${isPersonalCounseling?'상담비':'해석상담비'} ${counselingAmount.toLocaleString()}원`;
 
   const tests = isPersonalCounseling ? [] : (typeof requestedTests === 'function' ? requestedTests(res) : (res.selectedTests || res.extraTests || []));

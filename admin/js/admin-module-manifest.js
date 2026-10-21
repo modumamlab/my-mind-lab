@@ -87,7 +87,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'assessment-reports',
-      src:'./js/modules/assessment-reports.js?v=20260904-rc3-42-local-app-reservation-sync-v1',
+      src:'./js/modules/assessment-reports.js?v=20261021-admin-secret',
       required:true,
       dependsOn:['data-store','print-engine']
     },
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20261006-direct-guest-v9',
+      src:'./js/admin.js?v=20261021-service-pricing',
       required:true
     },
     {
