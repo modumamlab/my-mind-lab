@@ -2999,7 +2999,7 @@ async function sendDerivedAssessmentReportEmail(id){
     try{approvedHtml=await captureApprovedDerivedAssessmentReportHtml(report.id);}catch(error){alert(error.message||'승인 보고서 원본을 준비하지 못했습니다.');return;}
   }
   try{
-    const response=await fetch('/.netlify/functions/report-email',{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':(typeof ADMIN_PASSWORD!=='undefined'?ADMIN_PASSWORD:'')},body:JSON.stringify({to:email,clientName:reservation.name||reservation.clientName||report.clientName||'',reportTitle:report.title||'심리검사 보고서',reportHtml:approvedHtml,reportId:String(report.id||''),reservationId:String(report.reservationId||'')})});
+    const response=await fetch('/.netlify/functions/report-email',{method:'POST',headers:{'Content-Type':'application/json','X-MML-Admin-Password':(typeof ADMIN_PASSWORD!=='undefined'?ADMIN_PASSWORD:'modumam2026')},body:JSON.stringify({to:email,clientName:reservation.name||reservation.clientName||report.clientName||'',reportTitle:report.title||'심리검사 보고서',reportHtml:approvedHtml,reportId:String(report.id||''),reservationId:String(report.reservationId||'')})});
     const body=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(body.error||`이메일 발송 실패 (${response.status})`);
     const now=new Date().toISOString();

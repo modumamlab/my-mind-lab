@@ -4177,7 +4177,15 @@ const userText = pendingInput;
 
             const submitAdminLogin = (e) => {
                 e.preventDefault();
-                window.location.href = './admin/index.html';
+                if (adminPassword === "modumam2026") {
+                    setIsAdmin(true);
+                    window.location.href = './admin/index.html';
+                    setIsAdminLoginOpen(false);
+                    setAdminPassword('');
+                    setAdminLoginError('');
+                    return;
+                }
+                setAdminLoginError("비밀번호가 맞지 않습니다.");
             };
 
             useEffect(() => {

@@ -1,4 +1,4 @@
-let ADMIN_PASSWORD = '';
+const ADMIN_PASSWORD = 'modumam2026';
 console.info('[MML] BUILD 20260904-RC3.40-JTCI-MMPI-PROFILE-SYNC loaded');
 const TEST_PRICES={'TCI':20000,'JTCI':20000,'MMPI-2':25000,'MMPI-A':25000,'PAI':20000,'PAT-2':15000,'PAT':15000,'STS':15000,'K-CDI':10000,'행동관찰':15000};
 function testPrice(value){const t=String(value||'').toUpperCase();if(t.includes('MMPI-A'))return TEST_PRICES['MMPI-A'];if(t.includes('MMPI-2')||t.includes('MMPI2'))return TEST_PRICES['MMPI-2'];if(t.includes('JTCI'))return TEST_PRICES.JTCI;if(t.includes('TCI'))return TEST_PRICES.TCI;if(t.includes('PAI'))return TEST_PRICES.PAI;if(t.includes('PAT'))return TEST_PRICES['PAT-2'];if(t.includes('STS'))return TEST_PRICES.STS;if(t.includes('K-CDI')||t.includes('KCDI'))return TEST_PRICES['K-CDI'];if(String(value||'').includes('행동관찰'))return TEST_PRICES['행동관찰'];return 0;}
@@ -90,7 +90,7 @@ async function replaceIndexedReservations(rows){
   db.close();
 }
 
-let state={counselingJournalTab:'sessions',selectedJournalCaseId:'',activeJournalSessionCaseId:'',activeJournalReservationId:'',authed:false,menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:[],clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,legacyReservationServerCount:0,appReservationServerCount:0,reservationSyncError:''};
+let state={counselingJournalTab:'sessions',selectedJournalCaseId:'',activeJournalSessionCaseId:'',activeJournalReservationId:'',authed:sessionStorage.getItem('modumam_admin_auth')==='true',menu:'dashboard',memberSearch:'',memberStatus:'전체',selectedClientKey:'',memberTab:'profile',counselingModeId:'',password:'',loginError:'',loginLockedUntil:Number(sessionStorage.getItem('modumam_admin_locked_until')||0),loginFailCount:Number(sessionStorage.getItem('modumam_admin_fail_count')||0),reservations:[],clients:load('modumam_clients',[]),intakes:load('modumam_intake_summaries',[]),reports:(window.MMLReportStore?.loadAll?.()||load('modumam_reports',[])),resultUploads:load('modumam_test_result_uploads',[]),reportForm:emptyReportForm(),reportEditingId:null,reportDraftLoading:false,caseDraftLoading:{},counselingPlanLoading:{},supervisionLoading:{},recordQualityLoading:{},clinicalCaseReportLoading:{},clinicalTimelineLoading:{},clinicalDssLoading:{},terminationDraftLoading:{},counselingAidLoading:{},testInterpretationLoading:false,testExtractionLoading:false,interpretationSource:null,testInterpretations:load('modumam_test_interpretations',[]),interpretationForm:{reservationId:'',testType:'STS',scales:{}},interpretationDraft:null,assessmentAnalyses:load('modumam_assessment_analyses',[]),assessmentReservationId:'',assessmentLoading:{},integratedReportLoading:false,integratedReportDraft:null,assessmentReportDrafts:(window.MMLReportStore?.loadDrafts?.()||load('modumam_assessment_report_drafts',[])),assessmentCrossLoading:false,assessmentCrossDraft:null,assessmentCrossAnalyses:load('modumam_assessment_cross_analyses',[]),aiResultCounselingRecords:load('modumam_ai_result_counseling_records',[]),reservationDbCount:0,reservationServerCount:0,legacyReservationServerCount:0,appReservationServerCount:0,reservationSyncError:''};
 const REPORT_TEST_OPTIONS=['TCI','JTCI','MMPI-2','PAI','SCT','HTP','STS','PAT','K-CDI','PHQ-9','GAD-7'];
 function sanitizeReportTests(value){const raw=Array.isArray(value)?value:String(value||'').split(/[,·]/);return [...new Set(raw.map(x=>String(x||'').trim()).filter(x=>REPORT_TEST_OPTIONS.includes(x)))]}
 function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',program:'개별 심리검사',testType:'TCI',selectedTests:['TCI'],title:'',summary:'',mindProfile:'',individualTests:'',emotionState:'',thinkingRelationship:'',stressDaily:'',plan:'',strength:'',caution:'',reportType:'summaryReport',summaryReport:true,status:'작성중',approvedForClient:false}}
@@ -678,15 +678,15 @@ window.openTodayTaskPage=openTodayTaskPage;
 
 /* =========================================================
    관리자 로그인 보안
-   - 비밀번호는 서버의 Netlify 환경변수와 대조하며 코드에 저장하지 않음
+   - 비밀번호: ADMIN_PASSWORD 값 수정
    - 5회 실패 시 30초 잠금
-   - 인증값은 현재 페이지의 메모리에만 유지
+   - 브라우저 세션 동안 로그인 유지
 ========================================================= */
 
 
 
 
-async function login(e){
+function login(e){
   e?.preventDefault?.();
   const now=Date.now();
   if(state.loginLockedUntil && now<state.loginLockedUntil){
@@ -696,28 +696,14 @@ async function login(e){
   }
 
   const input=String(state.password||'').trim();
-  let authenticated=false;
-  try{
-    const response=await fetch(LEGACY_RESERVATION_SERVER_API,{
-      method:'GET',
-      headers:{'X-MML-Admin-Password':input},
-      cache:'no-store'
-    });
-    authenticated=response.ok;
-  }catch(error){
-    console.error('[관리자 인증 실패]',error);
-    state.loginError='서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.';
-    render();
-    return false;
-  }
+  const validPassword=ADMIN_PASSWORD;
 
-  if(authenticated){
-    ADMIN_PASSWORD=input;
+  if(input===validPassword){
     state.authed=true;
     state.loginError='';
     state.loginAttempts=0;
     state.loginLockedUntil=0;
-    state.password='';
+    try{ sessionStorage.setItem('modumam_admin_authed','1'); }catch(e){}
     render();
     // 로그인 후 서버의 최신 예약 원본을 한 번 조회합니다.
     Promise.resolve()
@@ -743,7 +729,7 @@ async function login(e){
   render();
   return false;
 }
-function logout(){ADMIN_PASSWORD='';state.authed=false;state.password='';state.loginError='';render()}
+function logout(){sessionStorage.removeItem('modumam_admin_auth');state.authed=false;state.password='';state.loginError='';render()}
 // [MOD-20260713-ADMIN-STATUS-HISTORY]
 // 예약 진행상태가 바뀌면 회원 화면에서 확인할 수 있도록 변경 이력과 읽지 않은 알림을 저장합니다.
 async function updateReservation(id,patch){
