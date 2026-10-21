@@ -82,19 +82,27 @@ const response=(statusCode,body)=>({
     'Content-Type':'application/json; charset=utf-8',
     'Cache-Control':'no-store',
     'Access-Control-Allow-Origin':'*',
-    'Access-Control-Allow-Headers':'Content-Type, X-MML-API-Key',
+    'Access-Control-Allow-Headers':'Content-Type, X-MML-API-Key, X-MML-Admin-Password',
     'Access-Control-Allow-Methods':'GET, PUT, DELETE, OPTIONS'
   },
   body:JSON.stringify(body)
 });
 
 function authorized(event){
-  const required=process.env.MML_DATA_API_KEY;
   const context=String(process.env.CONTEXT||process.env.NETLIFY_DEV||'');
+  const required=String(process.env.MML_DATA_API_KEY||'');
+  const supplied=String(event.headers?.['x-mml-api-key']||event.headers?.['X-MML-API-Key']||'');
+  if(required && supplied===required) return true;
+
+  // The existing admin app already authenticates its server calls with this header.
+  // Accept the same credential so localhost admin can persist assessment data to
+  // the production Netlify Blobs store instead of a temporary local-dev file.
+  const adminExpected=String(process.env.MML_RESERVATION_ADMIN_PASSWORD||'modumam2026');
+  const adminSupplied=String(event.headers?.['x-mml-admin-password']||event.headers?.['X-MML-Admin-Password']||'');
+  if(adminSupplied && adminSupplied===adminExpected) return true;
+
   if(!required && (context==='dev'||context==='true')) return true;
-  if(!required) return false;
-  const supplied=event.headers?.['x-mml-api-key']||event.headers?.['X-MML-API-Key']||'';
-  return supplied===required;
+  return false;
 }
 
 function cleanMeta(meta){
@@ -115,7 +123,7 @@ exports.handler=async(event)=>{
       return response(200,{
         ok:true,
         service:'modumam-data-api',
-        version:'v38.0-local-dev-store',
+        version:'v38.1-remote-admin-store',
         storage:'local-dev',
         authenticated:authorized(event)
       });
@@ -125,7 +133,7 @@ exports.handler=async(event)=>{
       return response(200,{
         ok:true,
         service:'modumam-data-api',
-        version:'v38.0-local-dev-store',
+        version:'v38.1-remote-admin-store',
         storage:'available',
         authenticated:authorized(event)
       });
@@ -133,7 +141,7 @@ exports.handler=async(event)=>{
       return response(200,{
         ok:true,
         service:'modumam-data-api',
-        version:'v38.0-local-dev-store',
+        version:'v38.1-remote-admin-store',
         storage:'disabled',
         reason:'@netlify/blobs is not installed',
         authenticated:false
@@ -222,7 +230,7 @@ exports.handler=async(event)=>{
 
   if(method==='PUT'){
     const record={
-      version:'v38.0-local-dev-store',
+      version:'v38.1-remote-admin-store',
       value:body.value,
       meta:cleanMeta(body.meta),
       updatedAt:new Date().toISOString()

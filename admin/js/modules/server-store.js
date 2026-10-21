@@ -3,7 +3,9 @@ console.info('[MML] SERVER-STORE-MODULE-V37.4-LOCAL-FALLBACK loaded');
 (function(global){
   'use strict';
 
-  const API='/.netlify/functions/data-api';
+  const API=(location.hostname==='localhost'||location.hostname==='127.0.0.1'||location.hostname.endsWith('.local'))
+    ? 'https://modumam-lab.netlify.app/.netlify/functions/data-api'
+    : '/.netlify/functions/data-api';
   const STATUS_KEY='modumam_server_sync_status_v37';
   const QUEUE_KEYS=[
     'modumam_server_sync_queue_v37',
@@ -44,7 +46,7 @@ console.info('[MML] SERVER-STORE-MODULE-V37.4-LOCAL-FALLBACK loaded');
   }
 
   function requestHeaders(extra={}){
-    const result={'Content-Type':'application/json',...extra};
+    const result={'Content-Type':'application/json','X-MML-Admin-Password':(global.MML_ADMIN_PASSWORD||'modumam2026'),...extra};
     const key=apiKey();
     if(key) result['X-MML-API-Key']=key;
     return result;

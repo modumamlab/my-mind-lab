@@ -97,6 +97,11 @@ function validateIntegratedReportMaterials(r,groups,analyses){
 }
 
 function analysisForTest(id,testType){return analysesForReservation(id).find(x=>String(x.testType)===String(testType))}
+const MML_FUNCTION_ORIGIN=(location.hostname==='localhost'||location.hostname==='127.0.0.1'||location.hostname.endsWith('.local'))
+  ? 'https://modumam-lab.netlify.app'
+  : '';
+function mmlFunctionUrl(name){return `${MML_FUNCTION_ORIGIN}/.netlify/functions/${name}`;}
+
 function inferAssessmentTestType(fileName,remaining=[]){
   const n=String(fileName||'').toUpperCase().replace(/[^A-Z0-9가-힣-]/g,'');
   const rules=[['MMPI-2',/MMPI/],['K-CDI',/K-?CDI|KCDI/],['GAD-7',/GAD/],['PHQ-9',/PHQ/],['JTCI',/JTCI/],['TCI',/TCI/],['PAI',/PAI/],['STS',/STS/],['PAT',/PAT/],['SCT',/SCT|문장완성/],['HTP',/HTP|집나무사람/],['회복탄력성',/회복탄력/],['직무스트레스',/직무스트레스/],['직업흥미검사',/HOLLAND|직업흥미/]];
@@ -124,7 +129,7 @@ async function analyzeAssessmentFiles(files){
   alert(`${list.length}개 검사파일 분석 요청을 완료했습니다. 검사명과 신뢰도를 확인해 주세요.`);
 }
 async function requestCanonicalAssessmentInterpretation(payload){
-  const response=await fetch('/.netlify/functions/mml-assessment-file-analysis',{
+  const response=await fetch(mmlFunctionUrl('mml-assessment-file-analysis'),{
     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
   });
   const data=await response.json().catch(async()=>({error:(await response.text().catch(()=>''))||''}));
@@ -146,7 +151,7 @@ async function analyzeAssessmentFile(reservationId,testType,file,silent=false){
     const commonBody={clientName:r.name,program:programBaseName(r.program),testType,fileName:file.name,mimeType:file.type};
 
     // 1단계: PDF/이미지에서 점수·척도·타당도 등 확인 가능한 사실만 추출합니다.
-    const extractResponse=await fetch('/.netlify/functions/mml-assessment-file-extract',{
+    const extractResponse=await fetch(mmlFunctionUrl('mml-assessment-file-extract'),{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({...commonBody,base64})
     });
@@ -553,7 +558,7 @@ async function generateAssessmentCrossAnalysis(){
   if(unreviewed.length&&!confirm(`상담자 검토가 완료되지 않은 분석이 ${unreviewed.length}건 있습니다. 교차분석 초안을 생성할까요?`))return;
   state.assessmentCrossLoading=true;render();
   try{
-    const response=await fetch('/.netlify/functions/assessment-cross-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:r.name,program:programBaseName(r.program),tests:analyses.map(x=>({testType:x.testType,subjectRole:(String(x.testType).includes('신청자')?'신청자':String(x.testType).includes('배우자')?'배우자':String(x.testType).includes('K-CDI')?'자녀':String(x.testType).includes('PAT')?'양육자':''),sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview})),crossAnalysis:state.assessmentCrossDraft||state.assessmentCrossAnalyses.find(x=>String(x.reservationId)===String(r.id))||null})});
+    const response=await fetch(mmlFunctionUrl('assessment-cross-analysis'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:r.name,program:programBaseName(r.program),tests:analyses.map(x=>({testType:x.testType,subjectRole:(String(x.testType).includes('신청자')?'신청자':String(x.testType).includes('배우자')?'배우자':String(x.testType).includes('K-CDI')?'자녀':String(x.testType).includes('PAT')?'양육자':''),sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview})),crossAnalysis:state.assessmentCrossDraft||state.assessmentCrossAnalyses.find(x=>String(x.reservationId)===String(r.id))||null})});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'검사 간 교차분석을 생성하지 못했습니다.');
     state.assessmentCrossDraft={...data.analysis,model:data.model||'',generatedAt:new Date().toLocaleString('ko-KR'),reservationId:r.id,clientName:r.name,tests:analyses.map(x=>x.testType)};
   }catch(error){alert(error.message||'검사 간 교차분석 중 오류가 발생했습니다.');}
@@ -717,7 +722,7 @@ async function generateIntegratedAssessmentReport(options={}){
     ||(state.assessmentCrossDraft?.reviewed?state.assessmentCrossDraft:null);
   state.integratedReportLoading=true;render();
   try{
-    const response=await fetch('/.netlify/functions/mml-clinician-integrated-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:options?.directToComprehensive?'direct-comprehensive':'integrated-review',clientName:r.name,program:testGroups.program,basicTests:testGroups.basicTests,additionalTests:testGroups.additionalTests,tests:reviewedAnalyses.map(x=>({testType:x.testType,subjectRole:(String(x.testType).includes('신청자')?'신청자':String(x.testType).includes('배우자')?'배우자':String(x.testType).includes('K-CDI')?'자녀':String(x.testType).includes('PAT')?'양육자':''),sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,rawFacts:x.rawFacts||null,counselorReport:x.counselorReport||null,clientReport:x.clientReport||null,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview})),crossAnalysis:cross||null})});
+    const response=await fetch(mmlFunctionUrl('mml-clinician-integrated-report'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:options?.directToComprehensive?'direct-comprehensive':'integrated-review',clientName:r.name,program:testGroups.program,basicTests:testGroups.basicTests,additionalTests:testGroups.additionalTests,tests:reviewedAnalyses.map(x=>({testType:x.testType,subjectRole:(String(x.testType).includes('신청자')?'신청자':String(x.testType).includes('배우자')?'배우자':String(x.testType).includes('K-CDI')?'자녀':String(x.testType).includes('PAT')?'양육자':''),sourceSummary:x.sourceSummary,validity:x.validity,coreFindings:x.coreFindings,strengths:x.strengths,vulnerabilities:x.vulnerabilities,counselingQuestions:x.counselingQuestions,crossChecks:x.crossChecks,caseHypotheses:x.caseHypotheses,cautions:x.cautions,rawFacts:x.rawFacts||null,counselorReport:x.counselorReport||null,clientReport:x.clientReport||null,reviewed:x.reviewed,confidenceScore:x.confidenceScore,confidenceReason:x.confidenceReason,needsReview:x.needsReview})),crossAnalysis:cross||null})});
     const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'심리검사 종합해석보고서를 생성하지 못했습니다.');
     const generatedCross=(data.crossAnalysis&&typeof data.crossAnalysis==='object')?data.crossAnalysis:null;
     if(generatedCross){
