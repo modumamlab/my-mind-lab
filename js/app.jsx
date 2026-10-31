@@ -691,6 +691,7 @@ function saveHomeAuthSession(session, profile = {}) {
             const [bookingName, setBookingName] = useState('');
             const [bookingPhone, setBookingPhone] = useState('');
             const [bookingType, setBookingType] = useState('전문가상담');
+            const [bookingConsultationFormat,setBookingConsultationFormat]=useState('');
             const [bookingDate, setBookingDate] = useState('');
             const [bookingTime, setBookingTime] = useState('');
             // [MOD-20260714-BOOKING-OPERATING-SETTINGS] 관리자 환경설정과 예약시간을 연결합니다.
@@ -729,7 +730,7 @@ function saveHomeAuthSession(session, profile = {}) {
             const [bookingProgram, setBookingProgram] = useState('개인 마음상담');
             const [selectedTests, setSelectedTests] = useState([]);
             const [bookingAlert, setBookingAlert] = useState(null);
-            const [bookingTestsOpen, setBookingTestsOpen] = useState(false);
+            const [bookingTestsOpen, setBookingTestsOpen] = useState(true);
             const [bookingMethodOpen, setBookingMethodOpen] = useState(true);
             const [bookingInfoOpen, setBookingInfoOpen] = useState(true);
             const [bookingConsentOpen, setBookingConsentOpen] = useState(true);
@@ -2142,7 +2143,7 @@ const userText = pendingInput;
                     } else if (aiIntakeReport.counselingRecommendation.includes("부부")) {
                         setBookingProgram("부부 마음이음");
                     } else {
-                        setBookingProgram("개별 심리검사");
+                        setBookingProgram("개인 마음상담");
                     }
 
                     const extraTests = (aiIntakeReport.recommendedTests || [])
@@ -4775,6 +4776,9 @@ const toggleTest = (test) => {
                     return;
                 }
 
+                if(bookingType==='전문가상담'&&!['대면상담','화상상담'].includes(bookingConsultationFormat)){
+                    setBookingInfoOpen(true);setBookingAlert({type:'error',message:'전문가상담 진행방식(대면상담 또는 화상상담)을 선택해 주세요.'});return;
+                }
                 /* [MOD-20260714-BOOKING-OPERATING-SETTINGS] 관리자 설정에 포함된 시간만 허용 */
                 if (!bookingTimeOptions.includes(String(bookingTime))) {
                     setBookingAlert({
@@ -4819,6 +4823,7 @@ const toggleTest = (test) => {
   name: bookingName,
   phone: bookingPhone,
   type: bookingType,
+  consultationFormat: bookingType==='전문가상담'?bookingConsultationFormat:'',
   date: bookingDate,
   time: bookingTime,
   program:
@@ -4908,11 +4913,12 @@ const toggleTest = (test) => {
                 setBookingAlert({ type: 'success', message: `${bookingName}님의 소중한 마음 예약이 정상적으로 신청되었습니다. 담당 상담사가 곧 연락드리겠습니다!` });
                 alert('예약 신청이 완료되었습니다. 담당 상담사가 확인 후 연락드리겠습니다.');
                 
-               setBookingName('');
+               setBookingConsultationFormat('');
+setBookingName('');
 setBookingPhone('');
 setBookingDate('');
 setBookingTime('');
-setBookingProgram("개별 심리검사");
+setBookingProgram("개인 마음상담");
 setSelectedTests([]);
 setBookingBirth('');
 setBookingEmail('');
@@ -4940,7 +4946,7 @@ const getPaymentInfo = (res) => {
   const counselingAmount = isAi ? 0 : 50000;
   const counselingLabel = isAi ? "AI 해석상담 무료(이벤트)" : `${isPersonalCounseling?'상담비':'해석상담비'} ${counselingAmount.toLocaleString()}원`;
 
-  const tests = isPersonalCounseling ? [] : (typeof requestedTests === 'function' ? requestedTests(res) : (res.selectedTests || res.extraTests || []));
+  const tests = typeof requestedTests === 'function' ? requestedTests(res) : [...(Array.isArray(res.selectedTests)?res.selectedTests:[]),...(Array.isArray(res.extraTests)?res.extraTests:[])];
   const uniqueTests = [...new Set((Array.isArray(tests)?tests:[]).map(v=>String(v||'').trim()).filter(Boolean))];
   const detailParts = [counselingLabel];
   let testAmount = 0;
@@ -6137,15 +6143,8 @@ if (userAge === 'parent') {
                                                         const testCandidates = [];
                                                         if (String(reservation.program || '').includes('부모-자녀')) testCandidates.push('STS', 'K-CDI', 'PAT', 'TCI');
                                                         else if (String(reservation.program || '').includes('부부')) testCandidates.push('TCI');
-                                                        // 개인 마음상담은 심리검사를 기본 포함하지 않습니다.
-                                                        // 실제로 선택/신청된 검사가 있을 때만 아래 rawExtraTests에서 표시합니다.
-                                                        const isPersonalCounselingReservation =
-                                                            String(reservation.bookingProgram || '').includes('개인 마음상담') ||
-                                                            String(reservation.bookingCategory || '') === 'personal-counseling' ||
-                                                            String(programName || '').includes('개인 마음상담');
-                                                        const rawExtraTests = isPersonalCounselingReservation
-                                                            ? []
-                                                            : (reservation.extraTests || reservation.selectedTests || reservation.additionalTests || []);
+                                                        // 프로그램 이름과 무관하게 실제 선택한 검사만 표시합니다.
+                                                        const rawExtraTests = [...(reservation.extraTests || []), ...(reservation.selectedTests || []), ...(reservation.additionalTests || [])];
                                                         if (Array.isArray(rawExtraTests)) {
                                                             rawExtraTests.forEach((test) => {
                                                                 const raw = String(test || '').toUpperCase();
@@ -6215,7 +6214,7 @@ if (userAge === 'parent') {
                                                                             </div>
                                                                             <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
                                                                                 <p className="text-[10px] font-extrabold text-slate-400">상담방식</p>
-                                                                                <p className="mt-1 text-sm font-extrabold text-slate-900">{reservation.type || '미정'}</p>
+                                                                                <p className="mt-1 text-sm font-extrabold text-slate-900">{reservation.type || '미정'}{!String(reservation.type||'').includes('AI')&&` · ${reservation.consultationFormat||'진행방식 미정'}`}</p>
                                                                             </div>
                                                                             {isAiReservation && !isCancelRequested && !isCancelled && (
                                                                                 <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-3">
@@ -6276,7 +6275,7 @@ if (userAge === 'parent') {
                                                                                 <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                                                                                 <p className="text-xs font-extrabold text-amber-800">상담 일정이 변경되었습니다.</p>
                                                                                 <p className="text-xs leading-relaxed text-amber-700">
-                                                                                    변경된 일정: {reservation.date} {reservation.time} · {reservation.type}
+                                                                                    변경된 일정: {reservation.date} {reservation.time} · {reservation.type}{reservation.consultationFormat?` · ${reservation.consultationFormat}`:''}
                                                                                 </p>
                                                                                 <p className="text-[11px] text-amber-600">변경일: {reservation.scheduleUpdatedAt}</p>
                                                                                 </div>
@@ -6977,10 +6976,10 @@ if (userAge === 'parent') {
                                                     <button 
                                                         onClick={() => {
                                                             if (recommendedTests && recommendedTests.length > 0) {
-                                                                setBookingProgram("개별 심리검사");
+                                                                setBookingProgram("개인 마음상담");
                                                                 setSelectedTests(recommendedTests);
                                                             } else {
-                                                                setBookingProgram("개별 심리검사");
+                                                                setBookingProgram("개인 마음상담");
                                                                 setSelectedTests([]);
                                                             }
                                                             scrollToSection("reservations");
@@ -7038,7 +7037,7 @@ if (userAge === 'parent') {
 
                                                             <button
                                                                 onClick={() => {
-                                                                    let programValue = "개별 심리검사";
+                                                                    let programValue = "개인 마음상담";
 
                                                                     if (prog.title.includes("개인 마음상담")) {
                                                                         programValue = "개인 마음상담";
@@ -7055,7 +7054,7 @@ if (userAge === 'parent') {
                                                                     setBookingProgram(programValue);
                                                                     setSelectedTests([]);
                                                                     if (programValue === '개인 마음상담') {
-                                                                        setBookingTestsOpen(false);
+                                                                        setBookingTestsOpen(true);
                                                                         setBookingMethodOpen(true);
                                                                         setBookingInfoOpen(true);
                                                                         setBookingConsentOpen(true);
@@ -7225,9 +7224,9 @@ if (userAge === 'parent') {
                     ? ['PAT-2 부모양육태도검사 2판', 'K-CDI 아동발달검사', '행동관찰', 'STS 6요인 기질검사(영유아)', 'STS 6요인 기질검사(성인)']
                     : [];
             setSelectedTests(defaultTests);
-            // 개인 마음상담은 심리검사를 선택하지 않고 상담방식만 선택해 예약·결제합니다.
+            // 개인 마음상담 안에서 필요한 개별 심리검사를 선택할 수 있습니다.
             const isPersonalCounseling = program === '개인 마음상담';
-            setBookingTestsOpen(!isPersonalCounseling);
+            setBookingTestsOpen(true);
             setBookingMethodOpen(isPersonalCounseling);
             setBookingInfoOpen(isPersonalCounseling);
             setBookingConsentOpen(isPersonalCounseling);
@@ -7236,7 +7235,6 @@ if (userAge === 'parent') {
         className="w-full bg-white border border-slate-200 px-5 py-4 rounded-xl text-base font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
     >
         <option value="개인 마음상담">개인 마음상담</option>
-        <option value="개별 심리검사">개별 심리검사</option>
         <option value="부부 마음이음">부부 마음이음</option>
         <option value="부모-자녀 마음이음">부모-자녀 마음이음</option>
     </select>
@@ -7247,7 +7245,7 @@ if (userAge === 'parent') {
     ===================================================== */}
     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-relaxed text-slate-600">
         {bookingProgram === "개인 마음상담" ? (
-          <p>※ 개인 마음상담은 심리검사 없이 신청할 수 있습니다. 이벤트 기간에는 상담 신청자 모두 AI 해석상담을 무료로 이용할 수 있습니다.</p>
+          <p>※ 개인 마음상담 안에서 필요한 개별 심리검사를 선택할 수 있으며, 검사 없이 상담만 신청할 수도 있습니다. 선택한 검사비는 상담비와 합산됩니다. 이벤트 기간 AI 해석상담 무료 안내는 기존과 동일합니다.</p>
         ) : bookingProgram === "개별 심리검사" ? (
           <p>※ 기본검사 없이 필요한 심리검사만 선택하여 신청할 수 있습니다.</p>
         ) : (
@@ -7257,8 +7255,8 @@ if (userAge === 'parent') {
     </div>
 </div>
             
-           {/* 2. 검사 선택 - 개인 마음상담은 검사 없이 상담방식만 선택 */}
-            {bookingProgram !== "개인 마음상담" && (
+           {/* 2. 검사 선택 - 개인 마음상담에 개별 심리검사 포함 */}
+            {(
             <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
               <button type="button" onClick={() => setBookingTestsOpen(!bookingTestsOpen)} aria-expanded={bookingTestsOpen} className="flex w-full items-center justify-between px-5 py-5 text-base font-extrabold text-slate-900">
                 <span>검사 선택</span><span className={`text-slate-400 transition-transform ${bookingTestsOpen ? 'rotate-180' : ''}`}>⌄</span>
@@ -7312,13 +7310,13 @@ if (userAge === 'parent') {
   </div>
 )}
 {/* 개별 심리검사 */}
-{bookingProgram === "개별 심리검사" && (
+{["개인 마음상담", "개별 심리검사"].includes(bookingProgram) && (
   <div className="mt-5 p-5 sm:p-6 bg-violet-50 border border-violet-200 rounded-2xl">
     <p className="text-base font-bold text-violet-700 mb-2">
       개별 심리검사 선택
     </p>
     <p className="text-sm text-violet-600 mb-4 leading-relaxed">
-      프로그램 기본검사 없이 필요한 검사만 선택합니다. 기존에 TCI 등을 실시한 경우 다른 검사만 추가로 신청할 수 있습니다.
+      필요한 검사만 선택해 개인 마음상담과 함께 신청할 수 있습니다. 상담만 원하시면 검사를 선택하지 않아도 됩니다.
     </p>
 
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -7476,6 +7474,8 @@ if (userAge === 'parent') {
                 <span>예약 정보</span><span className={`text-slate-400 transition-transform ${bookingInfoOpen ? 'rotate-180' : ''}`}>⌄</span>
               </button>
               {bookingInfoOpen && <div className="border-t border-slate-100 p-4 space-y-4">
+            {bookingType==='전문가상담'&&<fieldset><legend className="mb-2 text-sm font-bold text-slate-600">전문가상담 진행방식 <span className="text-rose-500">*</span></legend><div className="grid grid-cols-2 gap-2">{['대면상담','화상상담'].map(format=><label key={format} className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-3 text-sm font-bold ${bookingConsultationFormat===format?'border-emerald-500 bg-emerald-50 text-emerald-800':'border-slate-200 bg-white text-slate-600'}`}><input type="radio" name="consultation-format" value={format} checked={bookingConsultationFormat===format} onChange={()=>setBookingConsultationFormat(format)}/>{format}{bookingConsultationFormat===format?' ✓ ON':''}</label>)}</div></fieldset>}
+
             {/* 4. 개인 정보 입력 (성함) */}
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">성함</label>

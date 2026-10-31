@@ -20,6 +20,31 @@ function selectedTheory(body){
   const value=clean(body.theoreticalOrientation,100)||'통합적 사례개념화';
   return Object.hasOwn(THEORY_GUIDES,value)?value:null;
 }
+function counselingAidText(value){
+  if(value===null||value===undefined)return '';
+  if(Array.isArray(value))return value.map(counselingAidText).filter(Boolean).join('\n\n');
+  if(typeof value==='object'){
+    const labels={stage:'단계',title:'제목',step:'단계',phase:'단계',goal:'목표',objective:'목표',purpose:'목적',question:'질문',questions:'추천 질문',followUp:'후속 질문',followup:'후속 질문',followUpQuestions:'후속 질문',intervention:'권장 개입',interventions:'권장 개입',method:'진행방법',technique:'기법',description:'설명',content:'내용',check:'반응 확인·조정',checks:'반응 확인·조정',adjustment:'조정 기준',counselorAction:'상담자의 행동',clientCheck:'내담자와 확인할 점',example:'표현 예시'};
+    return Object.entries(value).map(([key,item])=>{const text=counselingAidText(item);return text?(labels[key]||key)+': '+text:''}).filter(Boolean).join('\n');
+  }
+  const text=String(value).trim();
+  return text.includes('[object Object]')?'이전 결과의 구조가 손실되었습니다. AI 상담보조를 다시 생성해 주세요.':text;
+}
+function counselingAidSteps(value){
+  if(!Array.isArray(value))return [];
+  return value.slice(0,8).filter(step=>step&&typeof step==='object'&&!Array.isArray(step)).map((step,index)=>({
+    title:counselingAidText(step.title||step.stage||step.phase||('단계 '+(index+1))).slice(0,160),
+    goal:counselingAidText(step.goal||step.objective||step.purpose).slice(0,2000),
+    questions:counselingAidText(step.questions||step.question).slice(0,5000),
+    followUp:counselingAidText(step.followUp||step.followup||step.followUpQuestions).slice(0,3000),
+    intervention:counselingAidText(step.intervention||step.interventions||step.method).slice(0,4000),
+    checks:counselingAidText(step.checks||step.check||step.adjustment).slice(0,2000)
+  }));
+}
+function counselingAidStepSummary(steps,fields){
+  return steps.map((step,index)=>(index+1)+'. '+step.title+'\n'+fields.map(key=>counselingAidText({[key]:step[key]})).filter(Boolean).join('\n')).join('\n\n');
+}
+
 function buildPrompt(body){
   const theory=selectedTheory(body)||'통합적 사례개념화';
   const mode=clean(body.mode,50)||'support';
@@ -91,10 +116,12 @@ ${clean(JSON.stringify(body.currentNote||{}),9000)||'입력 없음'}\n`;
 개입마다 목표·진행방법·상담자가 사용할 문장·반응 확인·중단/조정 기준을 구체적으로 제시하세요. 위험 신호가 있으면 일반 개입보다 현재 안전 확인과 기관 절차를 우선하세요.
 현재 내용은 시행 전 제안입니다. 실시한 개입, 확정된 상담결과, 관찰된 변화처럼 작성하지 마세요.
 
+sessionSteps는 회기 순서대로 5개 단계 객체를 포함하세요. 각 단계에 관련 추천질문·후속 질문·권장개입·반응확인을 함께 배치하세요. 전체 질문은 6~8개로 구성하세요. 나머지 필드는 문자열로 반환하세요.
 아래 JSON만 반환하세요.
 {
   "emotion":"현재 자료에서 예상이 아니라 확인되는 핵심 정서·정서 흐름. 부족하면 확인 필요",
   "focus":"주호소문제와 상담동기를 바탕으로 이번 회기 상담목표/초점을 1~3개로 제안",
+  "sessionSteps":[{"title":"관계 형성·현재 상태 확인","goal":"이 단계의 목적","questions":["상담자가 사용할 개방형 질문"],"followUp":["반응에 따라 사용할 후속 질문"],"intervention":"목표·진행방법·표현 예시","checks":"반응 확인·중단/조정 기준"}],
   "sessionPlan":"5단계 회기 진행 순서. 각 단계에 목표·상담자의 행동·내담자와 확인할 점을 포함. 시간은 고정하지 말 것",
   "questions":"선택 이론에 따른 단계별 개방형 질문 6~8개. 각 질문에 목적·후속 질문·연결 개입을 포함. 질문별 줄바꿈",
   "intervention":"선택 이론에 따른 개입 3~5개. 각 개입의 목표·진행방법·실제 사용할 문장·반응 확인·중단/조정 기준. 시행 전 제안으로 작성",
@@ -138,8 +165,14 @@ export const handler=async(event)=>{
     try{parsed=JSON.parse(result.text.replace(/^```json\s*/i,'').replace(/```$/i,'').trim());}
     catch{return jsonResponse({error:'AI 상담도우미 결과 형식을 해석하지 못했습니다. 다시 생성해 주세요.'},502);}
     const fields=['sessionPlan','emotion','focus','questions','intervention','sessionResult','clientChange','strengths','caution','nextPlan'];
-    const aid=Object.fromEntries(fields.map(k=>[k,clean(parsed[k],7000)]));
+    const aid=Object.fromEntries(fields.map(k=>[k,clean(counselingAidText(parsed[k]),14000)]));
+    aid.sessionSteps=body.mode==='session_summary'?[]:counselingAidSteps(parsed.sessionSteps);
+    if(aid.sessionSteps.length){
+      aid.sessionPlan=clean(counselingAidStepSummary(aid.sessionSteps,['goal']),14000);
+      aid.questions=clean(counselingAidStepSummary(aid.sessionSteps,['questions','followUp']),20000);
+      aid.intervention=clean(counselingAidStepSummary(aid.sessionSteps,['intervention','checks']),20000);
+    }
     aid.theoreticalOrientation=theory;
-    return jsonResponse({aid,model:result.model,sourceSummary:'내담자 정보·주호소·상담동기·검사·회기기록·현재 상담내용 반영',promptVersion:'v5-theory-structured-support'});
+    return jsonResponse({aid,model:result.model,sourceSummary:'내담자 정보·주호소·상담동기·검사·회기기록·현재 상담내용 반영',promptVersion:'v6-stage-cards'});
   }catch(error){console.error('[COUNSELING AID]',error.detail||error);return jsonResponse({error:'AI 상담도우미 생성 중 오류가 발생했습니다.'},500);}
 };

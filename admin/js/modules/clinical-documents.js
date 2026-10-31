@@ -152,8 +152,36 @@ function renderCounselingAidTheoryControl(caseId){
   const selected=counselingAidTheory(caseId);
   return `<label class="mt-3 block text-xs font-extrabold text-purple-700">상담이론<select id="aid-theory-${esc(caseId)}" onchange="save('modumam_counseling_aid_theory_'+this.dataset.caseId,this.value)" data-case-id="${esc(caseId)}" class="mt-2 w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-sm">${COUNSELING_AID_THEORIES.map(theory=>`<option value="${esc(theory)}" ${selected===theory?'selected':''}>${esc(theory)}</option>`).join('')}</select><span class="mt-1 block text-[11px] font-normal text-slate-500">선택 이론을 바꾸면 AI 상담보조를 다시 생성해 주세요.</span></label>`;
 }
+function counselingAidText(value){
+  if(value===null||value===undefined)return '';
+  if(Array.isArray(value))return value.map(counselingAidText).filter(Boolean).join('\n\n');
+  if(typeof value==='object'){
+    const labels={stage:'단계',title:'제목',step:'단계',phase:'단계',goal:'목표',objective:'목표',purpose:'목적',question:'질문',questions:'추천 질문',followUp:'후속 질문',followup:'후속 질문',followUpQuestions:'후속 질문',intervention:'권장 개입',interventions:'권장 개입',method:'진행방법',technique:'기법',description:'설명',content:'내용',check:'반응 확인·조정',checks:'반응 확인·조정',adjustment:'조정 기준',counselorAction:'상담자의 행동',clientCheck:'내담자와 확인할 점',example:'표현 예시'};
+    return Object.entries(value).map(([key,item])=>{const text=counselingAidText(item);return text?(labels[key]||key)+': '+text:''}).filter(Boolean).join('\n');
+  }
+  const text=String(value).trim();
+  return text.includes('[object Object]')?'이전 결과의 구조가 손실되었습니다. AI 상담보조를 다시 생성해 주세요.':text;
+}
+function counselingAidSteps(value){
+  if(!Array.isArray(value))return [];
+  return value.slice(0,8).filter(step=>step&&typeof step==='object'&&!Array.isArray(step)).map((step,index)=>({
+    title:counselingAidText(step.title||step.stage||step.phase||('단계 '+(index+1))).slice(0,160),
+    goal:counselingAidText(step.goal||step.objective||step.purpose).slice(0,2000),
+    questions:counselingAidText(step.questions||step.question).slice(0,5000),
+    followUp:counselingAidText(step.followUp||step.followup||step.followUpQuestions).slice(0,3000),
+    intervention:counselingAidText(step.intervention||step.interventions||step.method).slice(0,4000),
+    checks:counselingAidText(step.checks||step.check||step.adjustment).slice(0,2000)
+  }));
+}
+function counselingAidStepSummary(steps,fields){
+  return steps.map((step,index)=>(index+1)+'. '+step.title+'\n'+fields.map(key=>counselingAidText({[key]:step[key]})).filter(Boolean).join('\n')).join('\n\n');
+}
 function renderCounselingAidPlan(caseId,aid){
-  return `<div class="mt-3 rounded-xl border border-purple-100 bg-white p-3"><p class="text-xs font-extrabold text-purple-700">생성 기준: ${esc(aid.theoreticalOrientation||'기존 결과 · 이론 미지정')}</p><label class="mt-2 block text-xs font-extrabold text-purple-700">회기 진행 순서<textarea id="aid-sessionPlan-${esc(caseId)}" rows="8" class="mt-1 w-full resize-y rounded-xl border border-purple-100 bg-white p-3 text-xs leading-relaxed">${esc(aid.sessionPlan||'새로 생성하면 회기 진행 순서를 제안합니다.')}</textarea></label></div>`;
+  const steps=counselingAidSteps(aid.sessionSteps);
+  const text=value=>esc(counselingAidText(value));
+  const line=(label,value,color='slate')=>value?`<div class="mt-3"><p class="text-xs font-extrabold text-${color}-700">${label}</p><p class="mt-1 whitespace-pre-wrap text-sm font-medium leading-7 text-slate-800">${text(value)}</p></div>`:'';
+  const editor=(key,label,value)=>`<label class="mt-3 block text-xs font-bold text-slate-600">${label}<textarea id="aid-${key}-${esc(caseId)}" rows="6" class="mt-1 w-full resize-y rounded-xl border border-purple-100 bg-white p-3 text-sm leading-7">${text(value)}</textarea></label>`;
+  return `<section class="mt-4 space-y-4" aria-label="회기 단계별 질문과 개입"><div class="rounded-xl bg-purple-50 p-3"><p class="text-xs font-extrabold text-purple-700">생성 기준: ${text(aid.theoreticalOrientation||'기존 결과 · 이론 미지정')}</p><h5 class="mt-1 text-base font-extrabold text-slate-900">회기 진행순서 · 추천질문 · 권장개입</h5></div>${steps.length?steps.map((step,index)=>`<article class="rounded-2xl border border-purple-200 bg-white p-4 sm:p-5"><div class="flex items-start gap-3"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-700 text-sm font-extrabold text-white">${index+1}</span><div><h6 class="text-base font-extrabold leading-7 text-slate-900">${text(step.title)}</h6><p class="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-500">${text(step.goal)}</p></div></div><div class="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">${line('추천질문',step.questions,'indigo')}${line('반응에 따른 후속 질문',step.followUp,'indigo')}</div><div class="mt-3 rounded-xl bg-emerald-50/70 p-4">${line('권장개입 · 진행방법',step.intervention,'emerald')}${line('반응 확인 · 중단/조정 기준',step.checks,'emerald')}</div><details class="mt-3"><summary class="cursor-pointer text-xs font-bold text-purple-700">이 단계 내용 수정</summary>${Object.entries({title:'단계명',goal:'목표',questions:'추천질문',followUp:'후속 질문',intervention:'권장개입',checks:'반응 확인·조정'}).map(([key,label])=>editor('step-'+index+'-'+key,label,step[key])).join('')}</details></article>`).join(''):`<article class="rounded-2xl border border-purple-200 bg-white p-4">${line('회기 진행순서',aid.sessionPlan)}${line('추천질문 · 후속 질문',aid.questions,'indigo')}${line('권장개입',aid.intervention,'emerald')}<p class="mt-3 text-xs text-slate-500">기존 결과는 원문으로 표시합니다. 다시 생성하면 질문과 개입을 단계별로 정리합니다.</p><details class="mt-3"><summary class="cursor-pointer text-xs font-bold text-purple-700">전체 내용 수정</summary>${editor('sessionPlan','회기 진행순서',aid.sessionPlan)}${editor('questions','추천질문',aid.questions)}${editor('intervention','권장개입',aid.intervention)}</details></article>`}</section>`;
 }
 
 async function generateCounselingAid(caseId, mode='support') {
@@ -228,7 +256,8 @@ async function generateCounselingAid(caseId, mode='support') {
     });
     const data = await response.json().catch(()=>({}));
     if(!response.ok || !data.aid) throw new Error(data.error||'AI 상담도우미 생성 실패');
-    const aid={...data.aid,theoreticalOrientation:data.aid.theoreticalOrientation||theoreticalOrientation,mode,source:data.sourceSummary||'',model:data.model||'',updatedAt:new Date().toLocaleString('ko-KR')};
+    const normalized=Object.fromEntries(Object.entries(data.aid).map(([key,value])=>[key,key==='sessionSteps'?counselingAidSteps(value):counselingAidText(value)]));
+    const aid={...normalized,theoreticalOrientation:data.aid.theoreticalOrientation||theoreticalOrientation,mode,source:data.sourceSummary||'',model:data.model||'',updatedAt:new Date().toLocaleString('ko-KR')};
     save('modumam_counseling_aid_'+caseId,aid);
     if(mode==='session_summary'){
       // 회기정리는 상담자가 입력한 주호소·동기·상담내용을 보존하고
@@ -268,13 +297,15 @@ window.generateCounselingSessionSummary=generateCounselingSessionSummary;
 
 function saveCounselingAid(caseId) {
   const previous=load('modumam_counseling_aid_'+caseId,{});
+  const steps=counselingAidSteps(previous.sessionSteps).map((step,index)=>Object.fromEntries(Object.entries(step).map(([key,value])=>[key,document.getElementById('aid-step-'+index+'-'+key+'-'+caseId)?.value??value])));
   const aid = {
     ...previous,
+    sessionSteps:steps,
     sessionPlan: document.getElementById('aid-sessionPlan-'+caseId)?.value ?? previous.sessionPlan ?? '',
     emotion: document.getElementById('aid-emotion-' + caseId)?.value || previous.emotion || '',
     focus: document.getElementById('aid-focus-' + caseId)?.value || '',
-    questions: document.getElementById('aid-questions-' + caseId)?.value || '',
-    intervention: document.getElementById('aid-intervention-' + caseId)?.value || '',
+    questions: document.getElementById('aid-questions-' + caseId)?.value ?? counselingAidText(previous.questions),
+    intervention: document.getElementById('aid-intervention-' + caseId)?.value ?? counselingAidText(previous.intervention),
     sessionResult: document.getElementById('aid-result-' + caseId)?.value || previous.sessionResult || '',
     clientChange: document.getElementById('aid-change-' + caseId)?.value || previous.clientChange || '',
     strengths: document.getElementById('aid-strengths-' + caseId)?.value || previous.strengths || '',
@@ -283,6 +314,11 @@ function saveCounselingAid(caseId) {
     source: document.getElementById('aid-source-' + caseId)?.value || previous.source || '',
     updatedAt: new Date().toLocaleString('ko-KR')
   };
+  if(steps.length){
+    aid.sessionPlan=counselingAidStepSummary(steps,['goal']);
+    aid.questions=counselingAidStepSummary(steps,['questions','followUp']);
+    aid.intervention=counselingAidStepSummary(steps,['intervention','checks']);
+  }
   save('modumam_counseling_aid_' + caseId, aid);
   if(typeof captureCounselingJournalDraft==='function') captureCounselingJournalDraft(caseId);
   alert('AI 상담도우미 메모가 저장되었습니다.');

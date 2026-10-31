@@ -836,7 +836,7 @@ function updateScheduleWithHistory(id,patch,changeType){
     // 예약 ID가 숫자/문자열로 섞여 있어도 일정 수정이 사라지지 않도록 문자열로 비교합니다.
     if(String(r.id)!==String(id))return r;
 
-    const before={date:r.date||'',time:r.time||'',type:r.type||''};
+    const before={date:r.date||'',time:r.time||'',type:r.type||'',consultationFormat:r.consultationFormat||''};
     const after={...before,...patch};
     const history=[...(Array.isArray(r.scheduleHistory)?r.scheduleHistory:[])];
     history.unshift({id:Date.now(),changeType,before,after,changedAt});
@@ -927,12 +927,14 @@ function saveCurrentReservationChanges(id){
   if(!allowedTimes.includes(time)){alert(isAiCounselingMethod(type)?'AI상담 시간은 00:00~23:30 사이에서 선택해 주세요.':'전문가상담 시간은 09:00~17:00 사이에서 선택해 주세요.');return;}
   if(!type){alert('상담방식을 선택해 주세요.');return;}
 
-  const changed=date!==String(reservation.date||'') || time!==String(reservation.time||'') || type!==String(reservation.type||'');
+  const consultationFormat=isAiCounselingMethod(type)?'':document.getElementById('reservation-format-'+id)?.value||reservation.consultationFormat||'';
+  if(consultationFormat&&!['대면상담','화상상담'].includes(consultationFormat)){alert('진행방식을 확인해 주세요.');return;}
+  const changed=consultationFormat!==String(reservation.consultationFormat||'') || date!==String(reservation.date||'') || time!==String(reservation.time||'') || type!==String(reservation.type||'');
   if(!changed){alert('변경된 사항이 없습니다.');return;}
 
   const isAi=isAiCounselingMethod(type);
   updateScheduleWithHistory(id,{
-    date,time,type,
+    date,time,type,consultationMethod:type,consultationFormat,
     aiCounseling:isAi,
     counselingDurationMinutes:isAi?60:null,
     reportRequired:isAi,
@@ -1061,7 +1063,7 @@ async function approveReservation(id){
 }
 function markPaymentComplete(id){
   const r=state.reservations.find(x=>String(x.id)===String(id));
-  const isPersonal=programBaseName(r?.program||r?.bookingProgram||'')==='개인 마음상담';
+  const isPersonal=isCounselingOnlyReservation(r);
   const now=new Date().toLocaleString('ko-KR');
   return updateReservation(id,isPersonal
     ? {
@@ -1087,7 +1089,7 @@ function markCounselingReady(id){updateReservation(id,{status:'상담준비',cou
 function isCounselingOnlyReservation(r){
   const category=String(r?.bookingCategory||'').toLowerCase();
   const program=programBaseName(r?.bookingProgram||r?.program||'');
-  return category==='counseling'||program==='개인 마음상담'||String(r?.applicationType||'')==='counseling';
+  return requestedTests(r).length===0 && (category==='counseling'||category==='personal-counseling'||program==='개인 마음상담'||String(r?.applicationType||'')==='counseling');
 }
 function nextActionLabel(r){const st=normalizeStatus(r.status);if(st==='취소요청')return '취소 요청 처리';if(st==='예약신청')return '예약 승인';if(st==='예약승인')return '결제 확인';if(st==='결제완료')return '검사 링크 발송';if(st==='검사발송')return '검사 완료 확인';if(st==='검사완료')return '결과 업로드';if(st==='결과업로드')return '상담 준비';if(st==='상담준비')return '상담 시작';if(st==='상담진행')return '상담 완료';if(st==='상담완료')return '종결';return '완료';}
 async function runNextAction(id){
