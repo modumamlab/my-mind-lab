@@ -2580,7 +2580,7 @@ function focusedNextTaskBlock(r){
     return wrap(
       '상담 진행',
       '상담기록과 필요한 기록을 작성한 뒤 상담완료로 이동해 주세요.',
-      `<button type="button" onclick='addPsychTestToCounseling(${id})' class="rounded-xl border border-violet-200 bg-white px-4 py-3 text-xs font-extrabold text-violet-700">심리검사 추가</button> <button type="button" onclick='saveCurrentReservationChanges(${id})' class="rounded-xl border border-blue-200 bg-white px-4 py-3 text-xs font-extrabold text-blue-700">변경사항 저장</button>
+      `<button type="button" onclick='addPsychTestToCounseling(${id})' class="rounded-xl border border-violet-200 bg-white px-4 py-3 text-xs font-extrabold text-violet-700">심리검사 추가</button>
        <button type="button" onclick="setMenu('counseling')" class="rounded-xl border border-emerald-200 bg-white px-4 py-3 text-xs font-extrabold text-emerald-700">상담기록</button>
        <button type="button" onclick='runNextAction(${id})' class="rounded-xl bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white">상담 완료</button>`
     );

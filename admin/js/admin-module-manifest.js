@@ -75,13 +75,13 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'outcomes-workspace',
-      src:'./js/modules/outcomes-workspace.js?v=20260830-journal-two-stage-ai-v24',
+      src:'./js/modules/outcomes-workspace.js?v=20261031-theory-support-v1',
       required:true,
       dependsOn:['data-store']
     },
     {
       id:'clinical-documents',
-      src:'./js/modules/clinical-documents.js?v=20260830-journal-two-stage-ai-v24',
+      src:'./js/modules/clinical-documents.js?v=20261031-theory-support-v1',
       required:true,
       dependsOn:['data-store','print-engine']
     },
@@ -93,7 +93,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
     },
     {
       id:'operations-workspace',
-      src:'./js/modules/operations-workspace.js?v=20261006-direct-guest-v9',
+      src:'./js/modules/operations-workspace.js?v=20261031-theory-support-v1',
       required:true,
       dependsOn:['data-store','ui-components']
     }
@@ -102,7 +102,7 @@ console.info('[MML] ADMIN-MODULE-MANIFEST-260725-STEP25 loaded');
   const startup = [
     {
       id:'admin-main',
-      src:'./js/admin.js?v=20261022-counseling-methods',
+      src:'./js/admin.js?v=20261031-reservation-unified-v1',
       required:true
     },
     {

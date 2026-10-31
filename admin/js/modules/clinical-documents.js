@@ -140,10 +140,28 @@ function deleteCaseSession(caseId, sessionId) {
    - 마음 체크인, 검사, 회기기록, 사례개념화 초안을 바탕으로
      오늘 확인할 질문과 개입 아이디어를 구조화합니다.
 ========================================================= */
+// 상담이론 선택은 사례별로 보존하며 기존 AI 결과의 이론과 구분합니다.
+const COUNSELING_AID_THEORIES = ["인지행동치료(CBT)", "인간중심상담", "정신역동", "애착이론", "해결중심 단기상담", "현실치료", "게슈탈트", "아들러 개인심리학", "가족체계이론", "수용전념치료(ACT)", "변증법적 행동치료(DBT)", "통합적 사례개념화"];
+function counselingAidTheory(caseId){
+  const selected=load('modumam_counseling_aid_theory_'+caseId,'');
+  const previous=load('modumam_counseling_aid_'+caseId,{});
+  const value=selected||previous.theoreticalOrientation||'통합적 사례개념화';
+  return COUNSELING_AID_THEORIES.includes(value)?value:'통합적 사례개념화';
+}
+function renderCounselingAidTheoryControl(caseId){
+  const selected=counselingAidTheory(caseId);
+  return `<label class="mt-3 block text-xs font-extrabold text-purple-700">상담이론<select id="aid-theory-${esc(caseId)}" onchange="save('modumam_counseling_aid_theory_'+this.dataset.caseId,this.value)" data-case-id="${esc(caseId)}" class="mt-2 w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-sm">${COUNSELING_AID_THEORIES.map(theory=>`<option value="${esc(theory)}" ${selected===theory?'selected':''}>${esc(theory)}</option>`).join('')}</select><span class="mt-1 block text-[11px] font-normal text-slate-500">선택 이론을 바꾸면 AI 상담보조를 다시 생성해 주세요.</span></label>`;
+}
+function renderCounselingAidPlan(caseId,aid){
+  return `<div class="mt-3 rounded-xl border border-purple-100 bg-white p-3"><p class="text-xs font-extrabold text-purple-700">생성 기준: ${esc(aid.theoreticalOrientation||'기존 결과 · 이론 미지정')}</p><label class="mt-2 block text-xs font-extrabold text-purple-700">회기 진행 순서<textarea id="aid-sessionPlan-${esc(caseId)}" rows="8" class="mt-1 w-full resize-y rounded-xl border border-purple-100 bg-white p-3 text-xs leading-relaxed">${esc(aid.sessionPlan||'새로 생성하면 회기 진행 순서를 제안합니다.')}</textarea></label></div>`;
+}
+
 async function generateCounselingAid(caseId, mode='support') {
   const c = buildCases().find(item => item.caseId === caseId);
   if (!c || state.counselingAidLoading[caseId]) return;
 
+  const theoreticalOrientation=document.getElementById('aid-theory-'+caseId)?.value||counselingAidTheory(caseId);
+  save('modumam_counseling_aid_theory_'+caseId,theoreticalOrientation);
   const activeReservation = counselingModeReservation();
   const journalId = String(caseId || '');
   const currentNote = {
@@ -193,6 +211,7 @@ async function generateCounselingAid(caseId, mode='support') {
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         mode,
+        theoreticalOrientation,
         clientName:c.res.name,
         program:programBaseName(c.res.program),
         counselingMethod:c.res.type,
@@ -209,7 +228,7 @@ async function generateCounselingAid(caseId, mode='support') {
     });
     const data = await response.json().catch(()=>({}));
     if(!response.ok || !data.aid) throw new Error(data.error||'AI 상담도우미 생성 실패');
-    const aid={...data.aid,source:data.sourceSummary||'',model:data.model||'',updatedAt:new Date().toLocaleString('ko-KR')};
+    const aid={...data.aid,theoreticalOrientation:data.aid.theoreticalOrientation||theoreticalOrientation,mode,source:data.sourceSummary||'',model:data.model||'',updatedAt:new Date().toLocaleString('ko-KR')};
     save('modumam_counseling_aid_'+caseId,aid);
     if(mode==='session_summary'){
       // 회기정리는 상담자가 입력한 주호소·동기·상담내용을 보존하고
@@ -251,6 +270,7 @@ function saveCounselingAid(caseId) {
   const previous=load('modumam_counseling_aid_'+caseId,{});
   const aid = {
     ...previous,
+    sessionPlan: document.getElementById('aid-sessionPlan-'+caseId)?.value ?? previous.sessionPlan ?? '',
     emotion: document.getElementById('aid-emotion-' + caseId)?.value || previous.emotion || '',
     focus: document.getElementById('aid-focus-' + caseId)?.value || '',
     questions: document.getElementById('aid-questions-' + caseId)?.value || '',
@@ -273,7 +293,7 @@ function saveCounselingAid(caseId) {
 function copyCounselingAid(caseId) {
   const aid = load('modumam_counseling_aid_' + caseId, null);
   if (!aid) { alert('먼저 AI 상담도우미를 생성해 주세요.'); return; }
-  copyText(`AI 상담도우미 2.0\n\n[현재 핵심 정서]\n${aid.emotion || ''}\n\n[오늘 상담 초점]\n${aid.focus || ''}\n\n[추천 질문]\n${aid.questions || ''}\n\n[권장 개입]\n${aid.intervention || ''}\n\n[상담결과]\n${aid.sessionResult || ''}\n\n[내담자의 변화]\n${aid.clientChange || ''}\n\n[강점·보호요인]\n${aid.strengths || ''}\n\n[주의할 점]\n${aid.caution || ''}\n\n[다음 회기 연결]\n${aid.nextPlan || ''}`);
+  copyText(`AI 상담도우미 2.0\n\n[상담이론]\n${aid.theoreticalOrientation||'미지정'}\n\n[회기 진행 순서]\n${aid.sessionPlan||''}\n\n[현재 핵심 정서]\n${aid.emotion || ''}\n\n[오늘 상담 초점]\n${aid.focus || ''}\n\n[추천 질문]\n${aid.questions || ''}\n\n[권장 개입]\n${aid.intervention || ''}\n\n[상담결과]\n${aid.sessionResult || ''}\n\n[내담자의 변화]\n${aid.clientChange || ''}\n\n[강점·보호요인]\n${aid.strengths || ''}\n\n[주의할 점]\n${aid.caution || ''}\n\n[다음 회기 연결]\n${aid.nextPlan || ''}`);
 }
 
 async function generateCaseDraft(caseId) {
