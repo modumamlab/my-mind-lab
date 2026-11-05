@@ -65,6 +65,7 @@ console.info('[MML] ADMIN-BOOTSTRAP-260725-STEP25 loaded');
       script.src=item.src;
       if(item.type) script.type=item.type;
       script.dataset.mmlModuleId=item.id;
+      if(item.autoload===false) script.dataset.autoload='false';
       script.async=false;
 
       const timer=setTimeout(()=>{
@@ -107,6 +108,14 @@ console.info('[MML] ADMIN-BOOTSTRAP-260725-STEP25 loaded');
       throw new Error('모듈 manifest 오류: '+manifestCheck.errors.join(' / '));
     }
 
+    // Fetch ahead without changing the established execution/dependency order.
+    for(const item of manifest){
+      const link=document.createElement('link');
+      link.rel=item.type==='module'?'modulepreload':'preload';
+      if(item.type!=='module') link.as='script';
+      link.href=item.src;
+      document.head.appendChild(link);
+    }
     for(const item of manifest){
       try{
         dependencyCheck(item);
@@ -175,20 +184,10 @@ console.info('[MML] ADMIN-BOOTSTRAP-260725-STEP25 loaded');
 
     try{
       if(!global.MMLClinicalLoader?.loadClinicalPlatform){
-        const response=await fetch(loaderPath,{method:'HEAD',cache:'no-store'});
-        if(!response.ok){
-          diagnostics.clinicalError=null;
-          diagnostics.skipped.push({
-            id:'clinical-platform',
-            reason:'loader-not-installed'
-          });
-          console.info('[MML Clinical] 선택 모듈이 설치되어 있지 않아 건너뜁니다.');
-          return null;
-        }
-
         await loadScript({
           id:'clinical-loader',
           src:loaderPath,
+          autoload:false,
           required:false
         });
       }
@@ -229,17 +228,16 @@ console.info('[MML] ADMIN-BOOTSTRAP-260725-STEP25 loaded');
     diagnostics.status='starting';
     diagnostics.startedAt=now();
 
-    const clinicalError=await startClinical();
-
     try{
       await loadManifest();
-      global.MMLAdminIntegrationCheck?.run?.();
-      if(clinicalError && global.MMLClinicalLoader){
-        showClinicalWarning(clinicalError);
-      }
       diagnostics.status='ready';
       diagnostics.completedAt=now();
       global.MMLHealth?.markModule?.('admin-bootstrap','loaded',BUILD);
+      // Optional clinical loading must never hold the login/admin screen hostage.
+      startClinical().then(error=>{
+        if(error) showClinicalWarning(error);
+        else global.MMLAdminIntegrationCheck?.run?.();
+      });
       return diagnostics;
     }catch(error){
       diagnostics.status='failed';

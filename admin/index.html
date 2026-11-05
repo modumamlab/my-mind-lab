@@ -13,33 +13,39 @@
       location.replace('/admin/' + location.search + location.hash);
     }
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <script defer src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" media="print" onload="this.media='all'" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
   <style>body{font-family:'Pretendard Variable',Pretendard,system-ui,sans-serif;letter-spacing:-.02em}[data-consultation-format][data-selected="true"]{background:#e0f2fe;border-color:#0284c7;color:#075985}[data-consultation-format][data-selected="false"]{background:#fff;border-color:#e2e8f0;color:#64748b}</style>
   <!-- BUILD 20261006-REMOTE-DATA-V11 -->
 </head>
 <body class="bg-slate-100 text-slate-800">
-<div id="app"></div>
-<script src="/admin/js/modules/report-store.js?v=20260808-ai-interpretation-pipeline-s1"></script>
-<script src="/admin/js/modules/storage-quota-guard.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/clinical-assessment-store.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/case-state.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/case-validator.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/case-transition.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/case-store.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/case-mapper.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/case-service.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/case-events.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/case/index.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/workflow/workflow-rules.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/workflow/workflow-actions.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/workflow/workflow-engine.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/workflow/workflow-events.js?v=20260727-persistence-fix-v2"></script>
-<script src="/admin/js/modules/workflow/index.js?v=20260727-persistence-fix-v2"></script>
+<div id="app"><div id="mml-startup-status" role="status" style="max-width:600px;margin:64px auto;padding:28px;background:white;border:1px solid #e2e8f0;border-radius:16px;font-family:system-ui,sans-serif;color:#334155"><strong>모두의 마음연구소 관리자</strong><p>관리자 화면을 불러오는 중입니다…</p><p id="mml-startup-help" hidden>연결이 지연되고 있습니다. 잠시 후 다시 불러와 주세요.</p><button type="button" onclick="location.reload()" style="padding:8px 14px;cursor:pointer">다시 불러오기</button></div></div>
+<script>
+  setTimeout(function(){
+    var help=document.getElementById('mml-startup-help');
+    if(help) help.hidden=false;
+  },15000);
+</script>
+<script defer src="/admin/js/modules/report-store.js?v=20260808-ai-interpretation-pipeline-s1"></script>
+<script defer src="/admin/js/modules/storage-quota-guard.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/clinical-assessment-store.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/case-state.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/case-validator.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/case-transition.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/case-store.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/case-mapper.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/case-service.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/case-events.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/case/index.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/workflow/workflow-rules.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/workflow/workflow-actions.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/workflow/workflow-engine.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/workflow/workflow-events.js?v=20260727-persistence-fix-v2"></script>
+<script defer src="/admin/js/modules/workflow/index.js?v=20260727-persistence-fix-v2"></script>
 <script>window.MML_ADMIN_PASSWORD="modumam2026";</script>
-<script src="/admin/js/modules/server-store.js?v=20261006-remote-data-v11"></script>
-<script src="/admin/js/modules/assessment-center.js?v=20261006-v12"></script>
-<script src="/admin/js/admin-module-manifest.js?v=20261022-counseling-methods"></script>
-<script src="/admin/js/admin-bootstrap.js?v=20261006-remote-data-v11"></script>
+<script defer src="/admin/js/modules/server-store.js?v=20261006-remote-data-v11"></script>
+<script defer src="/admin/js/modules/assessment-center.js?v=20261006-v12"></script>
+<script defer src="/admin/js/admin-module-manifest.js?v=20261022-counseling-methods"></script>
+<script defer src="/admin/js/admin-bootstrap.js?v=20261105-fast-start-v1"></script>
 </body>
 </html>
