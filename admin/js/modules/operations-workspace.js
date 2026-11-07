@@ -9,7 +9,7 @@ function reservationConsultationFormat(r){
 }
 function renderReservationConsultationControls(r){
   const selected=reservationConsultationFormat(r),id=String(r.id),disabled=normalizeStatus(r.status)==='예약취소';
-  return `<div data-consultation-controls="${esc(id)}"><p class="mb-2 text-[11px] font-bold text-slate-500">상담 진행방식${selected?'':' · 미정'}</p><div class="grid grid-cols-3 gap-2">${['대면상담','화상상담','AI상담'].map(format=>`<button type="button" data-consultation-format="${format}" data-selected="${selected===format}" aria-pressed="${selected===format}" ${disabled?'disabled':''} onclick="selectReservationConsultationFormat(this)" class="rounded-xl border px-2 py-3 text-xs font-extrabold disabled:opacity-50">${format}<span class="mt-1 block text-[10px]" data-selection-label>${selected===format?'✓ ON':'OFF'}</span></button>`).join('')}</div><p class="mt-2 text-[10px] text-slate-500">선택 후 예약 변경 저장을 눌러 주세요. AI 이용권 활성화는 별도로 관리합니다.</p><input id="reservation-format-${esc(id)}" type="hidden" value="${esc(selected==='AI상담'?'':selected)}"></div>`;
+  return `<div data-consultation-controls="${esc(id)}"><p class="mb-2 text-[11px] font-bold text-slate-500">상담 진행방식${selected?'':' · 미정'}</p><div class="grid grid-cols-3 gap-2">${['대면상담','화상상담','AI상담'].map(format=>`<button type="button" data-consultation-format="${format}" data-selected="${selected===format}" aria-pressed="${selected===format}" ${disabled?'disabled':''} onclick="selectReservationConsultationFormat(this)" class="rounded-xl border px-2 py-2 text-xs font-extrabold disabled:opacity-50">${format}<span class="mt-1 block text-[10px]" data-selection-label>${selected===format?'✓ ON':'OFF'}</span></button>`).join('')}</div><p class="mt-2 text-[10px] text-slate-500">선택 후 예약 변경 저장을 눌러 주세요. AI 이용권 활성화는 별도로 관리합니다.</p><input id="reservation-format-${esc(id)}" type="hidden" value="${esc(selected==='AI상담'?'':selected)}"></div>`;
 }
 function selectReservationConsultationFormat(button){
   const group=button.closest('[data-consultation-controls]');if(!group||button.disabled)return;
@@ -283,7 +283,7 @@ function reservationView(){
           ? '온라인 심리검사'
           : (isUnscheduledApp?'상담방식 미정':counselingMethodLabel(scheduleMethod)));
 
-      return `<section class="rounded-[1.6rem] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+      return `<section class="rounded-[1.6rem] border border-slate-100 bg-white p-3 shadow-sm sm:p-4">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
@@ -328,7 +328,7 @@ function reservationView(){
         </div>
 
         <div class="mt-3 rounded-xl border border-slate-100 bg-white" data-reservation-workflow="${esc(String(r.id))}">
-          <div class="border-b border-slate-100 bg-slate-50 px-4 py-3">
+          <div class="border-b border-slate-100 bg-slate-50 px-3 py-2">
             <h4 class="text-sm font-extrabold text-slate-800">예약·검사 통합관리</h4>
             <p class="mt-1 text-[11px] text-slate-500">진행단계 확인 · 일정 변경 · 현재 단계 처리</p>
           </div>
@@ -341,19 +341,22 @@ function reservationView(){
               : ''
             }
           </div>
-          <div class="border-t border-slate-100 p-4">
-            <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-              <label class="text-[11px] font-bold text-slate-500">예약일
+          <div class="border-t border-slate-100 p-3">
+            <div class="grid grid-cols-1 items-start gap-3 lg:grid-cols-3">
+              <div class="lg:col-span-2">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="text-[11px] font-bold text-slate-500">예약일
                 <input id="reservation-date-${esc(String(r.id))}" type="date" value="${esc(scheduleDate)}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
               </label>
               <label class="text-[11px] font-bold text-slate-500">예약시간
                 <select id="reservation-time-${esc(String(r.id))}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">${timeOptions}</select>
               </label>
+                </div>
+                <div class="mt-2">
+                <button type="button" onclick='saveCurrentReservationChanges(${reservationId})' class="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-extrabold text-white">예약 변경 저장</button>
+                </div>
+              </div>
               <div>${renderReservationConsultationControls(r)}<select id="reservation-method-${esc(String(r.id))}" class="hidden" aria-hidden="true" tabindex="-1">${methodOptions}</select></div>
-            </div>
-
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button type="button" onclick='saveCurrentReservationChanges(${reservationId})' class="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-extrabold text-white">예약 변경 저장</button>
             </div>
 
             <div class="mt-3">${focusedNextTaskBlock(r)}</div>

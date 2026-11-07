@@ -1578,7 +1578,13 @@ ${target?'예약일 3일 전 안내입니다. 상담 준비를 위해 상담 전
 }
 function openIntake(id){const r=state.reservations.find(x=>String(x.id)===String(id));const i=r?findIntake(r):null;alert(i?(i.summary||'요약 없음'):'연결된 AI 마음 체크인 요약이 없습니다.')}
 function reportCode(r){return r.code||('MR-'+String(r.id).slice(-6))}
-function setReportFromReservation(id){const r=state.reservations.find(x=>String(x.id)===String(id));if(!r)return;const base=programBaseName(r.program);const program=['개별 심리검사','개인 마음이음','부부 마음이음','부모-자녀 마음이음'].find(x=>String(base).includes(x))||'개별 심리검사';const requested=sanitizeReportTests(requestedTests(r).map(shortTestName));const defaults=requested.length?requested:(program==='부모-자녀 마음이음'?['PAT','K-CDI']:['TCI']);state.reportForm={...emptyReportForm(),reservationId:id,clientName:r.name||'',phone:r.phone||'',program,selectedTests:defaults,testType:defaults.join(', '),title:`${r.name||'내담자'}님 심리검사 요약보고서`};state.menu='report';render()}
+function setReportFromReservation(id){
+  const reservation=state.reservations.find(row=>String(row.id)===String(id));
+  if(!reservation)return;
+  state.menu='interpretation';
+  setAssessmentReservation(reservation.id);
+  document.getElementById('assessment-report-request-status')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
 window.setReportFromReservation=setReportFromReservation;
 function templateReport(){applyDetailedTemplate()}
 function createReport(e){
@@ -2494,8 +2500,8 @@ function focusedNextTaskBlock(r){
     : '';
 
   const wrap=(title,detail,buttons)=>`
-    <div class="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-      <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+    <div class="rounded-2xl border border-amber-100 bg-amber-50 p-3">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p class="text-[11px] font-extrabold text-amber-700">현재 단계 안내</p>
           <p class="mt-1 text-sm font-extrabold text-slate-900">${title}</p>
