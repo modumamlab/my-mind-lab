@@ -97,8 +97,8 @@ let state={counselingJournalTab:'sessions',selectedJournalCaseId:'',activeJourna
 const REPORT_TEST_OPTIONS=['TCI','JTCI','MMPI-2','PAI','SCT','HTP','STS','PAT','K-CDI','PHQ-9','GAD-7'];
 function sanitizeReportTests(value){const raw=Array.isArray(value)?value:String(value||'').split(/[,·]/);return [...new Set(raw.map(x=>String(x||'').trim()).filter(x=>REPORT_TEST_OPTIONS.includes(x)))]}
 function emptyReportForm(){return{reservationId:'',clientName:'',phone:'',program:'개별 심리검사',testType:'TCI',selectedTests:['TCI'],title:'',summary:'',mindProfile:'',individualTests:'',emotionState:'',thinkingRelationship:'',stressDaily:'',plan:'',strength:'',caution:'',reportType:'summaryReport',summaryReport:true,status:'작성중',approvedForClient:false}}
-function load(k,f){
-  if(window.MMLDataStore) return window.MMLDataStore.read(k,f);
+function load(k,f,options={}){
+  if(window.MMLDataStore) return window.MMLDataStore.read(k,f,options);
   try{const s=localStorage.getItem(k);return s?JSON.parse(s):f}catch(e){return f}
 }
 const DELETED_RESERVATION_IDS_KEY='modumam_deleted_reservation_ids_v1';
@@ -347,6 +347,8 @@ function syncSharedOperatingData(){
   apply('intakes',nextIntakes);
   apply('reports',nextReports);
   apply('resultUploads',nextUploads);
+  apply('assessmentAnalyses',load('modumam_assessment_analyses',[],{fresh:true}));
+  apply('assessmentCrossAnalyses',load('modumam_assessment_cross_analyses',[],{fresh:true}));
   apply('aiResultCounselingRecords',nextAiResultRecords);
   return changed;
 }
@@ -366,6 +368,37 @@ function receiveReservationRows(rows,source='사용자 페이지'){
   });
   return false;
 }
+// Restore server-backed assessment data before showing the selected reservation.
+let assessmentHydrationPromise=null;
+function hydrateAssessmentOperatingData(){
+  if(assessmentHydrationPromise)return assessmentHydrationPromise;
+  const fields={modumam_assessment_analyses:'assessmentAnalyses',modumam_test_result_uploads:'resultUploads',modumam_assessment_cross_analyses:'assessmentCrossAnalyses'};
+  assessmentHydrationPromise=(async()=>{
+    if(!window.MMLServerStore?.read)return false;
+    await Promise.all(Object.entries(fields).map(async([key,field])=>{
+      const remote=await window.MMLServerStore.read(key,null);
+      if(!Array.isArray(remote))return;
+      // Read local data AFTER the request so an upload completed during loading survives.
+      const local=load(key,[],{fresh:true});
+      const rows=new Map();
+      [...remote,...(Array.isArray(local)?local:[])].forEach(row=>{
+        if(!row||typeof row!=='object')return;
+        const identity=row.id!=null?'id:'+String(row.id):JSON.stringify([row.reservationId,row.testType,row.fileName]);
+        rows.set(identity,row);
+      });
+      const merged=[...rows.values()];
+      if(window.MMLDataStore)window.MMLDataStore.write(key,merged,{server:false,sync:false});
+      else localStorage.setItem(key,JSON.stringify(merged));
+      state[field]=merged;
+    }));
+    return true;
+  })().catch(error=>{
+    assessmentHydrationPromise=null;
+    console.warn('[MML] 검사자료 서버 불러오기 실패 — 기존 로컬 자료 유지',error);
+    return false;
+  });
+  return assessmentHydrationPromise;
+}
 let reservationRefreshPromise=null;
 async function refreshSharedOperatingData(showMessage=false){
   // 같은 시점에 여러 이벤트가 발생해도 예약 서버 조회는 한 번만 실행합니다.
@@ -374,7 +407,7 @@ async function refreshSharedOperatingData(showMessage=false){
     return reservationRefreshPromise;
   }
   reservationRefreshPromise=(async()=>{
-    await loadServerReservations();
+    await Promise.all([loadServerReservations(),hydrateAssessmentOperatingData()]);
     syncSharedOperatingData();
     if(showMessage){
       if(state.reservationSyncError){
@@ -657,7 +690,14 @@ function buildClients(){const m={};(state.clients||[]).forEach(c=>{const k=c.key
 function findIntake(r){const p=String(r.phone||'').replace(/[^0-9]/g,'');const n=String(r.name||'').trim();return state.intakes.find(i=>{const ip=String(i.phone||'').replace(/[^0-9]/g,'');const iname=String(i.name||'').trim();return(p&&ip&&p===ip)||(n&&iname&&n===iname)})}
 function hasReport(r){return state.reports.some(x=>String(x.clientName||'').trim()===String(r.name||'').trim())}
 function progress(r){const current=normalizeStatus(r.status);const steps=STATUS.filter(x=>!['예약취소','취소요청'].includes(x)).map(step=>[step,statusReached(current,step)]);return{steps,pct:Math.round(steps.filter(x=>x[1]).length/steps.length*100),ai:!!findIntake(r)}}
-function setMenu(m){syncSharedOperatingData();const reservationLegacy=['results','resultUploads','test-management','assessment-management','psychological-tests'];let requested=reservationLegacy.includes(m)?'reservation':m;if(requested==='members')requested='clients';if(['report','cases'].includes(requested))requested='interpretation';if(['clinicalTimeline','clinicalDss','statistics','electronic-chart','case-management'].includes(requested))requested='dashboard';state.menu=requested==='today'?'dashboard':requested;render()}
+function setMenu(m){syncSharedOperatingData();const reservationLegacy=['results','resultUploads','test-management','assessment-management','psychological-tests'];let requested=reservationLegacy.includes(m)?'reservation':m;if(requested==='members')requested='clients';if(['report','cases'].includes(requested))requested='interpretation';if(['clinicalTimeline','clinicalDss','statistics','electronic-chart','case-management'].includes(requested))requested='dashboard';if(requested==='clients')state.clientSearch='';state.menu=requested==='today'?'dashboard':requested;render()}
+function openRecentReservation(id){
+  const reservation=state.reservations.find(row=>String(row.id)===String(id));
+  if(!reservation)return;
+  const menu=['검사완료','결과업로드'].includes(normalizeStatus(reservation.status))?'interpretation':'reservation';
+  openTodayTaskPage(menu,reservation.id);
+}
+window.openRecentReservation=openRecentReservation;
 // 오늘 해야 할 일의 버튼은 업무를 즉시 처리하지 않고 관련 페이지로 이동합니다.
 function openTodayTaskPage(menu,reservationId=''){
   syncSharedOperatingData();
@@ -665,6 +705,11 @@ function openTodayTaskPage(menu,reservationId=''){
   if(['report','cases'].includes(requested))requested='interpretation';
   if(['clinicalTimeline','clinicalDss','statistics','electronic-chart','case-management'].includes(requested))requested='dashboard';
   state.menu=requested;
+  if(requested==='interpretation'&&reservationId){
+    setAssessmentReservation(reservationId);
+    document.getElementById('assessment-report-request-status')?.scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
   render();
   if(reservationId){
     setTimeout(()=>{

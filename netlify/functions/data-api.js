@@ -197,7 +197,15 @@ exports.handler=async(event)=>{
       return response(400,{ok:false,code:'INVALID_KEY',error:'허용되지 않은 데이터 키입니다.'});
     }
     try{
-      const record=await store.get(key,{type:'json'});
+      let record;
+      try{
+        record=await store.get(key,{type:'json'});
+      }catch(error){
+        // Older Lambda contexts can omit the strong-read endpoint. Keep other
+        // storage errors visible; only this configuration error permits fallback.
+        if(!String(error?.message||error).includes("'uncachedEdgeURL' property"))throw error;
+        record=await store.get(key,{type:'json',consistency:'eventual'});
+      }
       if(record===null) return response(200,{ok:true,found:false,key});
       return response(200,{
         ok:true,
