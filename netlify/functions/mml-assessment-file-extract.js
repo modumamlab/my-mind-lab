@@ -80,8 +80,18 @@ function prompt(body){
 - JSON만 반환합니다.`;
 }
 
-function parseJson(text){
-  return JSON.parse(clean(text,40000).replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/```$/i,'').trim());
+function parseJson(text,finishReason){
+  if(finishReason==='MAX_TOKENS'){
+    throw new Error('AI 분석 응답이 길이 제한으로 중단되었습니다. 기존 자료는 유지됩니다. 잠시 후 다시 분석해 주세요.');
+  }
+  const normalized=String(text??'').trim().replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/```$/i,'').trim();
+  try{
+    const parsed=JSON.parse(normalized);
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('Invalid object');
+    return parsed;
+  }catch{
+    throw new Error('AI 분석 응답을 완성된 형식으로 받지 못했습니다. 기존 자료는 유지됩니다. 다시 분석해 주세요.');
+  }
 }
 
 export const handler=async(event)=>{
@@ -106,7 +116,7 @@ export const handler=async(event)=>{
           generationConfig:{
             temperature:0,
             topP:0.6,
-            maxOutputTokens:2600,
+            maxOutputTokens:8192,
             responseMimeType:'application/json',
             responseSchema:EXTRACT_SCHEMA,
             thinkingConfig:{thinkingBudget:0}
@@ -116,7 +126,7 @@ export const handler=async(event)=>{
       const data=await response.json().catch(()=>({}));
       const text=data?.candidates?.[0]?.content?.parts?.map(part=>part.text||'').join('\n').trim();
       if(!response.ok||!text)throw new Error(data?.error?.message||`문서 사실 추출 실패 (HTTP ${response.status})`);
-      const extracted=parseJson(text);
+      const extracted=parseJson(text,data?.candidates?.[0]?.finishReason);
       if(Array.isArray(extracted.mmpiScores)){
         const groups=new Set(['validity','clinical','rc','psy5','content','supplementary']);
         extracted.mmpiScores=extracted.mmpiScores.map(row=>({group:String(row?.group||'').toLowerCase(),code:clean(row?.code,30),scale:clean(row?.scale,100),rawScore:Number(row?.rawScore),tScore:Number(row?.tScore),source:clean(row?.source,160)})).filter(row=>groups.has(row.group)&&row.code&&Number.isFinite(row.tScore));

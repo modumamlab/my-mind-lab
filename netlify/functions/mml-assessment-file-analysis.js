@@ -58,7 +58,19 @@ ${clean(JSON.stringify(previous),12000)}
 }
 
 const listText=value=>Array.isArray(value)?value.map(v=>clean(v,2500)).filter(Boolean).join('\n'):clean(value);
-const parseJson=text=>JSON.parse(clean(text,50000).replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/```$/i,'').trim());
+function parseJson(text,finishReason){
+  if(finishReason==='MAX_TOKENS'){
+    throw new Error('AI 분석 응답이 길이 제한으로 중단되었습니다. 기존 자료는 유지됩니다. 잠시 후 다시 분석해 주세요.');
+  }
+  const normalized=String(text??'').trim().replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/```$/i,'').trim();
+  try{
+    const parsed=JSON.parse(normalized);
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('Invalid object');
+    return parsed;
+  }catch{
+    throw new Error('AI 분석 응답을 완성된 형식으로 받지 못했습니다. 기존 자료는 유지됩니다. 다시 분석해 주세요.');
+  }
+}
 
 export const handler=async(event)=>{
   if(event.httpMethod==='OPTIONS')return jsonResponse({},200);
@@ -80,13 +92,13 @@ export const handler=async(event)=>{
       const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,{
         method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,
         body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt(body)}]}],generationConfig:{
-          temperature:0.12,topP:0.78,maxOutputTokens:3600,responseMimeType:'application/json',responseSchema:SCHEMA,thinkingConfig:{thinkingBudget:0}
+          temperature:0.12,topP:0.78,maxOutputTokens:12288,responseMimeType:'application/json',responseSchema:SCHEMA,thinkingConfig:{thinkingBudget:0}
         }})
       });
       const data=await response.json().catch(()=>({}));
       const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n').trim();
       if(!response.ok||!text)throw new Error(data?.error?.message||`검사 해석 실패 (HTTP ${response.status})`);
-      result=parseJson(text);
+      result=parseJson(text,data?.candidates?.[0]?.finishReason);
     }finally{clearTimeout(timeoutId);}
 
     const facts=hasFacts?body.extractedFacts:(body.analysisSnapshot?.rawFacts||{});
